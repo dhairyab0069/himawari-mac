@@ -557,59 +557,6 @@ public enum MotionArtwork {
     }
 }
 
-/// A muted, looping video (local file or streamed), filling its frame.
-public struct LoopingVideo: NSViewRepresentable {
-    public let url: URL
-    public init(url: URL) { self.url = url }
-
-    public func makeNSView(context: Context) -> VideoView { VideoView(url: url) }
-    public func updateNSView(_ view: VideoView, context: Context) { view.show(url) }
-
-    public final class VideoView: NSView {
-        private let player = AVPlayer()
-        private var current: URL?
-        private var endObserver: NSObjectProtocol?
-
-        init(url: URL) {
-            super.init(frame: .zero)
-            wantsLayer = true
-            let layer = AVPlayerLayer(player: player)
-            layer.videoGravity = .resizeAspectFill
-            self.layer = layer
-            player.isMuted = true
-            player.preventsDisplaySleepDuringVideoPlayback = false
-            show(url)
-        }
-
-        required init?(coder: NSCoder) { fatalError() }
-
-        func show(_ url: URL) {
-            guard url != current else { return }
-            current = url
-            guard url.pathExtension == "m3u8" else { play(url); return }
-            // Covers are small: stream a size that fits (sharp enough, far lighter than 2160p).
-            let side = Int(max(bounds.width, bounds.height, 100) * (window?.backingScaleFactor ?? 2) * 1.5)
-            Task { @MainActor [weak self] in
-                let variant = await MotionArtwork.bestVariant(of: url, maxSide: side)
-                guard let self, self.current == url else { return }
-                self.play(variant)
-            }
-        }
-
-        private func play(_ url: URL) {
-            let item = AVPlayerItem(url: url)
-            if let endObserver { NotificationCenter.default.removeObserver(endObserver) }
-            endObserver = NotificationCenter.default.addObserver(forName: .AVPlayerItemDidPlayToEndTime, object: item,
-                                                                 queue: .main) { [weak player] _ in
-                player?.seek(to: .zero)
-                player?.play()
-            }
-            player.replaceCurrentItem(with: item)
-            player.play()
-        }
-    }
-}
-
 // MARK: - YouTube loops (fallback when an album has no motion artwork)
 
 /// Finds a song's video on YouTube and plays it muted (the whole video, starting
@@ -760,14 +707,3 @@ public final class YouTubeLoopView: NSView {
     }
 }
 
-/// SwiftUI wrapper for the YouTube loop.
-public struct YouTubeLoopCover: NSViewRepresentable {
-    public let ids: [String]
-    public var playing: Bool
-    public init(ids: [String], playing: Bool) { self.ids = ids; self.playing = playing }
-    public func makeNSView(context: Context) -> YouTubeLoopView { YouTubeLoopView(ids: ids) }
-    public func updateNSView(_ view: YouTubeLoopView, context: Context) {
-        view.show(ids)
-        view.setPlaying(playing)
-    }
-}

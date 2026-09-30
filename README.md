@@ -10,8 +10,17 @@
 </p>
 
 <p align="center">
-  <a href="https://github.com/dhairyab0069/himawari-mac/releases/latest/download/Himawari-1.1.1.dmg"><b>⬇︎ Download Himawari Beta 1.1.1 (DMG)</b></a>
+  <a href="https://github.com/dhairyab0069/himawari-mac/releases/latest/download/Himawari-1.2.dmg"><b>⬇︎ Download Himawari Beta 1.2 (DMG)</b></a>
   &nbsp;·&nbsp; macOS 14.4 or later &nbsp;·&nbsp; Apple Silicon and Intel
+</p>
+
+<p align="center">
+  <img src="docs/cd-and-gear.gif" width="720" alt="A song's cover printed on a spinning CD, with the CD deck on the left and the stereo analyzer on the right">
+</p>
+
+<p align="center">
+  <a href="https://dhairyab0069.github.io/himawari-io/">Project page</a> &nbsp;·&nbsp;
+  <a href="https://github.com/dhairyab0069/himawari-io/releases">All downloads</a>
 </p>
 
 ---
@@ -24,7 +33,7 @@
   - [Your wallpaper](#your-wallpaper)
   - [The music wallpaper](#the-music-wallpaper)
   - [Hide the desktop's files](#hide-the-desktops-files)
-- [The Desktop Shell (optional)](#the-desktop-shell-optional)
+  - [The desktop clock](#the-desktop-clock)
 - [Permissions](#permissions)
 - [Battery](#battery)
 - [How it works](#how-it-works)
@@ -45,21 +54,19 @@
 | **Retro hi-fi side gear** | Beside the artwork: a CD deck (fluorescent display, time, progress, transport, jog wheel) and a stereo analyzer whose VU needles and spectrum follow the actual music. |
 | **Spinning CD** | Songs without an animation get their cover wrapped onto a spinning CD, with a disc-changer transition between songs and little characters running along the bottom. |
 | **Click to hide files** | Click an empty spot on the desktop to see just the wallpaper; click again to bring the files back. |
-| **Desktop Shell** | Optional background services: XP taskbar and Start menu, iOS-style desktop folders, an interactive desktop clock, widgets, global hotkeys. |
+| **Desktop clock** | A big see-through clock that ticks with the system clock and adapts to what's behind it. Click it to change how it tells the time. |
 
 ## Install
 
-1. [Download the DMG](https://github.com/dhairyab0069/himawari-mac/releases/latest/download/Himawari-1.1.1.dmg) and open it.
+1. [Download the DMG](https://github.com/dhairyab0069/himawari-mac/releases/latest/download/Himawari-1.2.dmg) and open it.
 2. Drag **Himawari** onto **Applications**, then open it from Applications.
 3. The first time, macOS may say it can't check Himawari for malicious software: Himawari isn't notarized
    (that needs a paid Apple Developer ID). Either right-click Himawari ▸ **Open** ▸ **Open**, or go to
    **System Settings ▸ Privacy & Security** and click **Open Anyway**.
 
-Himawari lives in the menu bar (the sunflower icon). To uninstall, remove the Desktop Shell first if you
-installed it (see below), quit Himawari, and move it to the Trash.
+Himawari lives in the menu bar (the sunflower icon). To uninstall, quit Himawari and move it to the Trash.
 
-> **Note:** this repository is private; the public download and project page are at
-> [dhairyab0069.github.io/himawari-io](https://dhairyab0069.github.io/himawari-io/).
+Downloads are also on the [project page](https://dhairyab0069.github.io/himawari-io/).
 
 ## Using Himawari
 
@@ -67,13 +74,15 @@ Everything is in the menu-bar icon's menu.
 
 ### Your wallpaper
 
+<p align="center"><img src="docs/live-wallpaper.gif" width="640" alt="A moving video wallpaper with the desktop clock in the corner"></p>
+
 | Menu item | What it does |
 |---|---|
 | **Choose Video…** | Picks the wallpaper video. It always fills the whole screen. |
 | **Pause / Resume**, **Mute**, **Volume** | Playback controls. Wallpapers are muted by default. |
 | **Pause When Desktop Is Covered** | Stops decoding video nobody can see. |
 | **Pause on Battery** | Pauses the wallpaper on battery power. |
-| **Show Desktop Clock** (⌃⌥⌘C) | Shows or hides the desktop clock, when the Desktop Shell is installed. |
+| **Show Desktop Clock** (⌃⌥⌘C) | Shows or hides the desktop clock. |
 | **Moving Lock Screen** | Off by default. Your video, moving, on the lock screen and as the screen saver: macOS only moves its Aerial wallpapers there, so Himawari swaps the video of the Aerials you've picked in System Settings ▸ Wallpaper for yours, converted to exactly Apple's format (4K HEVC, 10-bit, 240 fps, each Aerial's length). Converting takes about 5× the Aerial's length, once per video. Apple's originals are kept and restored when it's off; if macOS restores one, it's swapped again. macOS still decides when the lock screen moves (on battery it may pause). |
 | **Show Wallpaper on Lock Screen (Still)** | Off by default. macOS doesn't let apps draw on the lock screen, so Himawari sets a still frame of your video as the macOS wallpaper picture, which the lock and login screens show. It updates when you choose a new video; turning it off puts your previous picture back. |
 | **Show in Dock**, **Launch at Login** | Where and when Himawari appears. |
@@ -82,6 +91,8 @@ Himawari never keeps your Mac awake. `.webm` files won't play; convert them with
 `ffmpeg -i in.webm -c:v h264_videotoolbox -b:v 8M -an out.mp4`.
 
 ### The music wallpaper
+
+<p align="center"><img src="docs/animated-cover.gif" width="640" alt="An album's animated cover playing as the wallpaper"></p>
 
 Turn on **Use Apple Music Artwork While Playing**. While a song plays in Music:
 
@@ -121,32 +132,20 @@ and folders disappear and it's just the wallpaper, music playing or not. Click t
 bring them back. Clicks on files, selection rectangles and double-clicks work as usual. You can also use
 **Hide Desktop Files** in the menu, or **⌃⌥⌘D** from anywhere.
 
-## The Desktop Shell (optional)
+### The desktop clock
 
-Five background services that restyle the desktop. They run on their own (started at login by
-`launchd`, restarted if they crash), have no Dock or menu-bar icons, and don't depend on Himawari.
+<p align="center"><img src="docs/clock-formats.gif" width="640" alt="Right-clicking the desktop clock and switching its format"></p>
 
-**Install** from **Himawari menu ▸ Desktop Shell ▸ Install…**, and remove it the same way. Your Dock and
-Finder's desktop icons come back when it's removed. Settings live in **Start ▸ Desktop Settings**.
+A big see-through clock on the desktop, running with Himawari (it's a small helper app inside
+Himawari.app). **Left-click** cycles 12-hour → 24-hour → Swatch Internet Time (.beats) → French
+decimal time → in words ("quarter past six"). **Right-click** for format, seconds, date, size, style
+(Aero glass, fluorescent display, rounded, serif), position, or Hide. Hidden, it comes back with
+**⌃⌥⌘C** from anywhere, or **Himawari menu ▸ Show Desktop Clock**. It ticks exactly with the system
+clock, and its text adapts to whatever is behind it: the clock tells Himawari where it sits, and
+Himawari measures exactly that spot of the wallpaper.
 
-| Service | What it does |
-|---|---|
-| **XP Taskbar** | A Windows XP taskbar in place of the Dock, hidden in full-screen apps (push the pointer against the bottom edge to reveal it). **Start** (the Apple logo, or tap **⌥ Option**) opens an XP Start menu with pinned and frequent apps, All Programs, search (apps instantly, files via Spotlight), recent documents, your folders, Desktop Settings and Turn Off Computer, fully keyboard-driven. One button per open app, an XP-style **Downloads** window, a tray clock. Also a **window tiler** that keeps app windows out of the taskbar, widget and folder strips. |
-| **Desktop Folders** | Every folder on your Desktop as an iOS-style folder (loose files grouped by type). Drag tiles to rearrange; click to zoom open. |
-| **Desktop Clock** | A big see-through clock. **Left-click** cycles 12-hour → 24-hour → Swatch Internet Time (.beats) → French decimal time → in words ("quarter past six"). **Right-click** for format, seconds, date, size, style (Aero glass, fluorescent display, rounded, serif), position, or Hide. Hidden, it comes back with **⌃⌥⌘C** from anywhere, or **Himawari menu ▸ Show Desktop Clock**. It ticks exactly with the system clock, and its text adapts to whatever is behind it. |
-| **Desktop Widgets** | An Aero panel: Now Playing (with the album's animation), calendar, battery, CPU and memory, storage. Dock it to any edge. |
-| **Desktop Hotkeys** | **⌘⌃T** opens a Ghostty terminal on the current Space (the Quick Terminal over full-screen apps); **tap ⌥ Option** for Start. |
-
-From a source checkout you can also control each service with `desktopctl`:
-
-```bash
-desktopctl status              # what's running
-desktopctl stop    taskbar     # stop now (starts again at next login)
-desktopctl start   taskbar
-desktopctl restart all
-desktopctl disable clock       # stop, and don't start at login
-desktopctl enable  clock
-```
+> Looking for the XP taskbar, Start menu, desktop folders and widgets? They're now their own
+> project: **[Desktop Shell](https://github.com/dhairyab0069/desktop-shell-mac)**.
 
 ## Permissions
 
@@ -157,9 +156,6 @@ macOS asks once for each of these, the first time it's needed.
 | Himawari | **Automation ▸ Music** | Reads what's playing and the album cover. |
 | Himawari | **Automation ▸ Finder** | Checks whether a desktop click landed on a file (click to hide files). |
 | Himawari | **System Audio Recording Only** | Measures the music's loudness for the VU meters. Nothing is recorded; decline and the meters animate on their own. |
-| Desktop Folders | **Desktop folder** | Shows your folders. |
-| XP Taskbar | **Accessibility**, **Downloads folder** | The window tiler and Start search; the Downloads window. |
-| Desktop Hotkeys | **Accessibility** | Notices a tap of ⌥ Option anywhere; opens Ghostty's Quick Terminal over full-screen apps. |
 
 Missed a prompt? Turn it on in **System Settings ▸ Privacy & Security**, then quit and reopen the app.
 
@@ -170,13 +166,17 @@ Battery Saver turns on by itself on battery or in Low Power Mode:
 - The wallpaper pauses while windows cover most of the screen (only with **Pause When Desktop Is Covered** on), and music artwork streams at 1080p.
 - YouTube loops and the blurred fill are skipped; the side gear's motion, the CD's runners and the
   luster's drift rest (changing discs still slides: it's a one-second animation).
-- Widgets and folder tiles drop live blur; background checks run half as often.
+- Background checks run half as often.
 
 Always, regardless of power: a muted wallpaper never decodes its audio; the side gear and its audio
 measuring run only while you can see the desktop and a song is playing; animations run at low frame
 rates in the window server. Himawari idles at well under 1% CPU.
 
 ## How it works
+
+<p align="center"><img src="docs/architecture.svg" width="900" alt="Music, Apple's catalog, a Core Audio tap and the power state feed Himawari's modules; the WallpaperManager draws the wallpaper windows and answers the clock; the gear's click catchers send commands back to Music"></p>
+
+<p align="center"><img src="docs/layers.svg" width="820" alt="Window layers from front to back: your apps; the clock and click catchers; Finder's icons; Himawari's wallpaper windows; the desktop picture"></p>
 
 - **Song timing** comes from the system's Now Playing state (what Control Center shows), pushed the
   instant you play, pause, seek or skip, within about 0.05 s of Music. macOS lets only Apple's own
@@ -202,30 +202,29 @@ rates in the window server. Himawari idles at well under 1% CPU.
 Requires Xcode (Swift 5.10 or later) on macOS 14.4 or later.
 
 ```bash
-./install.sh                    # build, then install/update Himawari and the Desktop Shell
-./install.sh --uninstall-shell  # remove the Desktop Shell services
-scripts/make_dmg.sh             # build the shareable DMG → build/Himawari-<version>.dmg (universal)
+./install.sh          # build, then install / update /Applications/Himawari.app
+scripts/make_dmg.sh   # build the shareable DMG → build/Himawari-<version>.dmg (universal)
 ```
 
 Builds are signed with a local identity (`tools/make_signing_identity.sh`) so the permissions you
-grant survive rebuilds. `install.sh` never turns back on a service you disabled.
+grant survive rebuilds.
 
-Logs: `~/Library/Logs/Himawari.log` and `~/Library/Logs/Desktop Shell/<service>.log`.
+Logs: `~/Library/Logs/Himawari.log`.
 
 ## Project layout
 
 | Path | Contents |
 |---|---|
-| `Sources/Himawari/` | The wallpaper app. `WallpaperManager` (what's on the wallpaper, and when), `VideoCanvas` (one screen's video and its bars), `MusicScene` + `DiscPrint` (the CD), `NowPlayingSides` (the side gear), `AudioLevels` (the audio tap), `ToneReporter` (clock contrast), `DesktopPeek` (click to hide files), `PlaybackMonitor` (pause rules), `AppDelegate` (menus), `Settings`, `Log`. |
+| `Sources/Himawari/` | The wallpaper app. `ClockHelper` (runs the desktop clock), `GearControls` (the playable gear and CD), `LockScreen` + `MovingLockScreen`, `WallpaperManager` (what's on the wallpaper, and when), `VideoCanvas` (one screen's video and its bars), `MusicScene` + `DiscPrint` (the CD), `NowPlayingSides` (the side gear), `AudioLevels` (the audio tap), `ToneReporter` (clock contrast), `DesktopPeek` (click to hide files), `PlaybackMonitor` (pause rules), `AppDelegate` (menus), `Settings`, `Log`. |
 | `Sources/HimawariKit/` | Shared code: `Settings` (one preferences domain plus a change broadcast), `NowPlaying` + `SystemNowPlaying` (Apple Music), `WallpaperTone` (brightness readings), `DesktopLayout` (the tiling map), `DesktopWindow` (desktop-level windows), `PowerState`, `AeroStyle`. |
-| `Sources/HimawariTaskbar/`, `HimawariFolders/`, `HimawariClock/`, `HimawariWidgets/`, `HimawariHotkeys/` | The Desktop Shell services. |
+| `Sources/HimawariClock/` | The desktop clock (a helper app inside Himawari.app). |
 | `helpers/NowPlayingHelper.m` | The system Now Playing stream. |
-| `scripts/` | `shell.sh` (installs / removes the services), `make_dmg.sh`. |
+| `scripts/` | `make_dmg.sh`. |
 | `tools/` | The app icon and the signing identity. |
 | `maintenance/` | The weekly bot. |
 
-Window layers, counted up from the system wallpaper: video +1, Finder's icons +20, clock, folders and
-widgets +22, an open folder +23; app windows above those; the taskbar at the Dock's level.
+Window layers, counted up from the system wallpaper: video +1, Finder's icons +20, the clock and the
+gear's click catchers +22; app windows above those (see the diagram above).
 
 ## Weekly maintenance bot
 

@@ -1,12 +1,7 @@
 #!/bin/bash
-# Builds everything into build/:
-#   build/Himawari.app                         the live wallpaper (only that)
-#   build/Desktop Shell/Desktop Folders.app  iOS-style desktop folders   ┐
-#   build/Desktop Shell/Desktop Clock.app    the desktop clock           │ background services,
-#   build/Desktop Shell/Desktop Widgets.app  floating widget panel       │ independent of Himawari
-#   build/Desktop Shell/XP Taskbar.app       taskbar, Start, Downloads   │
-#   build/Desktop Shell/Desktop Hotkeys.app  ⌘⌃T → Ghostty, anywhere     ┘
-# Run ./install.sh to install them (it calls this first).
+# Builds build/Himawari.app: the live wallpaper, with its desktop clock inside
+# (Contents/Helpers/Desktop Clock.app, which Himawari starts and stops).
+# Run ./install.sh to install it (it calls this first).
 set -euo pipefail
 cd "$(dirname "$0")"
 
@@ -58,7 +53,7 @@ make_app() {
     <key>LSMinimumSystemVersion</key><string>14.4</string>
     <key>LSUIElement</key><true/>
     <key>NSAudioCaptureUsageDescription</key><string>$name measures how loud the song Music is playing is, to move the VU meters and spectrum on the wallpaper. Nothing is recorded.</string>
-    <key>NSAppleEventsUsageDescription</key><string>$name opens Ghostty windows for you (⌘⌃T) and shows / controls what Music is playing.</string>
+    <key>NSAppleEventsUsageDescription</key><string>$name shows and controls what Music is playing.</string>
 </dict></plist>
 PLIST
     codesign --force --sign "$IDENTITY" "$app" 2>/dev/null
@@ -76,19 +71,11 @@ codesign --force --sign "$IDENTITY" build/Himawari.app/Contents/Resources/NowPla
 codesign --force --sign "$IDENTITY" build/Himawari.app
 rm build/Himawari.Info.plist.tmp
 
-SHELL_DIR="build/Desktop Shell"
-mkdir -p "$SHELL_DIR"
-make_app "$SHELL_DIR/Desktop Folders.app" HimawariFolders "Desktop Folders" local.dhairyabhatia.desktop.folders
-make_app "$SHELL_DIR/Desktop Clock.app"   HimawariClock   "Desktop Clock"   local.dhairyabhatia.desktop.clock
-make_app "$SHELL_DIR/Desktop Widgets.app" HimawariWidgets "Desktop Widgets" local.dhairyabhatia.desktop.widgets
-make_app "$SHELL_DIR/XP Taskbar.app"      HimawariTaskbar "XP Taskbar"      local.dhairyabhatia.desktop.taskbar
-make_app "$SHELL_DIR/Desktop Hotkeys.app" HimawariHotkeys "Desktop Hotkeys" local.dhairyabhatia.desktop.hotkeys
-
-# Himawari carries the services and their installer, so its "Desktop Shell" menu can set them up
-# on any Mac (this is how the DMG version installs them).
-mkdir -p "build/Himawari.app/Contents/Resources/Desktop Shell"
-cp -R "$SHELL_DIR"/*.app "build/Himawari.app/Contents/Resources/Desktop Shell/"
-cp scripts/shell.sh build/Himawari.app/Contents/Resources/shell.sh
+# The desktop clock, as a helper app inside Himawari.app.
+make_app build/DesktopClock.tmp.app HimawariClock "Desktop Clock" local.dhairyabhatia.desktop.clock
+mkdir -p build/Himawari.app/Contents/Helpers
+rm -rf "build/Himawari.app/Contents/Helpers/Desktop Clock.app"
+mv build/DesktopClock.tmp.app "build/Himawari.app/Contents/Helpers/Desktop Clock.app"
 codesign --force --sign "$IDENTITY" build/Himawari.app
 
-echo "Built build/Himawari.app and build/Desktop Shell/ (5 services). Install with ./install.sh"
+echo "Built build/Himawari.app (with its desktop clock). Install with ./install.sh"

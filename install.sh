@@ -1,18 +1,9 @@
 #!/bin/bash
-# Installs (or updates) everything:
-#   /Applications/Himawari.app                               the live wallpaper (a normal app)
-#   ~/Library/Application Support/Desktop Shell/*.app      the 5 background services
-#   ~/Library/LaunchAgents/local.dhairyabhatia.desktop.*   start them at login, restart on crash
-#
-#   ./install.sh                    build + install/update everything
-#   ./install.sh --uninstall-shell  remove the 5 services (gives back the Dock and Finder's icons)
+# Builds and installs (or updates) /Applications/Himawari.app, the live wallpaper and its
+# desktop clock. (The XP taskbar, desktop folders, widgets and hotkeys are the separate
+# Desktop Shell project: https://github.com/dhairyab0069/desktop-shell-mac)
 set -euo pipefail
 cd "$(dirname "$0")"
-
-if [ "${1:-}" = "--uninstall-shell" ]; then
-    scripts/shell.sh uninstall
-    exit 0
-fi
 
 ./build.sh
 
@@ -56,8 +47,4 @@ rm -rf /Applications/Himawari.app
 cp -R build/Himawari.app /Applications/
 open /Applications/Himawari.app
 
-# --- The Desktop Shell services: hidden apps started by launchd ---
-scripts/shell.sh install "build/Desktop Shell"
-
-echo "Installed: Himawari (wallpaper) + Desktop Shell services: folders, clock, widgets, taskbar, hotkeys."
-echo "Control them with:  desktopctl status | stop | start | restart | disable | enable  <service|all>"
+echo "Installed: Himawari (with its desktop clock)."

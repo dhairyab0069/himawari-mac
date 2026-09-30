@@ -1,0 +1,24 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1000 400" role="img" aria-label="Himawari's window layers, front to back: your apps; the desktop clock and the gear's click catchers; Finder's desktop icons; Himawari's wallpaper windows; the macOS desktop picture. When files are hidden, the wallpaper rises above the icons.">
+  <defs>
+    <marker id="a" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0 0L10 5L0 10z" fill="#c77d00"/></marker>
+    <style>
+      text{font-family:-apple-system,"Helvetica Neue",Helvetica,Arial,sans-serif;fill:#1d1a14}
+      .t{font-size:14px;font-weight:600}.s{font-size:11px;fill:#6b6356}.h{font-size:12px;font-weight:700;letter-spacing:.12em;fill:#8a6a1c}.lv{font-family:"SF Mono",Menlo,monospace;font-size:11px;fill:#8a6a1c}
+    </style>
+  </defs>
+  <rect width="1000" height="400" rx="18" fill="#fbf7ee"/>
+  <text x="30" y="36" class="h">FRONT</text><text x="30" y="372" class="h">BACK</text>
+  <line x1="52" y1="48" x2="52" y2="350" stroke="#c9bd9f" stroke-width="2" marker-start="url(#a)"/>
+  <g>
+    <rect x="80" y="50" width="600" height="50" rx="10" fill="#fff" stroke="#d9cfb9"/><text x="98" y="72" class="t">Your apps</text><text x="98" y="89" class="s">normal windows, always in front</text><text x="560" y="80" class="lv">normal</text>
+    <rect x="80" y="110" width="600" height="50" rx="10" fill="#fff4dc" stroke="#e5b659"/><text x="98" y="132" class="t">Desktop Clock · the gear's click catchers</text><text x="98" y="149" class="s">small windows only where there's something to click</text><text x="560" y="140" class="lv">desktop + 22</text>
+    <rect x="80" y="170" width="600" height="50" rx="10" fill="#fff" stroke="#d9cfb9"/><text x="98" y="192" class="t">Finder's desktop icons</text><text x="98" y="209" class="s">your files, clickable as usual</text><text x="560" y="200" class="lv">desktop icons</text>
+    <rect x="80" y="230" width="600" height="50" rx="10" fill="#fff4dc" stroke="#e5b659"/><text x="98" y="252" class="t">Himawari's wallpaper windows</text><text x="98" y="269" class="s">video, animated cover, CD and rack gear; clicks pass through</text><text x="560" y="260" class="lv">desktop + 1</text>
+    <rect x="80" y="290" width="600" height="50" rx="10" fill="#eef4ff" stroke="#9db8e8"/><text x="98" y="312" class="t">macOS desktop picture</text><text x="98" y="329" class="s">what the lock screen shows (a still frame, if you turn it on)</text><text x="560" y="320" class="lv">desktop</text>
+  </g>
+  <path d="M690 255 C 760 255, 760 195, 700 195" fill="none" stroke="#c77d00" stroke-width="1.6" stroke-dasharray="5 4" marker-end="url(#a)"/>
+  <text x="772" y="212" class="t" style="fill:#c77d00">Hide Desktop Files</text>
+  <text x="772" y="230" class="s">(click an empty spot, or ⌃⌥⌘D):</text>
+  <text x="772" y="246" class="s">the wallpaper rises just above</text>
+  <text x="772" y="262" class="s">the icons; click it to go back</text>
+</svg>

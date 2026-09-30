@@ -1,7 +1,6 @@
 #!/bin/bash
-# Builds build/Himawari-<version>.dmg to share: a universal (Apple Silicon + Intel) Himawari.app,
-# with the Desktop Shell inside it (Himawari menu ▸ Desktop Shell ▸ Install), an Applications
-# shortcut to drag it onto, and a Read Me.
+# Builds build/Himawari-<version>.dmg to share: a universal (Apple Silicon + Intel) Himawari.app
+# (with its desktop clock inside), an Applications shortcut to drag it onto, and a Read Me.
 #
 #   scripts/make_dmg.sh
 #
@@ -45,15 +44,13 @@ USE
   other apps" (only to measure the music's loudness for the meters; nothing is
   recorded).
 
-OPTIONAL: THE DESKTOP SHELL
-  Himawari menu ▸ Desktop Shell ▸ Install… adds background services that
-  restyle the desktop: an XP taskbar and Start menu in place of the Dock,
-  iOS-style desktop folders, a big desktop clock, a widget panel, and ⌘⌃T for
-  a Ghostty terminal. Remove it from the same menu any time.
+THE DESKTOP CLOCK
+  A see-through clock on the desktop that runs with Himawari. Left-click it to
+  change how it tells the time, right-click for options. Show or hide it from
+  the Himawari menu, or with ⌃⌥⌘C from anywhere.
 
 UNINSTALL
-  Remove the Desktop Shell first (if installed), quit Himawari, and move it to
-  the Trash.
+  Quit Himawari and move it to the Trash.
 TXT
 
 # A writable image first, to lay out the window (big icons, app next to Applications).

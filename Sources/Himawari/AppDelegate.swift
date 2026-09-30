@@ -6,8 +6,7 @@ import ServiceManagement
 import UniformTypeIdentifiers
 
 /// Himawari is only the live wallpaper: the menu-bar icon, the optional Dock icon,
-/// and the wallpaper controls in their menus. The desktop folders, clock,
-/// widgets and XP taskbar are separate background apps ("Desktop Shell").
+/// and the wallpaper controls in their menus. The desktop clock is a helper app it runs.
 @MainActor
 final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     private var statusItem: NSStatusItem!
@@ -25,6 +24,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     private var pauseGrace: DispatchWorkItem?
     private static let pauseGraceSeconds: TimeInterval = 3
     private let settings = Settings.shared
+    private let clock = ClockHelper()
     /// Music's volume, repeat, shuffle and tone, as last read (the side gear shows them).
     private var deck: MusicNowPlaying.Deck?
     private var deckTimer: Timer?
@@ -32,7 +32,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     private var lastToneSent: CFTimeInterval = 0
     private var finalTone: DispatchWorkItem?
 
+    func applicationWillTerminate(_ notification: Notification) {
+        clock.stop()
+    }
+
     func applicationDidFinishLaunching(_ notification: Notification) {
+        clock.start()
         statusItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.squareLength)
         let menu = NSMenu()
         menu.delegate = self // rebuilt every time it opens, so checkmarks are always current
@@ -397,19 +402,15 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         let moving = MovingLockScreen.shared.status
         menu.addItem(item("Moving Lock Screen" + (moving.isEmpty ? "" : " (\(moving))"), #selector(toggleMovingLockScreen),
                           checked: settings.movingLockScreen))
-        if shellInstalled {
-            let clock = item("Show Desktop Clock", #selector(toggleDesktopClock), key: "c", checked: HimawariKit.Settings.shared.showClock)
-            clock.keyEquivalentModifierMask = [.command, .option, .control]
-            menu.addItem(clock)
-        }
+        let clock = item("Show Desktop Clock", #selector(toggleDesktopClock), key: "c", checked: HimawariKit.Settings.shared.showClock)
+        clock.keyEquivalentModifierMask = [.command, .option, .control]
+        menu.addItem(clock)
         menu.addItem(item("Pause When Desktop Is Covered", #selector(toggleCovered), checked: settings.pauseWhenCovered))
         menu.addItem(item("Pause on Battery", #selector(toggleBattery), checked: settings.pauseOnBattery))
-        menu.addItem(desktopShellItem())
         menu.addItem(item("Show in Dock", #selector(toggleDock), checked: settings.showInDock))
         menu.addItem(item("Launch at Login", #selector(toggleLaunchAtLogin),
                           checked: SMAppService.mainApp.status == .enabled))
-        let note = NSMenuItem(title: "Desktop folders, clock, widgets & taskbar: Start ▸ Desktop Settings",
-                              action: nil, keyEquivalent: "")
+        let note = NSMenuItem(title: "Clock options: right-click the clock", action: nil, keyEquivalent: "")
         note.isEnabled = false
         menu.addItem(note)
 
@@ -498,91 +499,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         wallpaper.setVolume(settings.volume, muted: settings.muted)
     }
 
-    // MARK: - Desktop Shell (the optional background services, carried inside Himawari.app)
-
-    private var shellScript: URL? { Bundle.main.url(forResource: "shell", withExtension: "sh") }
-    private var shellInstalled: Bool {
-        FileManager.default.fileExists(atPath: NSHomeDirectory() + "/Library/Application Support/Desktop Shell/Desktop Clock.app")
-    }
-
-    private func desktopShellItem() -> NSMenuItem {
-        let entry = NSMenuItem(title: "Desktop Shell", action: nil, keyEquivalent: "")
-        let sub = NSMenu()
-        if shellScript == nil {
-            let none = NSMenuItem(title: "Not included in this build", action: nil, keyEquivalent: "")
-            none.isEnabled = false
-            sub.addItem(none)
-        } else if shellInstalled {
-            sub.addItem(item("Update Desktop Shell", #selector(updateShell)))
-            sub.addItem(item("Remove Desktop Shell…", #selector(removeShell)))
-        } else {
-            sub.addItem(item("Install Desktop Shell…", #selector(installShell)))
-        }
-        entry.submenu = sub
-        return entry
-    }
+    // MARK: - The desktop clock (a helper app inside Himawari.app, running while Himawari does)
 
     @objc private func toggleDesktopClock() {
         HimawariKit.Settings.shared.showClock.toggle()
         HimawariKit.Settings.broadcastChange()
-    }
-
-    @objc private func installShell() {
-        let alert = NSAlert()
-        alert.messageText = "Install the Desktop Shell?"
-        alert.informativeText = """
-        Five background services that restyle your desktop (each can be turned off later with \
-        Start ▸ Desktop Settings, and all of it removed from this menu):
-
-        • XP taskbar and Start menu in place of the Dock (tap ⌥ Option for Start)
-        • iOS-style desktop folders in place of Finder's desktop icons
-        • A big see-through desktop clock
-        • A widget panel: Now Playing, calendar, battery, CPU, storage
-        • ⌘⌃T opens a Ghostty terminal (if you use Ghostty)
-
-        macOS will ask for Accessibility and folder access the first time they need it.
-        """
-        alert.addButton(withTitle: "Install")
-        alert.addButton(withTitle: "Cancel")
-        guard alert.runModal() == .alertFirstButtonReturn else { return }
-        runShell(["install", Bundle.main.resourceURL!.appending(path: "Desktop Shell").path], done: "The Desktop Shell is installed.")
-    }
-
-    @objc private func updateShell() {
-        runShell(["install", Bundle.main.resourceURL!.appending(path: "Desktop Shell").path], done: "The Desktop Shell is up to date.")
-    }
-
-    @objc private func removeShell() {
-        let alert = NSAlert()
-        alert.messageText = "Remove the Desktop Shell?"
-        alert.informativeText = "The taskbar, folders, clock, widgets and hotkeys stop and are deleted. Your Dock and Finder's desktop icons come back. The wallpaper stays."
-        alert.addButton(withTitle: "Remove")
-        alert.addButton(withTitle: "Cancel")
-        guard alert.runModal() == .alertFirstButtonReturn else { return }
-        runShell(["uninstall"], done: "The Desktop Shell was removed.")
-    }
-
-    /// Runs the bundled shell.sh off the main thread, then reports how it went.
-    private func runShell(_ arguments: [String], done message: String) {
-        guard let script = shellScript else { return }
-        DispatchQueue.global(qos: .userInitiated).async {
-            let p = Process()
-            p.executableURL = URL(fileURLWithPath: "/bin/bash")
-            p.arguments = [script.path] + arguments
-            let pipe = Pipe()
-            p.standardOutput = pipe
-            p.standardError = pipe
-            try? p.run()
-            p.waitUntilExit()
-            let output = String(data: pipe.fileHandleForReading.readDataToEndOfFile(), encoding: .utf8) ?? ""
-            let ok = p.terminationStatus == 0
-            DispatchQueue.main.async {
-                let alert = NSAlert()
-                alert.messageText = ok ? message : "That didn't work"
-                alert.informativeText = ok ? "" : String(output.suffix(800))
-                alert.runModal()
-            }
-        }
     }
 
     /// Just the wallpaper, or the files back (the same as clicking the desktop / the wallpaper).

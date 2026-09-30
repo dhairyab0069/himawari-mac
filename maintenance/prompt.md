@@ -1,8 +1,6 @@
 You are the weekly maintenance bot for this directory: a Swift Package (AppKit + SwiftUI +
-AVFoundation) for a personal Mac. It builds Himawari (a live video wallpaper app) and the
-"Desktop Shell": five background services sharing the HimawariKit library (desktop folders,
-desktop clock, widget panel, a Windows XP-style taskbar that replaces the Dock, and a
-global-hotkey service).
+AVFoundation) for a personal Mac. It builds Himawari (a live video wallpaper app) and its
+desktop clock (a helper app), which share the HimawariKit library.
 README.md describes every file. Dependencies (Homebrew, Ghostty, Rust) were already updated
 before you started.
 

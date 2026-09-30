@@ -1,7 +1,7 @@
 import AppKit
 
-/// Everything the user can change, shared by every Himawari process (the
-/// wallpaper app and the folders / clock / taskbar background services).
+/// Everything the user can change, shared by Himawari and its desktop clock (and, if it's
+/// installed, the separate Desktop Shell, which uses the same domain).
 ///
 /// All of them read and write one preferences domain. After a change, call
 /// `Settings.broadcastChange()`; every process listening with
@@ -27,17 +27,6 @@ public final class Settings {
             "clockPosition": ClockPosition.topCenter.rawValue,
             "clock24h": false,
             "clockSeconds": false,
-            "showWidgets": true,
-            "showFolders": true,
-            "foldersIncludeDownloads": false,
-            "widgetsCollapsed": false,
-            "widgetEdge": WidgetEdge.right.rawValue,
-            "keepWindowsClear": true,
-            "showTaskbar": true,
-            "ghosttyHotkey": true,
-            "optionOpensStart": true,
-            "showNowPlaying": true,
-            "youtubeLoops": true,
         ])
     }
 
@@ -63,20 +52,6 @@ public final class Settings {
             }
         }
     }
-
-    /// Ask the taskbar service to open (or close) the Start menu.
-    public static func requestStartMenu() {
-        DistributedNotificationCenter.default().postNotificationName(startMenu, object: nil, userInfo: nil, deliverImmediately: true)
-    }
-
-    @MainActor
-    public static func onStartMenuRequest(_ block: @escaping @MainActor () -> Void) {
-        DistributedNotificationCenter.default().addObserver(forName: startMenu, object: nil, queue: .main) { _ in
-            onMainActor { block() }
-        }
-    }
-
-    private static let startMenu = Notification.Name("local.dhairyabhatia.desktop.startMenu")
 
     // MARK: - Raw access (for values other processes write)
 
@@ -189,84 +164,11 @@ public final class Settings {
         set { defaults.set(newValue, forKey: "clockSeconds") }
     }
 
-    // MARK: - Widgets (wallpaper app)
-
-    public var showWidgets: Bool {
-        get { bool("showWidgets") }
-        set { defaults.set(newValue, forKey: "showWidgets") }
-    }
-
-    public var widgetsCollapsed: Bool {
-        get { bool("widgetsCollapsed") }
-        set { defaults.set(newValue, forKey: "widgetsCollapsed") }
-    }
-
-    public var widgetEdge: WidgetEdge {
-        get { WidgetEdge(rawValue: string("widgetEdge") ?? "") ?? .right }
-        set { defaults.set(newValue.rawValue, forKey: "widgetEdge") }
-    }
-
-    /// The Now Playing widget (Apple Music, with its looping motion artwork).
-    public var showNowPlaying: Bool {
-        get { bool("showNowPlaying") }
-        set { defaults.set(newValue, forKey: "showNowPlaying") }
-    }
-
-    /// No Apple Music motion artwork? Loop the middle of the song's YouTube video instead.
-    public var youtubeLoops: Bool {
-        get { bool("youtubeLoops") }
-        set { defaults.set(newValue, forKey: "youtubeLoops") }
-    }
-
-    // MARK: - Folders service
-
-    public var showFolders: Bool {
-        get { bool("showFolders") }
-        set { defaults.set(newValue, forKey: "showFolders") }
-    }
-
-    public var foldersIncludeDownloads: Bool {
-        get { bool("foldersIncludeDownloads") }
-        set { defaults.set(newValue, forKey: "foldersIncludeDownloads") }
-    }
-
-    // MARK: - Taskbar service
-
-    /// The Windows XP taskbar in place of the Dock.
-    public var showTaskbar: Bool {
-        get { bool("showTaskbar") }
-        set { defaults.set(newValue, forKey: "showTaskbar") }
-    }
-
-    /// ⌃T opens Ghostty from anywhere.
-    public var ghosttyHotkey: Bool {
-        get { bool("ghosttyHotkey") }
-        set { defaults.set(newValue, forKey: "ghosttyHotkey") }
-    }
-
-    /// Tapping ⌥ Option on its own opens the Start menu, like the Windows key.
-    public var optionOpensStart: Bool {
-        get { bool("optionOpensStart") }
-        set { defaults.set(newValue, forKey: "optionOpensStart") }
-    }
-
-    /// Tile app windows so they never overlap the widgets, folders or taskbar (needs Accessibility).
-    public var keepWindowsClear: Bool {
-        get { bool("keepWindowsClear") }
-        set { defaults.set(newValue, forKey: "keepWindowsClear") }
-    }
 }
 
 /// Holds the pending coalesced callback. Only ever touched on the main thread.
 private final class Debounce: @unchecked Sendable {
     var pending: DispatchWorkItem?
-}
-
-/// Which screen edge the widget panel is docked to. Left/right = a vertical
-/// column; top/bottom = a horizontal strip.
-public enum WidgetEdge: String, CaseIterable {
-    case right = "Right", left = "Left", top = "Top", bottom = "Bottom"
-    public var isVertical: Bool { self == .left || self == .right }
 }
 
 public enum ClockFormat: String, CaseIterable {

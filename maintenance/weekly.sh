@@ -7,7 +7,7 @@
 #   2. Claude Code checks the project against the current macOS / Swift and
 #      fixes only what's broken or deprecated. It may edit files and run
 #      builds, nothing else.
-#   3. Everything is rebuilt (Himawari + the 5 Desktop Shell services). If that
+#   3. Himawari (with its desktop clock) is rebuilt. If that
 #      passes and code changed, it's committed and reinstalled (./install.sh).
 #      If the build fails, every change is rolled back.
 #   4. You get a notification, and a log in maintenance/logs/.
@@ -73,11 +73,10 @@ fi
 
 git add -A
 git -c user.name="Himawari maintenance bot" -c user.email="bhatia.dh@northeastern.edu" \
-    commit -qm "Weekly maintenance $(date +%Y-%m-%d)" \
-    -m "Co-Authored-By: Claude Opus 5 <noreply@anthropic.com>"
+    commit -qm "Weekly maintenance $(date +%Y-%m-%d)"
 echo "Committed: $(git log --oneline -1)"
 
-# Install the new build: Himawari + the services. (After a code change macOS asks
+# Install the new build. (After a code change macOS asks
 # again once for Desktop / Accessibility access: the apps are ad-hoc signed, so
 # every new build looks like a new app to it.)
 ./install.sh
