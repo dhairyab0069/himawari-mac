@@ -1,7 +1,6 @@
 import AppKit
 
-/// Everything the user can change, shared by Himawari and its desktop clock (and, if it's
-/// installed, the separate Desktop Shell, which uses the same domain).
+/// Everything the user can change, shared by Himawari and its desktop clock.
 ///
 /// All of them read and write one preferences domain. After a change, call
 /// `Settings.broadcastChange()`; every process listening with

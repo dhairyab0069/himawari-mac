@@ -47,8 +47,8 @@ final class ClockHelper {
         DispatchQueue.main.asyncAfter(deadline: .now() + 1) { [weak self] in onMainActor { self?.start() } }
     }
 
-    /// The clock used to be a launchd service of the Desktop Shell. Now that it lives here,
-    /// that copy is removed once (the Desktop Shell's other services are left alone).
+    /// Older versions installed the clock as a separate launchd service. Now that it lives
+    /// here, that copy is removed once (nothing else in that folder is touched).
     private func retireOldService() {
         let label = "local.dhairyabhatia.desktop.clock"
         let home = FileManager.default.homeDirectoryForCurrentUser

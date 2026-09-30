@@ -16,9 +16,7 @@ while the gear or the CD is showing.
 - **REPEAT / SHUFFLE** (Beta 1.1): lit from Music's real settings (read every few seconds while the
   gear shows) and clickable to switch them.
 
-- **Just the wallpaper** (Beta 1.2): the XP taskbar, desktop folders, widgets and hotkeys moved
-  to their own project, [Desktop Shell](https://github.com/dhairyab0069/desktop-shell-mac). The
-  desktop clock stays, now built into Himawari.
+- **Just the wallpaper** (Beta 1.2): Himawari is the wallpaper and its desktop clock, now built in.
 
 ## Ideas
 

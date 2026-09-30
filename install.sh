@@ -1,7 +1,6 @@
 #!/bin/bash
 # Builds and installs (or updates) /Applications/Himawari.app, the live wallpaper and its
-# desktop clock. (The XP taskbar, desktop folders, widgets and hotkeys are the separate
-# Desktop Shell project: https://github.com/dhairyab0069/desktop-shell-mac)
+# desktop clock.
 set -euo pipefail
 cd "$(dirname "$0")"
 

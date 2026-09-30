@@ -144,9 +144,6 @@ decimal time → in words ("quarter past six"). **Right-click** for format, seco
 clock, and its text adapts to whatever is behind it: the clock tells Himawari where it sits, and
 Himawari measures exactly that spot of the wallpaper.
 
-> Looking for the XP taskbar, Start menu, desktop folders and widgets? They're now their own
-> project: **[Desktop Shell](https://github.com/dhairyab0069/desktop-shell-mac)**.
-
 ## Permissions
 
 macOS asks once for each of these, the first time it's needed.
