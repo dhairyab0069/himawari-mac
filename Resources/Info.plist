@@ -1,0 +1,31 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <key>CFBundleName</key>
+    <string>Hanabi</string>
+    <key>CFBundleDisplayName</key>
+    <string>Hanabi</string>
+    <key>CFBundleIdentifier</key>
+    <string>local.dhairyabhatia.hanabi</string>
+    <key>CFBundleExecutable</key>
+    <string>Hanabi</string>
+    <key>CFBundleIconFile</key>
+    <string>AppIcon</string>
+    <key>CFBundlePackageType</key>
+    <string>APPL</string>
+    <key>CFBundleShortVersionString</key>
+    <string>1.0</string>
+    <key>CFBundleVersion</key>
+    <string>1</string>
+    <key>LSMinimumSystemVersion</key>
+    <string>14.4</string>
+    <key>NSAppleEventsUsageDescription</key>
+    <string>Hanabi reads what Music is playing so the wallpaper can show the album's animated artwork, and checks Finder's selection when you click the desktop.</string>
+    <key>NSAudioCaptureUsageDescription</key>
+    <string>Hanabi measures how loud the song Music is playing is, to move the VU meters and spectrum on the wallpaper. Nothing is recorded.</string>
+    <!-- Menu-bar only: no Dock icon, no app menu -->
+    <key>LSUIElement</key>
+    <true/>
+</dict>
+</plist>

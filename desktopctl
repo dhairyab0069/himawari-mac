@@ -1,0 +1,47 @@
+#!/bin/bash
+# desktopctl: turn the Desktop Shell background services on and off, like
+# systemctl on Linux. The services have no Dock or menu-bar icons; this is
+# how you control them (or ask Claude to).
+#
+#   desktopctl status                 what's running
+#   desktopctl stop    <service|all>  stop now (starts again at next login)
+#   desktopctl start   <service|all>  start now
+#   desktopctl restart <service|all>
+#   desktopctl disable <service|all>  stop, and DON'T start at login
+#   desktopctl enable  <service|all>  allow at login again, and start now
+#
+# Services: folders, clock, widgets, taskbar, hotkeys (⌘⌃T → Ghostty).
+# Logs: ~/Library/Logs/Desktop Shell/<service>.log. Stopping the taskbar gives you
+# the normal Dock back. Remove everything with: ~/hanabi-mac/install.sh --uninstall-shell
+set -uo pipefail
+GUI="gui/$(id -u)"
+ALL=(folders clock widgets taskbar hotkeys)
+label() { echo "local.dhairyabhatia.desktop.$1"; }
+plist() { echo "$HOME/Library/LaunchAgents/$(label "$1").plist"; }
+
+targets() {
+    case "${1:-}" in
+        all) echo "${ALL[@]}" ;;
+        folders|clock|widgets|taskbar|hotkeys) echo "$1" ;;
+        *) echo "Unknown service '${1:-}'. Use one of: ${ALL[*]} all" >&2; exit 1 ;;
+    esac
+}
+
+case "${1:-status}" in
+    status)
+        for s in "${ALL[@]}"; do
+            pid=$(launchctl print "$GUI/$(label "$s")" 2>/dev/null | awk '/^\tpid = /{print $3}')
+            disabled=$(launchctl print-disabled "$GUI" 2>/dev/null | grep -q "\"$(label "$s")\" => disabled" && echo " (disabled at login)")
+            if [ -n "$pid" ]; then state="running (pid $pid)"; else state="stopped"; fi
+            printf "%-8s %s%s\n" "$s" "$state" "$disabled"
+        done ;;
+    stop)    for s in $(targets "${2:-}"); do launchctl bootout "$GUI/$(label "$s")" 2>/dev/null; echo "$s stopped"; done ;;
+    start)   for s in $(targets "${2:-}"); do launchctl bootstrap "$GUI" "$(plist "$s")" 2>/dev/null; echo "$s started"; done ;;
+    restart) for s in $(targets "${2:-}"); do launchctl kickstart -k "$GUI/$(label "$s")" 2>/dev/null \
+                 || launchctl bootstrap "$GUI" "$(plist "$s")"; echo "$s restarted"; done ;;
+    disable) for s in $(targets "${2:-}"); do launchctl bootout "$GUI/$(label "$s")" 2>/dev/null
+                 launchctl disable "$GUI/$(label "$s")"; echo "$s disabled"; done ;;
+    enable)  for s in $(targets "${2:-}"); do launchctl enable "$GUI/$(label "$s")"
+                 launchctl bootstrap "$GUI" "$(plist "$s")" 2>/dev/null; echo "$s enabled"; done ;;
+    *) sed -n '2,15p' "$0"; exit 1 ;;
+esac
