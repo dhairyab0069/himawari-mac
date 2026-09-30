@@ -1,5 +1,5 @@
 #!/bin/bash
-# Hanabi's weekly maintenance bot. launchd runs this every Monday at 14:00
+# Himawari's weekly maintenance bot. launchd runs this every Monday at 14:00
 # (or at the next wake, if the Mac was asleep then).
 #
 #   1. Dependencies are updated: Homebrew and everything it installed
@@ -7,7 +7,7 @@
 #   2. Claude Code checks the project against the current macOS / Swift and
 #      fixes only what's broken or deprecated. It may edit files and run
 #      builds, nothing else.
-#   3. Everything is rebuilt (Hanabi + the 5 Desktop Shell services). If that
+#   3. Everything is rebuilt (Himawari + the 5 Desktop Shell services). If that
 #      passes and code changed, it's committed and reinstalled (./install.sh).
 #      If the build fails, every change is rolled back.
 #   4. You get a notification, and a log in maintenance/logs/.
@@ -23,7 +23,7 @@ mkdir -p "$(dirname "$LOG")"
 exec >>"$LOG" 2>&1
 cd "$REPO" || exit 1
 
-notify() { osascript -e "display notification \"$1\" with title \"Hanabi maintenance\"" || true; }
+notify() { osascript -e "display notification \"$1\" with title \"Himawari maintenance\"" || true; }
 echo "===== $(date) ====="
 
 BEFORE=$(git rev-parse HEAD)
@@ -67,17 +67,17 @@ fi
 
 if [ -z "$(git status --porcelain)" ]; then
     echo "No changes needed."
-    notify "All good. Hanabi builds cleanly, no code changes needed. $DEPS."
+    notify "All good. Himawari builds cleanly, no code changes needed. $DEPS."
     exit 0
 fi
 
 git add -A
-git -c user.name="Hanabi maintenance bot" -c user.email="bhatia.dh@northeastern.edu" \
+git -c user.name="Himawari maintenance bot" -c user.email="bhatia.dh@northeastern.edu" \
     commit -qm "Weekly maintenance $(date +%Y-%m-%d)" \
     -m "Co-Authored-By: Claude Opus 5 <noreply@anthropic.com>"
 echo "Committed: $(git log --oneline -1)"
 
-# Install the new build: Hanabi + the services. (After a code change macOS asks
+# Install the new build: Himawari + the services. (After a code change macOS asks
 # again once for Desktop / Accessibility access: the apps are ad-hoc signed, so
 # every new build looks like a new app to it.)
 ./install.sh

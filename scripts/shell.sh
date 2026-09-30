@@ -3,7 +3,7 @@
 #   shell.sh install <folder with the 5 service .apps>
 #   shell.sh uninstall
 #   shell.sh installed        (exit 0 if installed)
-# Used by ./install.sh (from a checkout) and by Hanabi's "Desktop Shell" menu (bundled copy).
+# Used by ./install.sh (from a checkout) and by Himawari's "Desktop Shell" menu (bundled copy).
 set -euo pipefail
 
 SHELL_HOME="$HOME/Library/Application Support/Desktop Shell"
@@ -12,9 +12,9 @@ LOGS="$HOME/Library/Logs/Desktop Shell"
 GUI="gui/$(id -u)"
 PREFIX="local.dhairyabhatia.desktop"
 # name|App Name|executable
-SERVICES=("folders|Desktop Folders|HanabiFolders" "clock|Desktop Clock|HanabiClock"
-          "widgets|Desktop Widgets|HanabiWidgets" "taskbar|XP Taskbar|HanabiTaskbar"
-          "hotkeys|Desktop Hotkeys|HanabiHotkeys")
+SERVICES=("folders|Desktop Folders|HimawariFolders" "clock|Desktop Clock|HimawariClock"
+          "widgets|Desktop Widgets|HimawariWidgets" "taskbar|XP Taskbar|HimawariTaskbar"
+          "hotkeys|Desktop Hotkeys|HimawariHotkeys")
 
 stop_services() {
     for entry in "${SERVICES[@]}"; do

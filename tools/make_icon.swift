@@ -1,4 +1,4 @@
-// Draws the Hanabi app icon (a firework over a night sky) and writes a 1024×1024 PNG.
+// Draws the Himawari app icon (a sunflower, ひまわり, against a summer sky) and writes a 1024×1024 PNG.
 // Usage: swift tools/make_icon.swift out.png      (build.sh turns it into AppIcon.icns)
 import AppKit
 
@@ -11,107 +11,86 @@ let ctx = NSGraphicsContext.current!.cgContext
 let space = CGColorSpaceCreateDeviceRGB()
 func rgb(_ r: CGFloat, _ g: CGFloat, _ b: CGFloat, _ a: CGFloat = 1) -> CGColor { CGColor(red: r/255, green: g/255, blue: b/255, alpha: a) }
 
-// Deterministic "random" so the icon is identical on every build.
-var seed: UInt64 = 0x48414E414249
-func rand() -> CGFloat { seed = seed &* 6364136223846793005 &+ 1442695040888963407; return CGFloat(seed >> 33) / CGFloat(1 << 31) }
-
 // macOS icon grid: 824×824 body, 100 px margin, rounded corners.
 let body = CGRect(x: 100, y: 100, width: 824, height: 824)
 let shape = CGPath(roundedRect: body, cornerWidth: 186, cornerHeight: 186, transform: nil)
 
 // Drop shadow under the body.
 ctx.saveGState()
-ctx.setShadow(offset: CGSize(width: 0, height: -14), blur: 28, color: rgb(0, 0, 0, 0.45))
-ctx.addPath(shape); ctx.setFillColor(rgb(10, 10, 30)); ctx.fillPath()
+ctx.setShadow(offset: CGSize(width: 0, height: -14), blur: 28, color: rgb(0, 0, 0, 0.4))
+ctx.addPath(shape); ctx.setFillColor(rgb(40, 110, 200)); ctx.fillPath()
 ctx.restoreGState()
 
+// Summer sky: deep blue at the top to a warm pale blue at the horizon.
 ctx.saveGState()
 ctx.addPath(shape); ctx.clip()
-
-// Night sky: indigo at the top fading to near-black.
-let sky = CGGradient(colorsSpace: space, colors: [rgb(38, 28, 96), rgb(14, 12, 44), rgb(4, 5, 16)] as CFArray,
-                     locations: [0, 0.55, 1])!
+let sky = CGGradient(colorsSpace: space, colors: [rgb(38, 104, 206), rgb(92, 170, 236), rgb(186, 226, 250)] as CFArray,
+                     locations: [0, 0.6, 1])!
 ctx.drawLinearGradient(sky, start: CGPoint(x: 512, y: 924), end: CGPoint(x: 512, y: 100), options: [])
+// A soft sun-glow behind the flower.
+let glow = CGGradient(colorsSpace: space, colors: [rgb(255, 244, 200, 0.75), rgb(255, 244, 200, 0)] as CFArray, locations: [0, 1])!
+ctx.drawRadialGradient(glow, startCenter: CGPoint(x: 512, y: 530), startRadius: 0,
+                       endCenter: CGPoint(x: 512, y: 530), endRadius: 430, options: [])
 
-// Stars.
-for _ in 0..<70 {
-    let p = CGPoint(x: 100 + rand() * 824, y: 100 + rand() * 824)
-    let r = 1.2 + rand() * 2.4
-    ctx.setFillColor(rgb(255, 255, 255, 0.25 + rand() * 0.5))
-    ctx.fillEllipse(in: CGRect(x: p.x - r, y: p.y - r, width: 2 * r, height: 2 * r))
+let center = CGPoint(x: 512, y: 530)
+
+// Petals: two rings, the back ring deeper orange and offset half a petal.
+func petal(angle: CGFloat, length: CGFloat, width: CGFloat, base: CGFloat, colors: [CGColor]) {
+    ctx.saveGState()
+    ctx.translateBy(x: center.x, y: center.y)
+    ctx.rotate(by: angle)
+    let p = CGMutablePath()
+    p.move(to: CGPoint(x: 0, y: base))
+    p.addQuadCurve(to: CGPoint(x: 0, y: base + length), control: CGPoint(x: width, y: base + length * 0.55))
+    p.addQuadCurve(to: CGPoint(x: 0, y: base), control: CGPoint(x: -width, y: base + length * 0.55))
+    ctx.addPath(p)
+    ctx.clip()
+    let g = CGGradient(colorsSpace: space, colors: colors as CFArray, locations: [0, 1])!
+    ctx.drawLinearGradient(g, start: CGPoint(x: 0, y: base), end: CGPoint(x: 0, y: base + length), options: [])
+    ctx.restoreGState()
 }
-
-let center = CGPoint(x: 512, y: 572)
-
-// Warm glow behind the burst.
-let glow = CGGradient(colorsSpace: space, colors: [rgb(255, 170, 90, 0.55), rgb(255, 80, 140, 0.18), rgb(255, 80, 140, 0)] as CFArray,
-                      locations: [0, 0.45, 1])!
-ctx.drawRadialGradient(glow, startCenter: center, startRadius: 0, endCenter: center, endRadius: 360, options: [])
-
-// Launch trail rising from the bottom.
-ctx.setLineCap(.round)
-for i in 0..<14 {
-    let t = CGFloat(i) / 14
-    let y = 170 + t * (center.y - 250)
-    ctx.setFillColor(rgb(255, 210, 150, 0.12 + 0.5 * t))
-    let r = 3 + 5 * t
-    ctx.fillEllipse(in: CGRect(x: 512 - r + sin(t * 9) * 3, y: y - r, width: 2 * r, height: 2 * r))
+let petals = 18
+ctx.saveGState()
+ctx.setShadow(offset: CGSize(width: 0, height: -6), blur: 14, color: rgb(90, 50, 0, 0.35))
+for i in 0..<petals {
+    let a = CGFloat(i) / CGFloat(petals) * 2 * .pi + .pi / CGFloat(petals)
+    petal(angle: a, length: 250, width: 70, base: 110, colors: [rgb(236, 150, 20), rgb(250, 190, 40)])
 }
-
-/// One ring of the burst: `count` sparks flying out to `radius`, each a fading trail plus a glowing head.
-func ring(count: Int, radius: CGFloat, width: CGFloat, color: (CGFloat, CGFloat, CGFloat), twist: CGFloat) {
-    for i in 0..<count {
-        let a = twist + CGFloat(i) / CGFloat(count) * 2 * .pi + (rand() - 0.5) * 0.08
-        let dir = CGPoint(x: cos(a), y: sin(a))
-        let radius = radius * (0.88 + rand() * 0.2) // uneven lengths look like a real burst
-        let droop = radius * 0.08 // gravity pulls the ends down a little
-        let head = CGPoint(x: center.x + dir.x * radius, y: center.y + dir.y * radius - droop)
-        // Trail: segments getting brighter towards the head.
-        let steps = 12
-        for s in 0..<steps {
-            let t0 = 0.28 + 0.72 * CGFloat(s) / CGFloat(steps), t1 = 0.28 + 0.72 * CGFloat(s + 1) / CGFloat(steps)
-            ctx.setStrokeColor(rgb(color.0, color.1, color.2, 0.15 + 0.85 * t1))
-            ctx.setLineWidth(width * (0.35 + 0.65 * t1))
-            ctx.move(to: CGPoint(x: center.x + dir.x * radius * t0, y: center.y + dir.y * radius * t0 - droop * t0 * t0))
-            ctx.addLine(to: CGPoint(x: center.x + dir.x * radius * t1, y: center.y + dir.y * radius * t1 - droop * t1 * t1))
-            ctx.strokePath()
-        }
-        // Glowing head.
-        ctx.saveGState()
-        ctx.setShadow(offset: .zero, blur: width * 2.2, color: rgb(color.0, color.1, color.2, 1))
-        ctx.setFillColor(rgb((255 + color.0) / 2, (255 + color.1) / 2, (255 + color.2) / 2)) // pale tint of the ray
-        let r = width * 0.6
-        ctx.fillEllipse(in: CGRect(x: head.x - r, y: head.y - r, width: 2 * r, height: 2 * r))
-        ctx.restoreGState()
-    }
+for i in 0..<petals {
+    let a = CGFloat(i) / CGFloat(petals) * 2 * .pi
+    petal(angle: a, length: 235, width: 64, base: 110, colors: [rgb(248, 180, 30), rgb(255, 222, 70)])
 }
-ring(count: 18, radius: 300, width: 13, color: (255, 196, 84), twist: 0)            // gold, outer
-ring(count: 14, radius: 205, width: 12, color: (255, 92, 150), twist: .pi / 14)     // pink
-ring(count: 10, radius: 115, width: 11, color: (255, 140, 70), twist: .pi / 10)     // orange, inner
-
-// Bright core.
-let core = CGGradient(colorsSpace: space, colors: [rgb(255, 255, 245), rgb(255, 220, 160, 0.8), rgb(255, 180, 120, 0)] as CFArray,
-                      locations: [0, 0.4, 1])!
-ctx.drawRadialGradient(core, startCenter: center, startRadius: 0, endCenter: center, endRadius: 62, options: [])
-
-// Scattered sparkles.
-for _ in 0..<26 {
-    let a = rand() * 2 * .pi, d = 120 + rand() * 250
-    let p = CGPoint(x: center.x + cos(a) * d, y: center.y + sin(a) * d)
-    let r = 2 + rand() * 3
-    ctx.setFillColor(rgb(255, 235, 200, 0.4 + rand() * 0.5))
-    ctx.fillEllipse(in: CGRect(x: p.x - r, y: p.y - r, width: 2 * r, height: 2 * r))
-}
-
-// Subtle top highlight for depth.
-let shine = CGGradient(colorsSpace: space, colors: [rgb(255, 255, 255, 0.10), rgb(255, 255, 255, 0)] as CFArray, locations: [0, 1])!
-ctx.drawLinearGradient(shine, start: CGPoint(x: 512, y: 924), end: CGPoint(x: 512, y: 620), options: [])
 ctx.restoreGState()
 
-// Thin inner border.
-ctx.addPath(shape); ctx.setStrokeColor(rgb(255, 255, 255, 0.12)); ctx.setLineWidth(3); ctx.strokePath()
+// The seed disc: dark brown, with seeds on the golden-angle spiral real sunflowers grow.
+let discR: CGFloat = 150
+ctx.saveGState()
+ctx.setShadow(offset: CGSize(width: 0, height: -4), blur: 12, color: rgb(40, 20, 0, 0.5))
+let disc = CGGradient(colorsSpace: space, colors: [rgb(120, 70, 25), rgb(70, 38, 12), rgb(45, 24, 8)] as CFArray,
+                      locations: [0, 0.6, 1])!
+ctx.addEllipse(in: CGRect(x: center.x - discR, y: center.y - discR, width: 2 * discR, height: 2 * discR))
+ctx.clip()
+ctx.drawRadialGradient(disc, startCenter: CGPoint(x: center.x - 30, y: center.y + 40), startRadius: 0,
+                       endCenter: center, endRadius: discR, options: [.drawsAfterEndLocation])
+ctx.restoreGState()
+let golden = CGFloat.pi * (3 - sqrt(5))
+for n in 0..<260 {
+    let r = discR * 0.93 * sqrt(CGFloat(n) / 260)
+    let a = CGFloat(n) * golden
+    let p = CGPoint(x: center.x + r * cos(a), y: center.y + r * sin(a))
+    let s = 3.5 + 4.5 * r / discR
+    ctx.setFillColor(n % 3 == 0 ? rgb(150, 95, 35, 0.9) : rgb(30, 15, 5, 0.85))
+    ctx.fillEllipse(in: CGRect(x: p.x - s / 2, y: p.y - s / 2, width: s, height: s))
+}
+
+// Gloss across the top of the tile.
+let gloss = CGGradient(colorsSpace: space, colors: [rgb(255, 255, 255, 0.28), rgb(255, 255, 255, 0)] as CFArray, locations: [0, 1])!
+ctx.drawLinearGradient(gloss, start: CGPoint(x: 512, y: 924), end: CGPoint(x: 512, y: 620), options: [])
+ctx.restoreGState()
+
+// A thin light edge on the tile.
+ctx.addPath(shape); ctx.setStrokeColor(rgb(255, 255, 255, 0.25)); ctx.setLineWidth(3); ctx.strokePath()
 
 NSGraphicsContext.current = nil
-let out = CommandLine.arguments.dropFirst().first ?? "AppIcon.png"
+let out = CommandLine.arguments.count > 1 ? CommandLine.arguments[1] : "icon.png"
 try! rep.representation(using: .png, properties: [:])!.write(to: URL(fileURLWithPath: out))
-print("wrote \(out)")

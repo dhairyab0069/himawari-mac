@@ -1,11 +1,12 @@
 // Streams the system's Now Playing state (the one Control Center shows) as JSON lines.
 //
-// macOS lets only Apple's own programs read it (MediaRemote), so Hanabi runs this inside
+// macOS lets only Apple's own programs read it (MediaRemote), so Himawari runs this inside
 // Apple's /usr/bin/perl, which is allowed:
 //   /usr/bin/perl -e '<DynaLoader glue>' /path/NowPlayingHelper.dylib
 // One line per change (play, pause, seek, skip, new song) plus a heartbeat every 5 s:
-//   {"pid":123,"title":"…","artist":"…","album":"…","duration":166.4,"elapsed":42.1,"rate":1,"timestamp":1790457715.5}
-// `elapsed` was true at `timestamp` (Unix time) and moves at `rate`. It exits when Hanabi
+//   {"pid":123,"title":"…","artist":"…","album":"…","duration":166.4,"elapsed":42.1,"rate":1,"timestamp":1790457715.5,
+//    "artworkID":"https://…/800x800bb.jpg", "artwork":"<base64 JPEG, only when the cover changes>"}
+// `elapsed` was true at `timestamp` (Unix time) and moves at `rate`. It exits when Himawari
 // goes away (its stdin closes).
 #import <Foundation/Foundation.h>
 #include <dlfcn.h>
@@ -16,6 +17,7 @@ typedef void (*GetPIDFn)(dispatch_queue_t, void (^)(int));
 
 static GetInfoFn getInfo;
 static GetPIDFn getPID;
+static NSString *lastArtwork; // the cover already sent (sent again only when it changes)
 
 static id value(NSDictionary *info, NSString *key) { return info[[@"kMRMediaRemoteNowPlayingInfo" stringByAppendingString:key]]; }
 
@@ -30,6 +32,18 @@ static void emit(void) {
                 for (NSString *k in keys) { id v = value(info, keys[k]); if (v) out[k] = v; }
                 NSDate *stamp = value(info, @"Timestamp");
                 if ([stamp isKindOfClass:[NSDate class]]) out[@"timestamp"] = @(stamp.timeIntervalSince1970);
+                // The exact cover Music shows (Control Center's), sent once per cover: its
+                // identifier (for streamed songs, its address on Apple's image server) every time.
+                NSString *artID = value(info, @"ArtworkIdentifier");
+                NSData *art = value(info, @"ArtworkData");
+                if ([artID isKindOfClass:[NSString class]]) out[@"artworkID"] = artID;
+                if ([art isKindOfClass:[NSData class]] && art.length > 0) {
+                    NSString *key = artID ?: [NSString stringWithFormat:@"%lu-%lu", (unsigned long)art.length, (unsigned long)art.hash];
+                    if (![key isEqualToString:lastArtwork]) {
+                        out[@"artwork"] = [art base64EncodedStringWithOptions:0];
+                        lastArtwork = key;
+                    }
+                }
             }
             NSData *json = [NSJSONSerialization dataWithJSONObject:out options:0 error:nil];
             if (json) { fwrite(json.bytes, 1, json.length, stdout); fputc('\n', stdout); fflush(stdout); }
@@ -38,7 +52,7 @@ static void emit(void) {
 }
 
 // Called from perl as an XS sub (perl passes its interpreter and CV; unused).
-void hanabi_now_playing(void *interpreter, void *cv) {
+void himawari_now_playing(void *interpreter, void *cv) {
     void *mr = dlopen("/System/Library/PrivateFrameworks/MediaRemote.framework/MediaRemote", RTLD_NOW);
     if (!mr) { fprintf(stderr, "no MediaRemote\n"); exit(1); }
     RegisterFn registerFn = (RegisterFn)dlsym(mr, "MRMediaRemoteRegisterForNowPlayingNotifications");
@@ -58,13 +72,13 @@ void hanabi_now_playing(void *interpreter, void *cv) {
     }
     emit();
 
-    // Heartbeat, so a missed notification never leaves Hanabi stale for long.
+    // Heartbeat, so a missed notification never leaves Himawari stale for long.
     dispatch_source_t beat = dispatch_source_create(DISPATCH_SOURCE_TYPE_TIMER, 0, 0, dispatch_get_main_queue());
     dispatch_source_set_timer(beat, dispatch_time(DISPATCH_TIME_NOW, 5 * NSEC_PER_SEC), 5 * NSEC_PER_SEC, NSEC_PER_SEC / 2);
     dispatch_source_set_event_handler(beat, ^{ emit(); });
     dispatch_resume(beat);
 
-    // Hanabi quit (or crashed): our stdin closes, so we go too.
+    // Himawari quit (or crashed): our stdin closes, so we go too.
     dispatch_source_t input = dispatch_source_create(DISPATCH_SOURCE_TYPE_READ, STDIN_FILENO, 0, dispatch_get_main_queue());
     dispatch_source_set_event_handler(input, ^{
         char buffer[256];

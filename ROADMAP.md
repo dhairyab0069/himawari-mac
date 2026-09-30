@@ -1,14 +1,21 @@
 # Roadmap
 
-Ideas to build later.
+## Done
 
-1. **Interactive side panels.** The retro hi-fi gear beside the music wallpaper
-   (`Sources/Hanabi/NowPlayingSides.swift`) responds to clicks: the transport buttons
-   play / pause / skip in Music, the jog wheel and progress ladder seek, the knobs do
-   something useful (volume, for one).
-2. **Interactive CD.** In the CD scene (`Sources/Hanabi/MusicScene.swift`), grab and spin
-   the disc to scrub forward or back through the song, with a sound of the disc moving.
+- **Interactive side panels** (`GearControls.swift`): the transport buttons, the progress ladder,
+  the jog wheel and the VOLUME knob control Music.
+- **Interactive CD**: grab and turn the disc to scrub through the song, with a synthesized sound
+  of the disc moving.
 
-Both need the wallpaper to receive clicks where the gear or the disc is, while the rest of
-the desktop stays click-through (the wallpaper window currently sits below Finder's icons
-and ignores the mouse, except in "click the desktop to hide files" mode).
+Both work through small invisible windows over each control, just above Finder's icons, so the
+rest of the desktop stays click-through. A desktop icon right under a control can't be clicked
+while the gear or the CD is showing.
+
+- **BASS and TREBLE** (Beta 1.1): shelves on a "Himawari" equalizer preset in Music; back at
+  0 / 0 puts the previous equalizer back. Double-click a knob for flat.
+- **REPEAT / SHUFFLE** (Beta 1.1): lit from Music's real settings (read every few seconds while the
+  gear shows) and clickable to switch them.
+
+## Ideas
+
+- Nothing queued. Suggestions welcome.

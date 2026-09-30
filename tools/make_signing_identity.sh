@@ -21,6 +21,6 @@ extendedKeyUsage = critical, codeSigning
 basicConstraints = critical, CA:false
 CFG
 /usr/bin/openssl req -x509 -newkey rsa:2048 -nodes -days 3650 -config "$TMP/cfg" -keyout "$TMP/key.pem" -out "$TMP/cert.pem" 2>/dev/null
-/usr/bin/openssl pkcs12 -export -inkey "$TMP/key.pem" -in "$TMP/cert.pem" -name "$NAME" -out "$TMP/id.p12" -passout pass:hanabi 2>/dev/null
-security import "$TMP/id.p12" -k "$HOME/Library/Keychains/login.keychain-db" -P hanabi -T /usr/bin/codesign >/dev/null
+/usr/bin/openssl pkcs12 -export -inkey "$TMP/key.pem" -in "$TMP/cert.pem" -name "$NAME" -out "$TMP/id.p12" -passout pass:himawari 2>/dev/null
+security import "$TMP/id.p12" -k "$HOME/Library/Keychains/login.keychain-db" -P himawari -T /usr/bin/codesign >/dev/null
 echo "Created: $NAME"

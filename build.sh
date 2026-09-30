@@ -1,9 +1,9 @@
 #!/bin/bash
 # Builds everything into build/:
-#   build/Hanabi.app                         the live wallpaper (only that)
+#   build/Himawari.app                         the live wallpaper (only that)
 #   build/Desktop Shell/Desktop Folders.app  iOS-style desktop folders   ┐
 #   build/Desktop Shell/Desktop Clock.app    the desktop clock           │ background services,
-#   build/Desktop Shell/Desktop Widgets.app  floating widget panel       │ independent of Hanabi
+#   build/Desktop Shell/Desktop Widgets.app  floating widget panel       │ independent of Himawari
 #   build/Desktop Shell/XP Taskbar.app       taskbar, Start, Downloads   │
 #   build/Desktop Shell/Desktop Hotkeys.app  ⌘⌃T → Ghostty, anywhere     ┘
 # Run ./install.sh to install them (it calls this first).
@@ -65,30 +65,30 @@ PLIST
 }
 
 mkdir -p build
-cp Resources/Info.plist build/Hanabi.Info.plist.tmp
-make_app build/Hanabi.app Hanabi "Hanabi" local.dhairyabhatia.hanabi
-cp Resources/Info.plist build/Hanabi.app/Contents/Info.plist      # Hanabi's own plist (has the icon entry)
-cp Resources/AppIcon.icns build/Hanabi.app/Contents/Resources/AppIcon.icns
+cp Resources/Info.plist build/Himawari.Info.plist.tmp
+make_app build/Himawari.app Himawari "Himawari" local.dhairyabhatia.himawari
+cp Resources/Info.plist build/Himawari.app/Contents/Info.plist      # Himawari's own plist (has the icon entry)
+cp Resources/AppIcon.icns build/Himawari.app/Contents/Resources/AppIcon.icns
 # The system Now Playing helper (runs inside /usr/bin/perl; see helpers/NowPlayingHelper.m).
 clang -dynamiclib -fobjc-arc -O2 -mmacosx-version-min=14.4 ${ARCHS[@]+"${ARCHS[@]}"} -framework Foundation \
-    helpers/NowPlayingHelper.m -o build/Hanabi.app/Contents/Resources/NowPlayingHelper.dylib
-codesign --force --sign "$IDENTITY" build/Hanabi.app/Contents/Resources/NowPlayingHelper.dylib
-codesign --force --sign "$IDENTITY" build/Hanabi.app
-rm build/Hanabi.Info.plist.tmp
+    helpers/NowPlayingHelper.m -o build/Himawari.app/Contents/Resources/NowPlayingHelper.dylib
+codesign --force --sign "$IDENTITY" build/Himawari.app/Contents/Resources/NowPlayingHelper.dylib
+codesign --force --sign "$IDENTITY" build/Himawari.app
+rm build/Himawari.Info.plist.tmp
 
 SHELL_DIR="build/Desktop Shell"
 mkdir -p "$SHELL_DIR"
-make_app "$SHELL_DIR/Desktop Folders.app" HanabiFolders "Desktop Folders" local.dhairyabhatia.desktop.folders
-make_app "$SHELL_DIR/Desktop Clock.app"   HanabiClock   "Desktop Clock"   local.dhairyabhatia.desktop.clock
-make_app "$SHELL_DIR/Desktop Widgets.app" HanabiWidgets "Desktop Widgets" local.dhairyabhatia.desktop.widgets
-make_app "$SHELL_DIR/XP Taskbar.app"      HanabiTaskbar "XP Taskbar"      local.dhairyabhatia.desktop.taskbar
-make_app "$SHELL_DIR/Desktop Hotkeys.app" HanabiHotkeys "Desktop Hotkeys" local.dhairyabhatia.desktop.hotkeys
+make_app "$SHELL_DIR/Desktop Folders.app" HimawariFolders "Desktop Folders" local.dhairyabhatia.desktop.folders
+make_app "$SHELL_DIR/Desktop Clock.app"   HimawariClock   "Desktop Clock"   local.dhairyabhatia.desktop.clock
+make_app "$SHELL_DIR/Desktop Widgets.app" HimawariWidgets "Desktop Widgets" local.dhairyabhatia.desktop.widgets
+make_app "$SHELL_DIR/XP Taskbar.app"      HimawariTaskbar "XP Taskbar"      local.dhairyabhatia.desktop.taskbar
+make_app "$SHELL_DIR/Desktop Hotkeys.app" HimawariHotkeys "Desktop Hotkeys" local.dhairyabhatia.desktop.hotkeys
 
-# Hanabi carries the services and their installer, so its "Desktop Shell" menu can set them up
+# Himawari carries the services and their installer, so its "Desktop Shell" menu can set them up
 # on any Mac (this is how the DMG version installs them).
-mkdir -p "build/Hanabi.app/Contents/Resources/Desktop Shell"
-cp -R "$SHELL_DIR"/*.app "build/Hanabi.app/Contents/Resources/Desktop Shell/"
-cp scripts/shell.sh build/Hanabi.app/Contents/Resources/shell.sh
-codesign --force --sign "$IDENTITY" build/Hanabi.app
+mkdir -p "build/Himawari.app/Contents/Resources/Desktop Shell"
+cp -R "$SHELL_DIR"/*.app "build/Himawari.app/Contents/Resources/Desktop Shell/"
+cp scripts/shell.sh build/Himawari.app/Contents/Resources/shell.sh
+codesign --force --sign "$IDENTITY" build/Himawari.app
 
-echo "Built build/Hanabi.app and build/Desktop Shell/ (5 services). Install with ./install.sh"
+echo "Built build/Himawari.app and build/Desktop Shell/ (5 services). Install with ./install.sh"
