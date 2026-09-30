@@ -58,8 +58,8 @@
 Himawari lives in the menu bar (the sunflower icon). To uninstall, remove the Desktop Shell first if you
 installed it (see below), quit Himawari, and move it to the Trash.
 
-> **Note:** the repository is private for now, so the download link works for you and any
-> collaborators you add. It becomes public if the repository does.
+> **Note:** this repository is private; the public download and project page are at
+> [dhairyab0069.github.io/himawari-io](https://dhairyab0069.github.io/himawari-io/).
 
 ## Using Himawari
 
@@ -274,8 +274,8 @@ assistant, as a pair programmer.
 - **How changes were checked.** Every change was compiled and installed, then verified where it
   runs: logs, crash reports, CPU and memory use, timing measured against Music, and rendered
   screenshots of the scenes. Bugs found this way were fixed and re-checked, not assumed fixed.
-- **Visible in the history.** Every commit made with AI help carries a
-  `Co-Authored-By: Claude` trailer, so it's clear what was assisted (`git log`).
+- **Assume it's assisted.** The history is collapsed into one commit per release, so there
+  are no per-commit AI labels: treat all of the code as written with AI help.
 - **Know the limits.** This is a tested personal project, not an audited product. Code written with
   an AI can be wrong in ways testing on one Mac doesn't catch. Two features rely on unofficial,
   undocumented Apple behavior (the system Now Playing workaround and Apple Music's album pages)
