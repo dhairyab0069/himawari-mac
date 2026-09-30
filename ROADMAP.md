@@ -16,7 +16,7 @@ while the gear or the CD is showing.
 - **REPEAT / SHUFFLE** (Beta 1.1): lit from Music's real settings (read every few seconds while the
   gear shows) and clickable to switch them.
 
-- **Just the wallpaper** (Beta 1.2): Himawari is the wallpaper and its desktop clock, now built in.
+- **Just the wallpaper** (Beta 1.1.2): Himawari is the wallpaper and its desktop clock, now built in.
 
 ## Ideas
 
