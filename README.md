@@ -10,7 +10,7 @@
 </p>
 
 <p align="center">
-  <a href="https://github.com/dhairyab0069/himawari-mac/releases/latest/download/Himawari-1.1.dmg"><b>⬇︎ Download Himawari Beta 1.1 (DMG)</b></a>
+  <a href="https://github.com/dhairyab0069/himawari-mac/releases/latest/download/Himawari-1.1.1.dmg"><b>⬇︎ Download Himawari Beta 1.1.1 (DMG)</b></a>
   &nbsp;·&nbsp; macOS 14.4 or later &nbsp;·&nbsp; Apple Silicon and Intel
 </p>
 
@@ -49,7 +49,7 @@
 
 ## Install
 
-1. [Download the DMG](https://github.com/dhairyab0069/himawari-mac/releases/latest/download/Himawari-1.1.dmg) and open it.
+1. [Download the DMG](https://github.com/dhairyab0069/himawari-mac/releases/latest/download/Himawari-1.1.1.dmg) and open it.
 2. Drag **Himawari** onto **Applications**, then open it from Applications.
 3. The first time, macOS may say it can't check Himawari for malicious software: Himawari isn't notarized
    (that needs a paid Apple Developer ID). Either right-click Himawari ▸ **Open** ▸ **Open**, or go to

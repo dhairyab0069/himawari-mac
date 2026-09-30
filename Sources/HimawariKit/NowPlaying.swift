@@ -57,6 +57,7 @@ public final class MusicNowPlaying: ObservableObject {
     private var systemLive: Bool { CACurrentMediaTime() - systemAt < 12 }
     private var ticks = 0
     private var generation = 0
+    private var shownArtwork: (id: String?, album: String)? // the system cover last used, and its album
     private let artworkFile = FileManager.default.temporaryDirectory
         .appending(path: "now-playing-\(ProcessInfo.processInfo.processIdentifier).img")
     private static var motionCache: [String: MotionArtwork.Result] = [:]
@@ -113,7 +114,14 @@ public final class MusicNowPlaying: ObservableObject {
         systemAt = CACurrentMediaTime()
         let playing = s.rate > 0
         set(track: Track(name: title, artist: s.artist ?? "", album: s.album ?? "", duration: s.duration), playing: playing)
-        if let data = s.artwork { useSystemArtwork(data, id: s.artworkID) }
+        // Right after a skip the system can still hand over the last song's cover: the same
+        // artwork for a different album is that, not this song's.
+        let album = s.album ?? ""
+        let stale = s.artworkID != nil && s.artworkID == shownArtwork?.id && album != shownArtwork?.album
+        if let data = s.artwork, !stale {
+            shownArtwork = (s.artworkID, album)
+            useSystemArtwork(data, id: s.artworkID)
+        }
         let age = max(0, Date().timeIntervalSince1970 - s.timestamp) // how old the reading is
         measuredPosition = s.elapsed
         measuredAt = CACurrentMediaTime() - age
@@ -322,7 +330,7 @@ public final class MusicNowPlaying: ObservableObject {
         }
         motionVideo = nil
         Task { [weak self] in
-            let result = await MotionArtwork.find(artist: track.artist, album: track.album, song: track.name)
+            let result = await MotionArtwork.find(artist: track.artist, album: track.album, song: track.name, duration: track.duration)
             guard let self else { return }
             Self.motionCache[key] = result
             guard self.generation == generation else { return }
@@ -438,43 +446,89 @@ public enum MotionArtwork {
         public let cover: URL? // 600×600 still, from the same lookup
     }
 
-    public static func find(artist: String, album: String, song: String = "") async -> Result {
+    /// The animated cover of the album this song is on. Only a result that really is that album
+    /// counts: the same artist's other albums (or a single, or another song with the same title,
+    /// like the "Intro" of an earlier album) are not it, and no animation beats the wrong one.
+    public static func find(artist: String, album: String, song: String = "", duration: Double = 0) async -> Result {
         // Best: search the catalog for the *song*: its result links to the exact album it's on.
-        if !song.isEmpty, let hit = await songAlbum(artist: artist, song: song) {
+        if !song.isEmpty, let hit = await songAlbum(artist: artist, song: song, album: album, duration: duration) {
             let result = await motion(onAlbumPage: hit.page, cover: hit.cover)
             if result.video != nil { return result }
         }
-        let cleanAlbum = album.replacingOccurrences(of: #"\s*[\(\[].*?(Single|EP|Deluxe|Remaster|Edition).*?[\)\]]"#,
-                                                    with: "", options: [.regularExpression, .caseInsensitive])
-        var search = URLComponents(string: "https://itunes.apple.com/search")!
-        search.queryItems = [.init(name: "term", value: "\(artist) \(cleanAlbum)"), .init(name: "entity", value: "album"),
-                             .init(name: "limit", value: "5")]
-        guard let url = search.url, let (data, _) = try? await URLSession.shared.data(from: url),
-              let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
-              let results = json["results"] as? [[String: Any]], !results.isEmpty else { return Result(video: nil, cover: nil) }
-        // Prefer the result whose album name matches; otherwise take the top hit.
-        let best = results.first { ($0["collectionName"] as? String)?.localizedCaseInsensitiveContains(cleanAlbum) == true } ?? results[0]
-        let cover = (best["artworkUrl100"] as? String).flatMap { URL(string: $0.replacingOccurrences(of: "100x100bb", with: "600x600bb")) }
-        guard let pageURL = (best["collectionViewUrl"] as? String).flatMap(URL.init(string:)) else { return Result(video: nil, cover: cover) }
-        return await motion(onAlbumPage: pageURL, cover: cover)
+        guard !albumKey(album).isEmpty else { return Result(video: nil, cover: nil) }
+        let artists = YouTubeLoop.artistNames(artist)
+        for store in stores {
+            var search = URLComponents(string: "https://itunes.apple.com/search")!
+            search.queryItems = [.init(name: "term", value: "\(artists.first ?? artist) \(albumKey(album))"), .init(name: "entity", value: "album"),
+                                 .init(name: "limit", value: "15"), .init(name: "country", value: store)]
+            guard let results = await catalog(search) else { continue }
+            let best = results.first { r in
+                sameAlbum(r["collectionName"] as? String ?? "", album) && byArtist(r, artists)
+            }
+            guard let best else { continue }
+            let cover = (best["artworkUrl100"] as? String).flatMap { URL(string: $0.replacingOccurrences(of: "100x100bb", with: "600x600bb")) }
+            guard let pageURL = (best["collectionViewUrl"] as? String).flatMap(URL.init(string:)) else { return Result(video: nil, cover: cover) }
+            return await motion(onAlbumPage: pageURL, cover: cover)
+        }
+        return Result(video: nil, cover: nil)
     }
 
-    /// The album a song is on, from Apple's catalog (your region first, then the US store).
-    private static func songAlbum(artist: String, song: String) async -> (page: URL, cover: URL?)? {
-        let wanted = YouTubeLoop.normalize(song), artists = YouTubeLoop.artistNames(artist)
+    /// Your region's store first, then the US one.
+    private static var stores: [String] {
         var stores = ["US"]
         if let region = Locale.current.region?.identifier, region != "US" { stores.insert(region, at: 0) }
+        return stores
+    }
+
+    private static func catalog(_ search: URLComponents) async -> [[String: Any]]? {
+        guard let url = search.url, let (data, _) = try? await URLSession.shared.data(from: url),
+              let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any] else { return nil }
+        return json["results"] as? [[String: Any]]
+    }
+
+    /// "Way Ahead - EP", "Views (Deluxe)", "Scorpion [Explicit]" → "way ahead", "views", "scorpion"
+    static func albumKey(_ album: String) -> String {
+        var a = album.replacingOccurrences(of: #"\s+-\s+(EP|Single)\s*$"#, with: "", options: [.regularExpression, .caseInsensitive])
+        a = a.replacingOccurrences(of: #"\s*[\(\[][^\)\]]*(Single|EP|Deluxe|Remaster|Edition|Version|Expanded|Explicit|Clean|Bonus)[^\)\]]*[\)\]]"#,
+                                   with: "", options: [.regularExpression, .caseInsensitive])
+        return YouTubeLoop.normalize(a)
+    }
+
+    /// The same album, allowing for edition words ("Views" and "Views (Deluxe)").
+    static func sameAlbum(_ a: String, _ b: String) -> Bool {
+        let x = albumKey(a), y = albumKey(b)
+        guard !x.isEmpty, !y.isEmpty else { return false }
+        return x == y || x.hasPrefix(y + " ") || y.hasPrefix(x + " ")
+    }
+
+    private static func byArtist(_ r: [String: Any], _ artists: [String]) -> Bool {
+        let by = YouTubeLoop.normalize(r["artistName"] as? String ?? "")
+        return artists.contains { by.contains($0) }
+    }
+
+    /// The album a song is on, from Apple's catalog: the song by this artist *on this album*
+    /// (or, when Music doesn't name the album, the one whose length matches).
+    private static func songAlbum(artist: String, song: String, album: String, duration: Double) async -> (page: URL, cover: URL?)? {
+        let wanted = YouTubeLoop.normalize(song), artists = YouTubeLoop.artistNames(artist)
+        guard !wanted.isEmpty else { return nil }
+        let knowAlbum = !albumKey(album).isEmpty
         for store in stores {
             var search = URLComponents(string: "https://itunes.apple.com/search")!
             search.queryItems = [.init(name: "term", value: "\(artists.first ?? artist) \(song)"), .init(name: "entity", value: "song"),
-                                 .init(name: "limit", value: "10"), .init(name: "country", value: store)]
-            guard let url = search.url, let (data, _) = try? await URLSession.shared.data(from: url),
-                  let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
-                  let results = json["results"] as? [[String: Any]] else { continue }
-            let match = results.first { r in
+                                 .init(name: "limit", value: "25"), .init(name: "country", value: store)]
+            guard let results = await catalog(search) else { continue }
+            let seconds = { (r: [String: Any]) in (r["trackTimeMillis"] as? Double ?? 0) / 1000 }
+            let candidates = results.filter { r in
                 let name = YouTubeLoop.normalize(r["trackName"] as? String ?? "")
-                let by = YouTubeLoop.normalize(r["artistName"] as? String ?? "")
-                return name.contains(wanted) && artists.contains { by.contains($0) }
+                guard name == wanted || name.hasPrefix(wanted + " "), byArtist(r, artists) else { return false }
+                if knowAlbum { return sameAlbum(r["collectionName"] as? String ?? "", album) }
+                return duration > 0 && abs(seconds(r) - duration) < 3
+            }
+            // The exact title first, then the closest length.
+            let match = candidates.min { a, b in
+                let an = YouTubeLoop.normalize(a["trackName"] as? String ?? "") == wanted ? 0 : 1
+                let bn = YouTubeLoop.normalize(b["trackName"] as? String ?? "") == wanted ? 0 : 1
+                return (an, abs(seconds(a) - duration)) < (bn, abs(seconds(b) - duration))
             }
             if let match, let page = (match["collectionViewUrl"] as? String).flatMap(URL.init(string:)) {
                 let cover = (match["artworkUrl100"] as? String).flatMap { URL(string: $0.replacingOccurrences(of: "100x100bb", with: "600x600bb")) }

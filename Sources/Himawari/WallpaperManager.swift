@@ -30,6 +30,7 @@ final class WallpaperManager {
     private var song: SongInfo?
     private let audio = AudioLevels()
     private var levelsStop: DispatchWorkItem?
+    private var audioHeard = false // the tap is carrying sound (else the gear animates itself)
     /// The side gear (and the CD scene) move whenever the desktop can be seen, even while the
     /// video itself is paused for the battery: they cost next to nothing.
     private var desktopVisible = true
@@ -415,6 +416,20 @@ final class WallpaperManager {
         refreshControls()
     }
 
+    /// The tap going silent (macOS not letting it hear Music, or the output changing) or coming
+    /// back: the gear switches between the live levels and its own animation, so it never freezes.
+    private func checkHearing() {
+        let heard = audio.hearing
+        guard heard != audioHeard else { return }
+        audioHeard = heard
+        if audio.running {
+            Log.write(heard ? "levels: hearing Music" : "levels: the tap is silent, so the gear animates by itself "
+                      + "(is Himawari allowed in System Settings ▸ Privacy & Security ▸ Screen & System Audio Recording?)")
+        }
+        canvases.forEach { $0.levelsChanged() }
+        scenes.forEach { $0.levelsChanged() }
+    }
+
     /// If the wallpaper ever ends up with nothing playable (black), put it back.
     private func startWatchdog() {
         guard watchdog == nil else { return }
@@ -424,6 +439,7 @@ final class WallpaperManager {
                 let size = self.player.currentItem?.presentationSize ?? .zero
                 if size.width > 0 { self.canvases.forEach { $0.videoSize = size } }
                 self.refreshControls() // the gear may have moved (new video shape, scene layout)
+                self.checkHearing()
                 guard let url = self.current, self.youtube == nil else { return }
                 let item = self.player.currentItem
                 if item == nil || item?.status == .failed || item?.error != nil {

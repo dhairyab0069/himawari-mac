@@ -19,6 +19,10 @@ final class AudioLevels: @unchecked Sendable {
     }
 
     private let pending = OSAllocatedUnfairLock(initialState: Snapshot())
+    /// When the tap last carried any sound, and when it started. A tap macOS hasn't allowed to
+    /// hear other apps doesn't fail: it delivers silence. So "running" isn't enough to trust it.
+    private let lastHeard = OSAllocatedUnfairLock(initialState: CFTimeInterval(0))
+    private var startedAt: CFTimeInterval = 0
     private var tapID = AudioObjectID(kAudioObjectUnknown)
     private var aggregateID = AudioObjectID(kAudioObjectUnknown)
     private var procID: AudioDeviceIOProcID?
@@ -112,8 +116,17 @@ final class AudioLevels: @unchecked Sendable {
         guard err == noErr else { return fail("starting the device", err) }
         problem = "format \(format.mSampleRate) Hz, \(format.mChannelsPerFrame) ch, interleaved \(interleaved)"
         running = true
+        startedAt = CACurrentMediaTime()
         failedAt = nil
         return true
+    }
+
+    /// Running and actually hearing Music (a few seconds' grace after starting, and across quiet
+    /// moments in a song). Silence for longer means the meters should animate by themselves.
+    var hearing: Bool {
+        guard running else { return false }
+        let now = CACurrentMediaTime()
+        return now - startedAt < 4 || now - lastHeard.withLock { $0 } < 4
     }
 
     func stop() {
@@ -191,6 +204,7 @@ final class AudioLevels: @unchecked Sendable {
         }
         guard frames > 0 else { return }
         let l = (sumL / Float(frames)).squareRoot(), r = (sumR / Float(frames)).squareRoot()
+        if max(l, r) > 1e-5 { lastHeard.withLock { $0 = CACurrentMediaTime() } }
         pending.withLock { state in
             state.left = max(state.left, l)
             state.right = max(state.right, r)

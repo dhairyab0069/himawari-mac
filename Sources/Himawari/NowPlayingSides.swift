@@ -431,7 +431,7 @@ final class NowPlayingSides: NSView {
         CATransaction.setDisableActions(true)
         defer { CATransaction.commit() }
         let moving = info.playing && lively && animating
-        let live = moving && (meterSource?.running ?? false)
+        let live = moving && (meterSource?.hearing ?? false)
         if live { startLiveMeters() } else { stopLiveMeters() }
 
         // A title too long for the display scrolls, pausing at each end.
