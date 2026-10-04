@@ -32,6 +32,8 @@ final class AudioLevels: @unchecked Sendable {
     private var watchingOutput = false
     /// Why the last start didn't work (for the log).
     private(set) var problem = ""
+    /// Called (on the main thread) when the permission is granted, so the owner can start again.
+    var onPermission: (() -> Void)?
 
     // Analysis (touched only on `queue` once running)
     private let n = 1024
@@ -60,6 +62,24 @@ final class AudioLevels: @unchecked Sendable {
         if running { return true }
         watchOutputDevice()
         if let failedAt, Date().timeIntervalSince(failedAt) < 60 { return false } // don't retry (or re-prompt) constantly
+        // Without the permission a tap is still created, but it only ever hears silence. So ask
+        // first (macOS shows its prompt once), and don't build a tap that can't hear anything.
+        switch AudioPermission.status {
+        case .denied:
+            problem = "not allowed to hear Music (System Settings ▸ Privacy & Security ▸ Screen & System Audio Recording ▸ System Audio Recording Only)"
+            failedAt = Date()
+            return false
+        case .unknown:
+            problem = "asking for permission to hear Music"
+            failedAt = Date()
+            AudioPermission.request { granted in
+                Log.write(granted ? "levels: allowed to hear Music" : "levels: not allowed to hear Music; the gear animates by itself")
+                if granted { self.failedAt = nil; self.onPermission?() }
+            }
+            return false
+        case .authorized:
+            break
+        }
         guard let pid = NSRunningApplication.runningApplications(withBundleIdentifier: "com.apple.Music").first?.processIdentifier
         else { problem = "Music isn't running"; return false }
 

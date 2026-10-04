@@ -79,6 +79,8 @@ final class WallpaperManager {
     init() {
         // AVPlayer keeps the display awake by default — a wallpaper must not.
         player.preventsDisplaySleepDuringVideoPlayback = false
+        // Allowed to hear Music after the prompt: start the live meters right away.
+        audio.onPermission = { [weak self] in self?.applySong() }
 
         // Monitor plugged in / unplugged / resolution changed: rebuild the windows.
         NotificationCenter.default.addObserver(
@@ -419,6 +421,8 @@ final class WallpaperManager {
     /// The tap going silent (macOS not letting it hear Music, or the output changing) or coming
     /// back: the gear switches between the live levels and its own animation, so it never freezes.
     private func checkHearing() {
+        // Paused, the tap stays up for a few seconds and hears silence: that's not a problem.
+        guard song?.playing == true else { return }
         let heard = audio.hearing
         guard heard != audioHeard else { return }
         audioHeard = heard
@@ -503,6 +507,9 @@ final class WallpaperManager {
     }
 
     func setVolume(_ volume: Float, muted: Bool) {
+        // Volume all the way down is silence too: play the picture-only version rather than
+        // decoding (and outputting) an audio track nobody can hear.
+        let muted = muted || volume < 0.005
         let muteChanged = player.isMuted != muted
         player.volume = volume
         player.isMuted = muted
