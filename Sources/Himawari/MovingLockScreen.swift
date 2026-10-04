@@ -143,10 +143,14 @@ final class MovingLockScreen {
             setStatus("")
             return
         }
+        // Turned off (restore) while converting: don't swap anything back in.
+        guard !Task.isCancelled else { setStatus(""); return }
         var applied: [String: Int] = [:]
         for target in targets {
+            guard !Task.isCancelled else { setStatus(""); return }
             if let bytes = await swap(into: target.id, seconds: target.seconds) { applied[target.id] = bytes }
         }
+        guard !Task.isCancelled else { setStatus(""); return }
         saveState(video: video.path, applied: applied)
         setStatus("")
         Log.write("moving lock screen: on for \(applied.count) Aerial(s)")
@@ -250,6 +254,7 @@ enum AerialEncoder {
         let natural = try await track.load(.naturalSize)
         let transform = try await track.load(.preferredTransform)
         let sourceSeconds = try await asset.load(.duration).seconds
+        guard sourceSeconds > 0 else { throw Failure.noVideo }
         let nominal = try await track.load(.nominalFrameRate)
         let frameSeconds = 1 / Double(nominal > 0 ? nominal : 30)
 
@@ -261,8 +266,11 @@ enum AerialEncoder {
             .concatenating(CGAffineTransform(scaleX: scale, y: scale))
             .concatenating(CGAffineTransform(translationX: (size.width - w * scale) / 2, y: (size.height - h * scale) / 2))
 
-        try? FileManager.default.removeItem(at: output)
-        let writer = try AVAssetWriter(outputURL: output, fileType: .mov)
+        // Write beside the output and move it in only when done: a failed or cancelled conversion
+        // must not destroy the previous good copy (repairs trim from it).
+        let partial = output.deletingPathExtension().appendingPathExtension("partial.mov")
+        try? FileManager.default.removeItem(at: partial)
+        let writer = try AVAssetWriter(outputURL: partial, fileType: .mov)
         let input = AVAssetWriterInput(mediaType: .video, outputSettings: [
             AVVideoCodecKey: AVVideoCodecType.hevc,
             AVVideoWidthKey: Int(size.width), AVVideoHeightKey: Int(size.height),
@@ -284,7 +292,9 @@ enum AerialEncoder {
 
         let total = Int(seconds * Double(fps))
         var written = 0, passStart = 0.0
+        do {
         while written < total {
+            let before = written
             try Task.checkCancellation()
             // One pass through the source, scaled by a video composition.
             let reader = try AVAssetReader(asset: asset)
@@ -310,12 +320,22 @@ enum AerialEncoder {
                     if written % 480 == 0 { progress(Double(written) / Double(total)) }
                 }
             }
+            let failed = reader.status == .failed
             reader.cancelReading()
+            // A pass that produced nothing would loop forever: give up instead.
+            if failed || written == before { throw Failure.cannotWrite(reader.error?.localizedDescription ?? "the video has no readable frames") }
             passStart += sourceSeconds
         }
         input.markAsFinished()
         await writer.finishWriting()
         if writer.status != .completed { throw Failure.cannotWrite(writer.error?.localizedDescription ?? "finishing failed") }
+        } catch {
+            if writer.status == .writing { writer.cancelWriting() }
+            try? FileManager.default.removeItem(at: partial)
+            throw error
+        }
+        try? FileManager.default.removeItem(at: output)
+        try FileManager.default.moveItem(at: partial, to: output)
         progress(1)
     }
 }

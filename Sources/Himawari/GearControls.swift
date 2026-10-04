@@ -36,14 +36,14 @@ final class GearControls {
             for view in gear where view.window != nil {
                 for (control, rect) in view.controlRects {
                     guard let screen = Self.screenRect(rect, in: view) else { continue }
-                    wanted.append(("\(ObjectIdentifier(view)).\(control)", screen, { [unowned self] in
+                    wanted.append(("\(view.catcherKey).\(control)", screen, { [unowned self] in
                         self.catcher(for: control, gear: view)
                     }))
                 }
             }
             for scene in scenes where scene.window != nil && scene.discRect.width > 0 {
                 guard let screen = Self.screenRect(scene.discRect, in: scene) else { continue }
-                wanted.append(("\(ObjectIdentifier(scene)).disc", screen, { [unowned self] in self.discCatcher(scene) }))
+                wanted.append(("\(scene.catcherKey).disc", screen, { [unowned self] in self.discCatcher(scene) }))
             }
         }
         // Keep the ones still needed (just moved), close the others, add the new ones.
@@ -90,7 +90,7 @@ final class GearControls {
         case .jog:
             // Clockwise is forward; one full turn of the wheel is 10 seconds.
             var turn = Turn()
-            c.onDown = { [weak self] point in turn.begin(at: point, in: c.contentView?.bounds ?? .zero); self?.scratch.start() }
+            c.onDown = { [weak self, unowned c] point in turn.begin(at: point, in: c.contentView?.bounds ?? .zero); self?.scratch.start() }
             c.onDrag = { [weak self, weak gear] point in
                 let step = turn.move(to: point)
                 gear?.scrub(by: self?.clamped(-turn.total / (2 * .pi) * 10) ?? 0, angle: turn.total)
@@ -147,7 +147,7 @@ final class GearControls {
         let c = Catcher()
         c.round = true
         var turn = Turn()
-        c.onDown = { [weak self, weak scene] point in
+        c.onDown = { [weak self, weak scene, unowned c] point in
             turn.begin(at: point, in: c.contentView?.bounds ?? .zero)
             scene?.grabDisc()
             self?.scratch.start()

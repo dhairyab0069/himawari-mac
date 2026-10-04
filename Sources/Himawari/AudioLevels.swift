@@ -23,6 +23,7 @@ final class AudioLevels: @unchecked Sendable {
     /// hear other apps doesn't fail: it delivers silence. So "running" isn't enough to trust it.
     private let lastHeard = OSAllocatedUnfairLock(initialState: CFTimeInterval(0))
     private var startedAt: CFTimeInterval = 0
+    private var tappedPid: pid_t?
     private var tapID = AudioObjectID(kAudioObjectUnknown)
     private var aggregateID = AudioObjectID(kAudioObjectUnknown)
     private var procID: AudioDeviceIOProcID?
@@ -59,7 +60,10 @@ final class AudioLevels: @unchecked Sendable {
 
     @discardableResult
     func start() -> Bool {
-        if running { return true }
+        let musicPid = NSRunningApplication.runningApplications(withBundleIdentifier: "com.apple.Music").first?.processIdentifier
+        // Music quit and came back: the tap still points at the old process and hears nothing.
+        if running, musicPid == tappedPid { return true }
+        if running { stop() }
         watchOutputDevice()
         if let failedAt, Date().timeIntervalSince(failedAt) < 60 { return false } // don't retry (or re-prompt) constantly
         // Without the permission a tap is still created, but it only ever hears silence. So ask
@@ -80,8 +84,7 @@ final class AudioLevels: @unchecked Sendable {
         case .authorized:
             break
         }
-        guard let pid = NSRunningApplication.runningApplications(withBundleIdentifier: "com.apple.Music").first?.processIdentifier
-        else { problem = "Music isn't running"; return false }
+        guard let pid = musicPid else { problem = "Music isn't running"; return false }
 
         // Music's audio process object; if macOS won't say, listen to everything (still mostly Music).
         var process = AudioObjectID(kAudioObjectUnknown)
@@ -136,6 +139,7 @@ final class AudioLevels: @unchecked Sendable {
         guard err == noErr else { return fail("starting the device", err) }
         problem = "format \(format.mSampleRate) Hz, \(format.mChannelsPerFrame) ch, interleaved \(interleaved)"
         running = true
+        tappedPid = pid
         startedAt = CACurrentMediaTime()
         failedAt = nil
         return true

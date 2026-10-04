@@ -30,7 +30,8 @@ final class WallpaperManager {
     private var song: SongInfo?
     private let audio = AudioLevels()
     private var levelsStop: DispatchWorkItem?
-    private var audioHeard = false // the tap is carrying sound (else the gear animates itself)
+    private var audioHeard = false
+    private var retries = 0, retryAt = Date.distantPast // failed-stream back-off // the tap is carrying sound (else the gear animates itself)
     /// The side gear (and the CD scene) move whenever the desktop can be seen, even while the
     /// video itself is paused for the battery: they cost next to nothing.
     private var desktopVisible = true
@@ -178,7 +179,7 @@ final class WallpaperManager {
                     guard let self, self.starts == start else { return }
                     self.player.removeAllItems()
                     self.looper = AVPlayerLooper(player: self.player, templateItem: silent ?? AVPlayerItem(url: url))
-                    if self.playing { self.player.play() }
+                    if self.playing, self.youtube == nil, self.sceneArt == nil { self.player.play() } // not under the CD / YouTube
                 }
             } else {
                 looper = AVPlayerLooper(player: player, templateItem: AVPlayerItem(url: url))
@@ -200,7 +201,7 @@ final class WallpaperManager {
             for name in [Notification.Name.AVPlayerItemFailedToPlayToEndTime, .AVPlayerItemPlaybackStalled] {
                 troubleObservers.append(NotificationCenter.default.addObserver(forName: name, object: item, queue: .main) { [weak self] _ in
                     DispatchQueue.main.asyncAfter(deadline: .now() + 1) {
-                        onMainActor { if let self, self.current == url { self.start(url) } }
+                        onMainActor { if let self, self.current == url { self.retry(url) } }
                     }
                 })
             }
@@ -446,13 +447,23 @@ final class WallpaperManager {
                 self.checkHearing()
                 guard let url = self.current, self.youtube == nil else { return }
                 let item = self.player.currentItem
+                if item?.status == .readyToPlay, self.player.rate > 0 { self.retries = 0 } // healthy again
                 if item == nil || item?.status == .failed || item?.error != nil {
-                    self.start(url)
-                } else if self.playing, self.player.rate == 0, item?.status == .readyToPlay {
+                    self.retry(url)
+                } else if self.playing, self.sceneArt == nil, self.player.rate == 0, item?.status == .readyToPlay {
                     self.player.play() // stopped for no reason: nudge it
                 }
             }
         }
+    }
+
+    /// Start `url` again after a failure, backing off (1, 2, 4 … 30 s) so a dead network doesn't
+    /// mean a new stream request every second.
+    private func retry(_ url: URL) {
+        guard Date() >= retryAt else { return }
+        retries += 1
+        retryAt = Date().addingTimeInterval(min(30, pow(2, Double(retries - 1))))
+        start(url)
     }
 
     /// Show a YouTube loop of the playing song over every screen (nil = back to the video).

@@ -60,8 +60,11 @@ public final class MusicNowPlaying: ObservableObject {
     private var shownArtwork: (id: String?, album: String)? // the system cover last used, and its album
     private let artworkFile = FileManager.default.temporaryDirectory
         .appending(path: "now-playing-\(ProcessInfo.processInfo.processIdentifier).img")
-    private static var motionCache: [String: MotionArtwork.Result] = [:]
-    private static var youtubeCache: [String: [String]] = [:]
+    private static var motionCache: [String: (result: MotionArtwork.Result, at: Date)] = [:]
+    private static var youtubeCache: [String: (ids: [String], at: Date)] = [:]
+    /// "Nothing found" may only mean the network was down (just after waking, say): look again after this long.
+    private static let retryEmptyAfter: TimeInterval = 120
+    private static func fresh(_ found: Bool, _ at: Date) -> Bool { found || Date().timeIntervalSince(at) < retryEmptyAfter }
     private static let music = "com.apple.Music"
 
     public init() {
@@ -322,7 +325,8 @@ public final class MusicNowPlaying: ObservableObject {
         }
         // 2) Apple Music's motion artwork (and a cover, if Music didn't have one).
         let key = track.artist + "|" + track.album
-        if let cached = Self.motionCache[key] {
+        if let entry = Self.motionCache[key], Self.fresh(entry.result.video != nil, entry.at) {
+            let cached = entry.result
             motionVideo = cached.video
             if artwork == nil, let cover = cached.cover { fetchImage(cover, generation: generation) }
             if cached.video == nil { findYouTube(for: track, generation: generation) } else { searching = false }
@@ -332,7 +336,7 @@ public final class MusicNowPlaying: ObservableObject {
         Task { [weak self] in
             let result = await MotionArtwork.find(artist: track.artist, album: track.album, song: track.name, duration: track.duration)
             guard let self else { return }
-            Self.motionCache[key] = result
+            Self.motionCache[key] = (result, Date())
             guard self.generation == generation else { return }
             self.motionVideo = result.video
             if self.artwork == nil, let cover = result.cover { self.fetchImage(cover, generation: generation) }
@@ -344,10 +348,10 @@ public final class MusicNowPlaying: ObservableObject {
     private func findYouTube(for track: Track, generation: Int) {
         guard youtubeFallback else { searching = false; return }
         let key = track.artist + "|" + track.name
-        if let cached = Self.youtubeCache[key] { youtubeVideos = cached; searching = false; return }
+        if let entry = Self.youtubeCache[key], Self.fresh(!entry.ids.isEmpty, entry.at) { youtubeVideos = entry.ids; searching = false; return }
         Task { [weak self] in
             let ids = await YouTubeLoop.findVideos(artist: track.artist, title: track.name)
-            Self.youtubeCache[key] = ids
+            Self.youtubeCache[key] = (ids, Date())
             guard let self, self.generation == generation else { return }
             self.youtubeVideos = ids
             self.searching = false

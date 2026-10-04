@@ -51,11 +51,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
             if settings.lockScreenMatch, !LockScreen.isShowing { LockScreen.show(frameOf: URL(fileURLWithPath: path)) }
             if settings.movingLockScreen {
                 MovingLockScreen.shared.adopt(video: URL(fileURLWithPath: path)) // a swap made by hand counts
-                MovingLockScreen.shared.repair()
-                // macOS may re-download an Aerial at any time: check a few times a day.
-                repairTimer = Timer.scheduledTimer(withTimeInterval: 6 * 3600, repeats: true) { _ in
-                    onMainActor { MovingLockScreen.shared.repair() }
-                }
+                // Already made: just checks it's in place. Interrupted (quit mid-conversion): starts again.
+                _ = MovingLockScreen.shared.apply(video: URL(fileURLWithPath: path))
+                startRepairTimer()
             }
         }
         monitor.onChange = { [weak self] play in
@@ -512,9 +510,19 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     }
 
     /// Your video moving on the lock screen, through the Aerial you've picked (see MovingLockScreen).
+    /// macOS may re-download an Aerial at any time: check a few times a day that ours is still in place.
+    private func startRepairTimer() {
+        repairTimer?.invalidate()
+        repairTimer = Timer.scheduledTimer(withTimeInterval: 6 * 3600, repeats: true) { _ in
+            onMainActor { MovingLockScreen.shared.repair() }
+        }
+    }
+
     @objc private func toggleMovingLockScreen() {
         if settings.movingLockScreen {
             settings.movingLockScreen = false
+            repairTimer?.invalidate()
+            repairTimer = nil
             MovingLockScreen.shared.restore()
             return
         }
@@ -548,6 +556,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         }
         settings.movingLockScreen = true
         if settings.lockScreenMatch { settings.lockScreenMatch = false } // the Aerial is the lock screen now
+        startRepairTimer()
     }
 
     /// The lock screen can't play video, so it shows a still frame of yours (see LockScreen).

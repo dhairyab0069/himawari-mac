@@ -22,6 +22,9 @@ struct SongInfo: Equatable {
 /// Animation at a low frame rate, plus the time text when its seconds change.
 @MainActor
 final class NowPlayingSides: NSView {
+    /// Names this view's click catchers. Not ObjectIdentifier: a view rebuilt after a screen change
+    /// can reuse a freed one's address, and its catchers would keep pointing at the old view.
+    let catcherKey = UUID().uuidString
     fileprivate static let vfd = NSColor(red: 0.45, green: 0.97, blue: 1, alpha: 1) // vacuum-fluorescent cyan
     fileprivate static let amber = NSColor(red: 1, green: 0.72, blue: 0.3, alpha: 1)
 

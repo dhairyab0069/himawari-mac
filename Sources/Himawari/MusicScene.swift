@@ -8,6 +8,9 @@ import QuartzCore
 /// server at a low frame rate; everything stops when the music (or the wallpaper) pauses.
 @MainActor
 final class MusicScene: NSView {
+    /// Names this view's click catchers. Not ObjectIdentifier: a view rebuilt after a screen change
+    /// can reuse a freed one's address, and its catchers would keep pointing at the old view.
+    let catcherKey = UUID().uuidString
     private let stage = CALayer()      // everything; its clock is what pausing stops
     private let discStage = CALayer() // the discs and their luster, above the side gear
     private let ambient = AmbientLayer()

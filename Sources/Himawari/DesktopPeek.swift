@@ -101,12 +101,16 @@ final class DesktopPeek {
             let pipe = Pipe()
             p.standardOutput = pipe
             p.standardError = FileHandle.nullDevice
-            try? p.run()
-            p.waitUntilExit()
-            let out = String(data: pipe.fileHandleForReading.readDataToEndOfFile(), encoding: .utf8)?
-                .trimmingCharacters(in: .whitespacesAndNewlines)
-            let answer = p.terminationStatus == 0 ? out : nil
-            DispatchQueue.main.async { onMainActor { done(answer) } }
+            var answer: String?
+            if (try? p.run()) != nil { // never ask a process that didn't start for its status: that throws
+                let data = pipe.fileHandleForReading.readDataToEndOfFile()
+                p.waitUntilExit()
+                if p.terminationStatus == 0 {
+                    answer = String(data: data, encoding: .utf8)?.trimmingCharacters(in: .whitespacesAndNewlines)
+                }
+            }
+            let result = answer
+            DispatchQueue.main.async { onMainActor { done(result) } }
         }
     }
 }
