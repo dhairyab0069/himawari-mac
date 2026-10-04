@@ -64,6 +64,7 @@ cp Resources/Info.plist build/Himawari.Info.plist.tmp
 make_app build/Himawari.app Himawari "Himawari" local.dhairyabhatia.himawari
 cp Resources/Info.plist build/Himawari.app/Contents/Info.plist      # Himawari's own plist (has the icon entry)
 cp Resources/AppIcon.icns build/Himawari.app/Contents/Resources/AppIcon.icns
+cp LICENSE build/Himawari.app/Contents/Resources/LICENSE.txt   # MIT: the notice travels with the app
 # The system Now Playing helper (runs inside /usr/bin/perl; see helpers/NowPlayingHelper.m).
 clang -dynamiclib -fobjc-arc -O2 -mmacosx-version-min=14.4 ${ARCHS[@]+"${ARCHS[@]}"} -framework Foundation \
     helpers/NowPlayingHelper.m -o build/Himawari.app/Contents/Resources/NowPlayingHelper.dylib

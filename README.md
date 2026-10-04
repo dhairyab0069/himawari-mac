@@ -44,6 +44,7 @@
 - [Code report](#code-report)
 - [AI assistance](#ai-assistance)
 - [Acknowledgements](#acknowledgements)
+- [Licence](#licence)
 - [Roadmap](#roadmap)
 
 ## Features
@@ -304,6 +305,12 @@ assistant, as a pair programmer.
   [mediaremote-adapter](https://github.com/ungive/mediaremote-adapter).
 - Apple's frameworks (AVFoundation, Core Animation, Core Audio process taps, SwiftUI) do the heavy
   lifting; Apple Music provides the animated covers.
+
+## Licence
+
+Himawari is released under the [MIT License](LICENSE): use, change and redistribute it
+freely, including in your own (or commercial, or notarized) builds, as long as the copyright and
+licence notice stay with it. It comes with no warranty.
 
 ## Roadmap
 

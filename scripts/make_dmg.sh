@@ -17,6 +17,7 @@ rm -rf "$STAGE" "$DMG" build/Himawari-rw.dmg
 mkdir -p "$STAGE"
 cp -R build/Himawari.app "$STAGE/"
 ln -s /Applications "$STAGE/Applications"
+cp LICENSE "$STAGE/License.txt"
 cat > "$STAGE/Read Me First.txt" <<TXT
 Himawari $VERSION — a live video wallpaper for macOS (14.4 or newer)
 
