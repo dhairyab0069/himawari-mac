@@ -220,6 +220,13 @@ public final class MusicNowPlaying: ObservableObject {
         }
     }
 
+    /// BASS / TREBLE (dB) as Music's ten EQ bands, plus a preamp cut for headroom.
+    /// Shelves: the lowest (highest) two bands fully, the next one half; 250 Hz–2 kHz untouched.
+    nonisolated static func toneBands(bass: Double, treble: Double) -> (bands: [Double], preamp: Double) {
+        let b = min(max(bass, -12), 12), t = min(max(treble, -12), 12)
+        return ([b, b, b / 2, 0, 0, 0, 0, t / 2, t, t], -max(b, t, 0) / 2)
+    }
+
     public func setRepeat(_ on: Bool) { tell("set song repeat to \(on ? "all" : "off")") }
     public func setShuffle(_ on: Bool) { tell("set shuffle enabled to \(on)") }
 
@@ -238,9 +245,7 @@ public final class MusicNowPlaying: ObservableObject {
             """, block: true)
             return
         }
-        // Shelves: the lowest (highest) two bands fully, the next one half; 250 Hz–2 kHz untouched.
-        let bands = [b, b, b / 2, 0, 0, 0, 0, t / 2, t, t]
-        let preamp = -max(b, t, 0) / 2 // headroom for the boost
+        let (bands, preamp) = Self.toneBands(bass: b, treble: t)
         let set = bands.enumerated().map { "set band \($0.offset + 1) of p to \(String(format: "%.1f", $0.element))" }
         tell("""
         if not (exists EQ preset "\(Self.tonePreset)") then make new EQ preset with properties {name:"\(Self.tonePreset)"}
@@ -429,6 +434,11 @@ public enum MotionArtwork {
     public static func bestVariant(of master: URL, maxSide: Int) async -> URL {
         guard let (data, _) = try? await URLSession.shared.data(from: master),
               let text = String(data: data, encoding: .utf8) else { return master }
+        return bestVariant(inPlaylist: text, master: master, maxSide: maxSide)
+    }
+
+    /// The choice itself, from the master playlist's text (separate so it can be tested).
+    static func bestVariant(inPlaylist text: String, master: URL, maxSide: Int) -> URL {
         let lines = text.components(separatedBy: .newlines)
         var options: [(side: Int, hevc: Bool, bandwidth: Int, url: URL)] = []
         for (i, line) in lines.enumerated() where line.hasPrefix("#EXT-X-STREAM-INF") && i + 1 < lines.count {

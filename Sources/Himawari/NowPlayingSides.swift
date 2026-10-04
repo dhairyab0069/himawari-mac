@@ -542,7 +542,7 @@ final class NowPlayingSides: NSView {
 
     /// RMS (0…1) → place on the VU scale (0 = −20, 0.82 = 0 VU, 1 = +3). 0 VU is set at
     /// −14 dBFS, where modern masters sit, so the needles live around the 0 mark.
-    private static func vuFraction(_ rms: Float) -> Double {
+    nonisolated static func vuFraction(_ rms: Float) -> Double {
         let vu = 20 * log10(Double(max(rms, 1e-6))) + 14
         let marks: [(Double, Double)] = [(-20, 0), (-10, 0.28), (-7, 0.42), (-5, 0.53), (-3, 0.64), (-2, 0.7),
                                           (-1, 0.76), (0, 0.82), (1, 0.88), (2, 0.94), (3, 1)]
