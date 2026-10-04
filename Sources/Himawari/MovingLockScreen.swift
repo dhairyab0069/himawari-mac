@@ -59,6 +59,7 @@ final class MovingLockScreen {
             try? fm.moveItem(at: file, to: target)
         }
         try? fm.removeItem(at: master)
+        try? fm.removeItem(at: master.deletingPathExtension().appendingPathExtension("partial.mov")) // left by a crash mid-conversion
         UserDefaults.standard.removeObject(forKey: stateKey)
         setStatus("")
         Log.write("moving lock screen: Apple's Aerials restored")
@@ -72,12 +73,13 @@ final class MovingLockScreen {
             let size = (try? fm.attributesOfItem(atPath: file.path))?[.size] as? Int ?? -1
             guard size != bytes else { continue }
             guard fm.fileExists(atPath: master.path) else {
-                // No master (made by hand before this feature): convert again.
+                // No master (made by hand before this feature): convert again, if the video still exists.
+                guard fm.fileExists(atPath: state.video) else { return }
                 job = Task { await self.convertAndSwap(video: URL(fileURLWithPath: state.video), targets: await self.aerials(self.pickedAerialIDs())) }
                 return
             }
             Log.write("moving lock screen: macOS restored \(id), swapping it again")
-            Task { await self.swap(into: id, seconds: await self.duration(ofOriginal: id)) }
+            job = Task { await self.swap(into: id, seconds: await self.duration(ofOriginal: id)) } // cancellable by restore()
         }
     }
 
