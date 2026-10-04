@@ -10,7 +10,7 @@
 </p>
 
 <p align="center">
-  <a href="https://github.com/dhairyab0069/himawari-mac/releases/latest/download/Himawari-1.1.3.dmg"><b>⬇︎ Download Himawari Beta 1.1.3 (DMG)</b></a>
+  <a href="https://github.com/dhairyab0069/himawari-mac/releases/latest/download/Himawari-1.1.4.dmg"><b>⬇︎ Download Himawari Beta 1.1.4 (DMG)</b></a>
   &nbsp;·&nbsp; macOS 14.4 or later &nbsp;·&nbsp; Apple Silicon and Intel
 </p>
 
@@ -41,6 +41,7 @@
 - [Project layout](#project-layout)
 - [Weekly maintenance bot](#weekly-maintenance-bot)
 - [Privacy](#privacy)
+- [Code report](#code-report)
 - [AI assistance](#ai-assistance)
 - [Acknowledgements](#acknowledgements)
 - [Roadmap](#roadmap)
@@ -58,7 +59,7 @@
 
 ## Install
 
-1. [Download the DMG](https://github.com/dhairyab0069/himawari-mac/releases/latest/download/Himawari-1.1.3.dmg) and open it.
+1. [Download the DMG](https://github.com/dhairyab0069/himawari-mac/releases/latest/download/Himawari-1.1.4.dmg) and open it.
 2. Drag **Himawari** onto **Applications**, then open it from Applications.
 3. The first time, macOS may say it can't check Himawari for malicious software: Himawari isn't notarized
    (that needs a paid Apple Developer ID). Either right-click Himawari ▸ **Open** ▸ **Open**, or go to
@@ -257,6 +258,13 @@ With **Show Wallpaper on Lock Screen** on, Himawari changes your macOS wallpaper
 
 On your Mac: the audio tap measures loudness and never records or saves sound; the Finder check reads
 only how many items are selected; logs stay in `~/Library/Logs`.
+
+## Code report
+
+[**Himawari: the code, explained**](https://github.com/dhairyab0069/himawari-mac/releases/latest/download/Himawari-Code-Report.pdf)
+(PDF, ~180 pages) walks through every file, type and function, the macOS frameworks they use and
+why the code is built the way it is, and ends with a health report on the latest release. The
+chapters are also in [`docs/report/`](docs/report/).
 
 ## AI assistance
 
