@@ -284,9 +284,12 @@ final class MusicScene: NSView {
 
         // …and it arrives spinning a little faster, slowing to the normal speed.
         let spinUp = CABasicAnimation(keyPath: "transform.rotation.z")
-        spinUp.fromValue = 0
-        spinUp.toValue = direction == .forward ? -2.6 : 2.6 // going back, it rewinds a little as it arrives
+        // Additive and ending at 0, so removing it when it finishes changes nothing: an extra turn
+        // that winds down (it used to end 2.6 rad off, and the print jumped ~150° at the end).
+        spinUp.fromValue = direction == .forward ? 2.6 : -2.6 // going back, it rewinds a little as it arrives
+        spinUp.toValue = 0
         spinUp.isAdditive = true
+        spinUp.fillMode = .backwards
         spinUp.beginTime = now + 0.35
         spinUp.duration = 1.4
         spinUp.timingFunction = CAMediaTimingFunction(name: .easeOut)

@@ -9,6 +9,7 @@
 // `elapsed` was true at `timestamp` (Unix time) and moves at `rate`. It exits when Himawari
 // goes away (its stdin closes).
 #import <Foundation/Foundation.h>
+#include <math.h>
 #include <dlfcn.h>
 
 typedef void (*RegisterFn)(dispatch_queue_t);
@@ -29,7 +30,12 @@ static void emit(void) {
             if (info) {
                 NSDictionary *keys = @{@"title": @"Title", @"artist": @"Artist", @"album": @"Album",
                                        @"duration": @"Duration", @"elapsed": @"ElapsedTime", @"rate": @"PlaybackRate"};
-                for (NSString *k in keys) { id v = value(info, keys[k]); if (v) out[k] = v; }
+                for (NSString *k in keys) {
+                    id v = value(info, keys[k]);
+                    // JSON can't hold NaN or infinity (writing one throws and kills the helper): skip them.
+                    if ([v isKindOfClass:[NSNumber class]] && !isfinite([v doubleValue])) continue;
+                    if ([v isKindOfClass:[NSString class]] || [v isKindOfClass:[NSNumber class]]) out[k] = v;
+                }
                 NSDate *stamp = value(info, @"Timestamp");
                 if ([stamp isKindOfClass:[NSDate class]]) out[@"timestamp"] = @(stamp.timeIntervalSince1970);
                 // The exact cover Music shows (Control Center's), sent once per cover: its
@@ -45,6 +51,7 @@ static void emit(void) {
                     }
                 }
             }
+            if (![NSJSONSerialization isValidJSONObject:out]) return;
             NSData *json = [NSJSONSerialization dataWithJSONObject:out options:0 error:nil];
             if (json) { fwrite(json.bytes, 1, json.length, stdout); fputc('\n', stdout); fflush(stdout); }
         });

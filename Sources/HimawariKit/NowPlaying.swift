@@ -324,7 +324,8 @@ public final class MusicNowPlaying: ObservableObject {
             self.artwork = NSImage(contentsOfFile: path)
         }
         // 2) Apple Music's motion artwork (and a cover, if Music didn't have one).
-        let key = track.artist + "|" + track.album
+        // No album name: key by the song too, or every album-less song by this artist would share one answer.
+        let key = track.artist + "|" + (track.album.isEmpty ? "song:" + track.name : track.album)
         if let entry = Self.motionCache[key], Self.fresh(entry.result.video != nil, entry.at) {
             let cached = entry.result
             motionVideo = cached.video
@@ -667,6 +668,8 @@ public final class YouTubeLoopView: NSView {
     public override func hitTest(_ point: NSPoint) -> NSView? { nil } // purely visual
 
     public func show(_ ids: [String]) {
+        // They go into JavaScript: accept only real YouTube video ids (11 of A–Z a–z 0–9 - _).
+        let ids = ids.filter { $0.count == 11 && $0.allSatisfy { $0.isASCII && ($0.isLetter || $0.isNumber || $0 == "-" || $0 == "_") } }
         guard ids != self.ids, !ids.isEmpty else { return }
         self.ids = ids
         let list = ids.map { "'\($0)'" }.joined(separator: ",")

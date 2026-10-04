@@ -46,6 +46,8 @@ final class NowPlayingSides: NSView {
     private(set) var controlRects: [GearControl: CGRect] = [:]
     /// While the jog wheel is being turned: how far from now the song would land.
     private var previewOffset: Double?
+    /// What the time display and progress ladder last showed ("" = draw again).
+    private var shownTime = ""
     /// Music's volume, 0…1: where the VOLUME knob points.
     var volume: Double = 0.5 { didSet { pointKnobs() } }
     /// BASS and TREBLE in dB, −12…12 (Himawari's equalizer preset in Music).
@@ -160,6 +162,7 @@ final class NowPlayingSides: NSView {
         deck.sublayers?.forEach { $0.removeFromSuperlayer() }
         analyzer.sublayers?.forEach { $0.removeFromSuperlayer() }
         ladder = []; needles = []; columns = []
+        shownTime = "" // new ladder segments: draw the time and progress again
         controlRects = [:]
         deck.isHidden = !roomy
         analyzer.isHidden = !roomy
@@ -555,13 +558,16 @@ final class NowPlayingSides: NSView {
         guard let info else { return }
         func mmss(_ t: Double) -> String { String(format: "%02d:%02d", Int(t) / 60, Int(t) % 60) }
         let p = min(max(currentPosition() + (previewOffset ?? 0), 0), max(info.duration, 0))
-        let shown = (time.string as? String, total.string as? String)
-        guard shown.0 != mmss(p) || shown.1 == nil else { return }
+        let remaining = info.duration > 0 ? "-" + mmss(info.duration - p) : ""
+        let lit = info.duration > 0 ? Int((p / info.duration * Double(ladder.count)).rounded(.up)) : 0
+        // Redraw only when something visible changes (the ladder is rebuilt with the gear: see buildDeck).
+        let key = "\(mmss(p))|\(remaining)|\(lit)"
+        guard key != shownTime else { return }
+        shownTime = key
         CATransaction.begin()
         CATransaction.setDisableActions(true)
         time.string = mmss(p)
-        total.string = info.duration > 0 ? "-" + mmss(info.duration - p) : ""
-        let lit = info.duration > 0 ? Int((p / info.duration * Double(ladder.count)).rounded(.up)) : 0
+        total.string = remaining
         for (i, seg) in ladder.enumerated() {
             seg.opacity = i < lit ? 1 : 0.13
             seg.shadowOpacity = i < lit ? 0.8 : 0

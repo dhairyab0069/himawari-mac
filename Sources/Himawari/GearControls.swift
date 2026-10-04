@@ -104,24 +104,31 @@ final class GearControls {
             }
         case .volume:
             // Drag up for louder, down for quieter; 150 points from silent to full.
-            var start: CGFloat = 0, level = 0.5
+            var start: CGFloat = 0, level = 0.5, dragged = false
             c.onDown = { [weak self, weak gear] point in
                 start = point.y
-                self?.volumeNow { now in level = now; gear?.volume = now }
+                dragged = false
+                level = gear?.volume ?? 0.5 // what the knob shows now; Music's exact value follows
+                self?.volumeNow { now in
+                    guard !dragged else { return } // don't make the knob jump under your finger
+                    level = now; gear?.volume = now
+                }
             }
             c.onDrag = { [weak self, weak gear] point in
+                dragged = true
                 let v = min(max(level + Double(point.y - start) / 150, 0), 1)
                 gear?.volume = v
                 self?.perform?(.volume(v, done: false))
             }
             c.onUp = { [weak self, weak gear] point in
+                guard dragged else { return } // a click without a drag changes nothing
                 let v = min(max(level + Double(point.y - start) / 150, 0), 1)
                 gear?.volume = v
                 self?.perform?(.volume(v, done: true))
             }
         case .bass, .treble:
             // Like VOLUME: drag up to boost, down to cut; 150 points across ±12 dB. Double-click: flat.
-            var start: CGFloat = 0, level = 0.5
+            var start: CGFloat = 0, level = 0.5, dragged = false
             let send = { [weak self, weak gear] (v: Double, done: Bool) in
                 guard let gear else { return }
                 let dB = ((v * 24 - 12) * 2).rounded() / 2 // half-dB steps
@@ -130,10 +137,16 @@ final class GearControls {
             }
             c.onDown = { [weak gear] point in
                 start = point.y
+                dragged = false
                 level = gear?.knobValue(control) ?? 0.5
             }
-            c.onDrag = { point in send(min(max(level + Double(point.y - start) / 150, 0), 1), false) }
-            c.onUp = { point in send(min(max(level + Double(point.y - start) / 150, 0), 1), true) }
+            c.onDrag = { point in
+                dragged = true
+                send(min(max(level + Double(point.y - start) / 150, 0), 1), false)
+            }
+            // Only a drag sets the tone: a plain click (or the clicks of a double-click) must not
+            // switch Music's equalizer on, or resend the old value after "flat".
+            c.onUp = { point in if dragged { send(min(max(level + Double(point.y - start) / 150, 0), 1), true) } }
             c.onDoubleClick = { [weak gear] in
                 gear?.press(control)
                 send(0.5, true)
