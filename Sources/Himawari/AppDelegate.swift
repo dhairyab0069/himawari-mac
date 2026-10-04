@@ -105,12 +105,19 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
             case .button(.next): self.music.next()
             case .button(.stop): self.music.pause()
             case .button(.eject): self.music.openMusic()
-            case .button(.repeatMode):
-                self.deck?.repeating.toggle()
-                if let deck = self.deck { self.wallpaper.showDeck(deck); self.music.setRepeat(deck.repeating) }
-            case .button(.shuffle):
-                self.deck?.shuffling.toggle()
-                if let deck = self.deck { self.wallpaper.showDeck(deck); self.music.setShuffle(deck.shuffling) }
+            case .button(.repeatMode), .button(.shuffle):
+                var repeatButton = false
+                if case .button(.repeatMode) = action { repeatButton = true }
+                // Act on Music's settings: read them first if we haven't yet.
+                let flip = { [weak self] (deck: MusicNowPlaying.Deck) in
+                    guard let self else { return }
+                    var d = deck
+                    if repeatButton { d.repeating.toggle(); self.music.setRepeat(d.repeating) }
+                    else { d.shuffling.toggle(); self.music.setShuffle(d.shuffling) }
+                    self.deck = d
+                    self.wallpaper.showDeck(d)
+                }
+                if let deck = self.deck { flip(deck) } else { self.music.fetchDeck { if let d = $0 { flip(d) } } }
             case .button: break
             case .seek(let fraction):
                 if let track = self.music.track { self.music.seek(to: fraction * track.duration) }
@@ -555,7 +562,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
             return
         }
         settings.movingLockScreen = true
-        if settings.lockScreenMatch { settings.lockScreenMatch = false } // the Aerial is the lock screen now
+        if settings.lockScreenMatch { // the Aerial is the lock screen now: put the previous picture back
+            settings.lockScreenMatch = false
+            LockScreen.restore()
+        }
         startRepairTimer()
     }
 

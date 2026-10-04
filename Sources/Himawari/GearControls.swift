@@ -26,6 +26,8 @@ final class GearControls {
     /// Music's volume (0…1), read when you grab the knob.
     var volumeNow: (@escaping (Double) -> Void) -> Void = { $0(0.5) }
 
+    /// Marks the catcher windows (the wallpaper's windows are panels too).
+    static let catcherID = NSUserInterfaceItemIdentifier("himawari.gear-catcher")
     private var catchers: [Catcher] = []
     private let scratch = ScratchSound()
 
@@ -224,6 +226,7 @@ private final class Catcher: NSPanel {
     init() {
         super.init(contentRect: .zero, styleMask: [.borderless, .nonactivatingPanel], backing: .buffered, defer: false)
         level = DesktopLayer.level(DesktopLayer.folders)
+        identifier = GearControls.catcherID // so click-to-hide can tell a catcher from the wallpaper
         collectionBehavior = [.canJoinAllSpaces, .stationary, .ignoresCycle, .fullScreenNone]
         isOpaque = false
         backgroundColor = .clear

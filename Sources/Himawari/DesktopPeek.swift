@@ -25,9 +25,10 @@ final class DesktopPeek {
                 // Clicks on our own windows never reach a global monitor: while the files are
                 // hidden, the wallpaper window takes the click, and this one sees it.
                 localMonitor = NSEvent.addLocalMonitorForEvents(matching: [.leftMouseDown]) { [weak self] event in
-                    // The wallpaper itself, not the gear's click catchers (panels): pressing a
+                    // The wallpaper itself, not the gear's click catchers: pressing a
                     // button on the gear mustn't bring the files back.
-                    if let window = event.window, !(window is NSPanel), window.level.rawValue < NSWindow.Level.normal.rawValue {
+                    if let window = event.window, window.identifier != GearControls.catcherID,
+                       window.level.rawValue < NSWindow.Level.normal.rawValue {
                         onMainActor { self?.onWallpaperClick?() }
                     }
                     return event
