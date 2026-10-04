@@ -10,5 +10,9 @@ let package = Package(
         .target(name: "HimawariKit", path: "Sources/HimawariKit"),
         .executableTarget(name: "Himawari", dependencies: ["HimawariKit"], path: "Sources/Himawari"),
         .executableTarget(name: "HimawariClock", dependencies: ["HimawariKit"], path: "Sources/HimawariClock"),
+        // Unit tests for the pure logic (run with `swift test`; CI runs them on every push).
+        .testTarget(name: "HimawariKitTests", dependencies: ["HimawariKit"], path: "Tests/HimawariKitTests"),
+        .testTarget(name: "HimawariTests", dependencies: ["Himawari"], path: "Tests/HimawariTests"),
+        .testTarget(name: "HimawariClockTests", dependencies: ["HimawariClock"], path: "Tests/HimawariClockTests"),
     ]
 )

@@ -1,0 +1,34 @@
+name: CI
+
+# Builds and tests every push and pull request. `main` only accepts changes that pass.
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build-and-test:
+    runs-on: macos-26
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - name: Use the newest Xcode
+        uses: maxim-lobanov/setup-xcode@v1
+        with:
+          xcode-version: latest-stable
+      - name: Versions
+        run: |
+          sw_vers
+          swift --version
+      - name: Build (release, warnings are errors)
+        run: swift build -c release -Xswiftc -warnings-as-errors
+      - name: Unit tests
+        run: swift test --parallel
+      - name: Now Playing helper compiles
+        run: clang -dynamiclib -fobjc-arc -O2 -Wall -Werror -mmacosx-version-min=14.4 -framework Foundation helpers/NowPlayingHelper.m -o /tmp/NowPlayingHelper.dylib
+      - name: Scripts parse
+        run: for f in build.sh install.sh scripts/*.sh maintenance/*.sh tools/*.sh; do bash -n "$f"; done

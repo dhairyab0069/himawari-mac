@@ -186,11 +186,16 @@ final class GearControls {
     /// Keeps a scrub inside the song.
     private func clamped(_ seconds: Double) -> Double {
         guard let s = song() else { return seconds }
-        return min(max(seconds, -s.position), max(s.duration - s.position - 1, 0))
+        return Self.clamp(seconds, position: s.position, duration: s.duration)
+    }
+
+    /// No further back than the start, no further on than a second before the end.
+    nonisolated static func clamp(_ seconds: Double, position: Double, duration: Double) -> Double {
+        min(max(seconds, -position), max(duration - position - 1, 0))
     }
 
     /// Following a drag around a center: how far it has turned, in radians (counterclockwise).
-    private struct Turn {
+    struct Turn { // internal for the tests
         var center = CGPoint.zero, last: CGFloat = 0
         private(set) var total: CGFloat = 0
 
