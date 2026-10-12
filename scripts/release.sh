@@ -59,6 +59,8 @@ fi
 if [ -d "$SITE" ]; then
     cd "$SITE" && git pull -q --ff-only
     sed -i '' -E "s/Himawari-[0-9.]+\.dmg/Himawari-$V.dmg/g; s/>BETA [0-9.]+</>BETA $V</" index.html
+    # Release-day page changes prepared in the site repo ("Coming in Beta …" → "New in Beta …").
+    [ -f "release/$V.sed" ] && sed -i '' -f "release/$V.sed" index.html
     git commit -qam "Beta $V" && git push -q || true
 fi
 
