@@ -7,15 +7,20 @@
 set -euo pipefail
 export PATH="/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin:$HOME/.local/bin"
 V="${1:?version, e.g. 1.3}"
-REPO="$(cd "$(dirname "$0")/.." && pwd)"
+CHECKOUT="$(cd "$(dirname "$0")/.." && pwd)"
 SITE="$HOME/himawari-io"
 notify() { osascript -e "display notification \"$1\" with title \"Himawari release\"" || true; }
 fail() { echo "FAILED: $1"; notify "Release $V didn't go out: $1"; exit 1; }
-cd "$REPO"
 echo "===== $(date) releasing $V ====="
 
-[ -z "$(git status --porcelain --untracked-files=no)" ] || fail "uncommitted changes in $REPO"
-git switch -q main && git pull -q --ff-only || fail "couldn't update main"
+# Build from exactly what's on GitHub's main, in a fresh worktree: your own checkout (and any
+# local commits the weekly bot made) is left alone.
+cd "$CHECKOUT"
+git fetch -q origin main --tags || fail "couldn't fetch"
+REPO="$(mktemp -d)/himawari-$V"
+git worktree add -q --detach "$REPO" origin/main || fail "couldn't make a worktree"
+trap 'cd "$CHECKOUT"; git worktree remove --force "$REPO" 2>/dev/null || true' EXIT
+cd "$REPO"
 PLIST_V=$(/usr/libexec/PlistBuddy -c "Print CFBundleShortVersionString" Resources/Info.plist)
 [ "$PLIST_V" = "$V" ] || fail "main is at version $PLIST_V, not $V"
 [ -f "docs/release-notes/$V.md" ] || fail "no docs/release-notes/$V.md"
@@ -29,6 +34,8 @@ UNIVERSAL=1 scripts/make_dmg.sh | tail -1
 DMG="build/Himawari-$V.dmg"
 [ -f "$DMG" ] || fail "no DMG"
 
+cp "$CHECKOUT/build/Himawari-Code-Report.pdf" build/ 2>/dev/null || true
+[ -f build/Himawari-Code-Report.pdf ] || fail "no code report PDF in $CHECKOUT/build"
 git tag "v$V" && git push -q origin "v$V"
 for r in himawari-mac himawari-io; do
     extra=(); [ "$r" = himawari-io ] && extra=(--target main)
@@ -46,7 +53,6 @@ if [ "$OLD" != "Himawari-$V.dmg" ]; then
     gh pr create --title "README: Beta $V download" --base main --head "readme-$V" --body "Points the download links at the released Beta $V DMG. Docs only." >/dev/null
     for _ in $(seq 1 60); do gh pr checks "readme-$V" 2>/dev/null | grep -qE "pass|fail" && break; sleep 15; done
     gh pr merge "readme-$V" --squash --delete-branch || echo "README pull request left open: merge it by hand"
-    git switch -q main && git pull -q --ff-only
 fi
 
 # The project page.
