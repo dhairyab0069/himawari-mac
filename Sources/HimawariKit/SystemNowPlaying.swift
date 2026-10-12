@@ -40,6 +40,8 @@ public final class SystemNowPlaying: @unchecked Sendable {
 
     public func start() {
         stopped = false
+        // Writing a command to a helper that just died must fail, not kill the app with SIGPIPE.
+        signal(SIGPIPE, SIG_IGN)
         // Downloaded copies are quarantined; /usr/bin/perl won't load a quarantined helper.
         removexattr(helper.path, "com.apple.quarantine", 0)
         let p = Process()

@@ -9,7 +9,8 @@
 // `elapsed` was true at `timestamp` (Unix time) and moves at `rate`.
 //
 // It also takes commands for whichever app is playing, one per line on stdin (the same remote
-// commands Control Center sends): play, pause, toggle, next, previous, seek <seconds>.
+// commands Control Center sends): play, pause, toggle, next, previous, seek <seconds>;
+// and "refresh" just reports the current state again.
 // It exits when Himawari goes away (its stdin closes).
 #import <Foundation/Foundation.h>
 #include <math.h>

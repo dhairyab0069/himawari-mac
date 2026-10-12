@@ -9,10 +9,18 @@ import Foundation
 /// Apple's Music app can also be scripted for its volume, equalizer, repeat and shuffle.
 public enum PlayerKind: String, CaseIterable, Sendable, Codable {
     case appleMusic, spotify, tidal, amazonMusic, deezer, browser, other
+    /// A WebKit helper process (not an app): never followed. Not in the Players menu.
+    case webContent
+
+    /// The players the Players menu lists.
+    public static var menuCases: [PlayerKind] { allCases.filter { $0 != .webContent } }
 
     /// Bundle id → player. Browsers cover web players (YouTube Music, SoundCloud, Spotify's web player…).
     public init(bundleID: String?) {
         guard let id = bundleID?.lowercased() else { self = .other; return }
+        // WebKit's own processes play for whatever web view they serve (Himawari's YouTube loop
+        // included): never a player by themselves.
+        if id.hasPrefix("com.apple.webkit") { self = .webContent; return }
         if let kind = Self.known[id] { self = kind; return }
         if Self.browserPrefixes.contains(where: { id.hasPrefix($0) }) { self = .browser; return }
         self = .other
@@ -27,7 +35,7 @@ public enum PlayerKind: String, CaseIterable, Sendable, Codable {
         "com.deezer.deezer": .deezer,
     ]
     private static let browserPrefixes = [
-        "com.apple.safari", "com.apple.webkit", "com.google.chrome", "org.mozilla.firefox",
+        "com.apple.safari", "com.google.chrome", "org.mozilla.firefox",
         "company.thebrowser.browser", "com.microsoft.edgemac", "com.brave.browser", "com.operasoftware.opera",
         "com.vivaldi.vivaldi", "app.zen-browser.zen",
     ]
@@ -42,6 +50,7 @@ public enum PlayerKind: String, CaseIterable, Sendable, Codable {
         case .deezer: "Deezer"
         case .browser: "Web Players (YouTube Music, SoundCloud…)"
         case .other: "Other Apps (VLC, IINA, QuickTime…)"
+        case .webContent: "Web Content"
         }
     }
 
@@ -90,6 +99,7 @@ public struct PlayerChoice: Sendable, Equatable {
 
     /// Should an update from this player be followed?
     public func follows(_ kind: PlayerKind) -> Bool {
+        if kind == .webContent { return false }
         if let pinned { return kind == pinned }
         return !disabled.contains(kind)
     }
@@ -105,6 +115,8 @@ public struct PlayerChoice: Sendable, Equatable {
 public enum PlayerCommand: Equatable, Sendable {
     case play, pause, togglePlayPause, next, previous
     case seek(to: Double)
+    /// No command: just report the current state again.
+    case refresh
 
     /// The line the Now Playing helper reads on its standard input.
     public var helperLine: String {
@@ -114,6 +126,7 @@ public enum PlayerCommand: Equatable, Sendable {
         case .togglePlayPause: "toggle"
         case .next: "next"
         case .previous: "previous"
+        case .refresh: "refresh"
         case .seek(let seconds): "seek " + String(format: "%.2f", locale: Locale(identifier: "en_US_POSIX"), max(0, seconds))
         }
     }

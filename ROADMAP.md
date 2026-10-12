@@ -269,7 +269,7 @@ Anything suggested opens in the player you choose: Apple Music by catalog id, ot
 - **Battery.** Recording plays costs nothing. Classifying a song's sound runs once per song,
   briefly, and the reports are built off the main thread.
 - **Scope.** Beta 1.2 alone makes Himawari useful to most people who don't use Apple Music. Ship it,
-  and finish Beta 1 with 1.3, before starting the listening work in Beta 2.
+  and finish Beta 1 with Betas 1.3 and 1.4, before starting the listening work in Beta 2.
 
 ## Done
 

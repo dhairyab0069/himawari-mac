@@ -33,14 +33,22 @@ public final class MusicNowPlaying: ObservableObject {
     @Published public private(set) var track: Track?
     /// The player being followed (nil: none yet), and its process.
     @Published public private(set) var player: PlayerKind?
-    public private(set) var playerPID: pid_t?
+    @Published public private(set) var playerPID: pid_t?
     public private(set) var playerBundleID: String?
     /// What the gear can do with that player.
     public var capabilities: PlayerCapabilities { (player ?? .appleMusic).capabilities }
     /// Which players to follow (the Players menu). Turning off the one playing lets it go.
     public var choice = PlayerChoice() {
-        didSet { if let player, !choice.follows(player) { leavePlayer() } }
+        didSet {
+            if let player, !choice.follows(player) { leavePlayer() }
+            // Look again for a player that's allowed now and already playing.
+            refresh()
+            system?.send(.refresh)
+        }
     }
+    /// When a song was last playing (a skip reads as "not playing" for a moment).
+    private var lastPlayingAt = -Double.infinity
+    private var playingRecently: Bool { isPlaying || CACurrentMediaTime() - lastPlayingAt < 3 }
     /// Apple's Music app is the one followed (or nothing else is): AppleScript may be used.
     private var onAppleMusic: Bool { player == nil || player == .appleMusic }
     @Published public private(set) var isPlaying = false
@@ -141,8 +149,14 @@ public final class MusicNowPlaying: ObservableObject {
             if player != nil, player != .appleMusic, s.pid == playerPID || app == nil { leavePlayer() }
             return
         }
-        guard choice.follows(kind) else { return } // a player that's turned off (or not the pinned one)
-        if s.pid != playerPID, !PlayerChoice.switches(fromPlaying: isPlaying, toPlaying: s.rate > 0) { return }
+        guard choice.follows(kind) else {
+            // A player that's turned off (or not the pinned one) took the system's Now Playing
+            // slot by playing: the followed app (not Music, which announces itself) can't be heard
+            // from any more, so don't keep spinning its CD as if it still played.
+            if s.rate > 0, let player, player != .appleMusic, isPlaying { isPlaying = false }
+            return
+        }
+        if s.pid != playerPID, !PlayerChoice.switches(fromPlaying: playingRecently, toPlaying: s.rate > 0) { return }
         follow(kind, pid: s.pid, bundleID: app?.bundleIdentifier)
         systemAt = CACurrentMediaTime()
         let playing = s.rate > 0
@@ -184,6 +198,8 @@ public final class MusicNowPlaying: ObservableObject {
         position = min(position + 1, track?.duration ?? .infinity)
         ticks += 1
         if ticks % 5 == 0, onAppleMusic { refresh() } // other players can't be asked: the stream will say
+        // The followed app quit without a word: let it go.
+        if let pid = playerPID, player != .appleMusic, NSRunningApplication(processIdentifier: pid) == nil { leavePlayer() }
     }
 
     // MARK: Which player
@@ -341,7 +357,12 @@ public final class MusicNowPlaying: ObservableObject {
         """) { [weak self] output, readAt in
             guard let self, let output, self.onAppleMusic else { return }
             let parts = output.components(separatedBy: sep)
-            guard parts.count == 6 else { self.set(track: nil, playing: false); return }
+            guard parts.count == 6 else {
+                if self.player == .appleMusic { self.leavePlayer() } else { self.set(track: nil, playing: false) }
+                return
+            }
+            self.follow(.appleMusic, pid: NSRunningApplication.runningApplications(withBundleIdentifier: Self.music).first?.processIdentifier,
+                        bundleID: Self.music)
             let number = { (s: String) in Double(s.replacingOccurrences(of: ",", with: ".")) ?? 0 }
             self.set(track: Track(name: parts[1], artist: parts[2], album: parts[3], duration: number(parts[4])),
                      playing: parts[0] == "playing")
@@ -354,6 +375,7 @@ public final class MusicNowPlaying: ObservableObject {
 
     private func set(track new: Track?, playing: Bool) {
         isPlaying = playing
+        if playing { lastPlayingAt = CACurrentMediaTime() }
         guard new != track else { return }
         track = new
         position = 0
@@ -371,7 +393,7 @@ public final class MusicNowPlaying: ObservableObject {
         // 1) The cover Music has (works for your own imported songs too). Other players' covers
         // come from the system stream (useSystemArtwork) or the catalog search below.
         let path = artworkFile.path
-        if player == .appleMusic { Self.osascript("""
+        if onAppleMusic { Self.osascript("""
         tell application id "\(Self.music)" to set d to raw data of artwork 1 of current track
         set f to open for access (POSIX file "\(path)") with write permission
         set eof f to 0

@@ -338,6 +338,11 @@ final class WallpaperManager {
         didSet { if playerCapabilities != oldValue { refreshControls() } }
     }
 
+    /// The player changed: point the meters at it (if they're listening).
+    func retargetAudio() {
+        if audio.running { audio.start() }
+    }
+
     /// The app the meters listen to (nil: Apple Music).
     var audioTarget: (() -> (pid: pid_t, bundleID: String?)?)? {
         get { audio.target }
@@ -436,6 +441,7 @@ final class WallpaperManager {
     private func checkHearing() {
         // Paused, the tap stays up for a few seconds and hears silence: that's not a problem.
         guard song?.playing == true else { return }
+        if audio.running, !audio.hearing { audio.start() } // retarget if the player's audio processes changed
         let heard = audio.hearing
         guard heard != audioHeard else { return }
         audioHeard = heard

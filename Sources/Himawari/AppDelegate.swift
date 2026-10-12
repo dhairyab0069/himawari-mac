@@ -162,14 +162,16 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
             .sink { [weak self] _ in
                 onMainActor { self?.applyMusicWallpaper() }
             }
-        playerWatch = music.$player
+        // A new player (or the same kind of player in another app): the gear's controls and the tap follow.
+        playerWatch = music.$playerPID
             .removeDuplicates()
             .receive(on: RunLoop.main)
-            .sink { [weak self] kind in
+            .sink { [weak self] _ in
                 onMainActor {
                     guard let self else { return }
-                    Log.write("player: \(kind?.title ?? "none")" + (self.music.playerBundleID.map { " (\($0))" } ?? ""))
-                    self.applyMusicWallpaper() // capabilities, the tap's target
+                    Log.write("player: \(self.music.player?.title ?? "none")" + (self.music.playerBundleID.map { " (\($0))" } ?? ""))
+                    self.wallpaper.playerCapabilities = self.music.capabilities
+                    self.wallpaper.retargetAudio()
                 }
             }
         // A YouTube video on the wallpaper follows the song's position.
@@ -246,7 +248,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     private func refreshDeck() {
         // Volume, repeat, shuffle and the EQ can only be read from Apple Music (asking Music
         // while another player plays would also launch it).
-        guard music.player == .appleMusic else { return }
+        guard music.player == .appleMusic || music.player == nil, music.track != nil else { return }
         music.fetchDeck { [weak self] deck in
             guard let self, let deck, CACurrentMediaTime() - self.lastGearTouch > 1.5 else { return }
             self.deck = deck
@@ -462,7 +464,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         sub.addItem(.separator())
         let auto = item("Follow Whichever Is Playing", #selector(followAnyPlayer), checked: choice.pinned == nil)
         sub.addItem(auto)
-        for kind in PlayerKind.allCases {
+        for kind in PlayerKind.menuCases {
             let follow = item(kind.title, #selector(togglePlayer(_:)), checked: choice.pinned == nil ? !choice.disabled.contains(kind) : choice.pinned == kind)
             follow.representedObject = kind.rawValue
             follow.isEnabled = choice.pinned == nil
@@ -471,7 +473,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         sub.addItem(.separator())
         let pin = NSMenuItem(title: "Only Follow", action: nil, keyEquivalent: "")
         let pins = NSMenu()
-        for kind in PlayerKind.allCases {
+        for kind in PlayerKind.menuCases {
             let only = item(kind.title, #selector(pinPlayer(_:)), checked: choice.pinned == kind)
             only.representedObject = kind.rawValue
             pins.addItem(only)

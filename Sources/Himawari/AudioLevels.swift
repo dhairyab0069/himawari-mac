@@ -24,6 +24,7 @@ final class AudioLevels: @unchecked Sendable {
     private let lastHeard = OSAllocatedUnfairLock(initialState: CFTimeInterval(0))
     private var startedAt: CFTimeInterval = 0
     private var tappedPid: pid_t?
+    private var tappedProcesses: [AudioObjectID] = []
     private var tapID = AudioObjectID(kAudioObjectUnknown)
     private var aggregateID = AudioObjectID(kAudioObjectUnknown)
     private var procID: AudioDeviceIOProcID?
@@ -66,8 +67,10 @@ final class AudioLevels: @unchecked Sendable {
         let app = target?() ?? NSRunningApplication.runningApplications(withBundleIdentifier: "com.apple.Music").first
             .map { ($0.processIdentifier, $0.bundleIdentifier) }
         let musicPid = app?.pid
-        // The player changed, or quit and came back: the tap still points at the old process and hears nothing.
-        if running, musicPid == tappedPid { return true }
+        // The player changed, quit and came back, or started playing from a new helper process:
+        // the tap still points at the old processes and hears nothing.
+        let wanted = musicPid.map { Self.tapTargets(among: Self.audioProcesses(), pid: $0, bundleID: app?.bundleID) } ?? []
+        if running, musicPid == tappedPid, Set(wanted) == Set(tappedProcesses) { return true }
         if running { stop() }
         watchOutputDevice()
         if let failedAt, Date().timeIntervalSince(failedAt) < 60 { return false } // don't retry (or re-prompt) constantly
@@ -93,7 +96,7 @@ final class AudioLevels: @unchecked Sendable {
 
         // The player's audio processes (a browser plays from helper processes, not its main one);
         // if macOS won't say, listen to everything (still mostly the music).
-        let processes = Self.tapTargets(among: Self.audioProcesses(), pid: pid, bundleID: app?.bundleID)
+        let processes = wanted
         let found = !processes.isEmpty
         let description = found ? CATapDescription(stereoMixdownOfProcesses: processes)
                                 : CATapDescription(stereoGlobalTapButExcludeProcesses: [])
@@ -143,6 +146,7 @@ final class AudioLevels: @unchecked Sendable {
         problem = "format \(format.mSampleRate) Hz, \(format.mChannelsPerFrame) ch, interleaved \(interleaved)"
         running = true
         tappedPid = pid
+        tappedProcesses = processes
         startedAt = CACurrentMediaTime()
         failedAt = nil
         return true
@@ -180,6 +184,7 @@ final class AudioLevels: @unchecked Sendable {
             if p.pid == pid { return true }
             guard !app.isEmpty, !b.isEmpty else { return false }
             if b.hasPrefix(app + ".") { return true }
+            if app == "org.mozilla.firefox" && b.hasPrefix("org.mozilla.plugincontainer") { return true } // its content processes
             return app == "com.apple.safari" && b.hasPrefix("com.apple.webkit")
         }.map(\.id)
     }

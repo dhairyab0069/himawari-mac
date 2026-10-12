@@ -131,7 +131,13 @@ final class TapTargetTests: XCTestCase {
         (7, 400, "com.spotify.client"),
         (8, 401, "com.spotify.client.helper"),
         (9, 500, "com.google.Chromecast"), // a prefix that isn't a helper
+        (10, 600, "org.mozilla.firefox"),
+        (11, 601, "org.mozilla.plugincontainer"),
     ]
+
+    func testFirefoxPlaysFromItsContentProcesses() {
+        XCTAssertEqual(AudioLevels.tapTargets(among: processes, pid: 600, bundleID: "org.mozilla.firefox"), [10, 11])
+    }
 
     func testAppAndItsHelpers() {
         XCTAssertEqual(AudioLevels.tapTargets(among: processes, pid: 200, bundleID: "com.google.Chrome"), [2, 3, 4])

@@ -34,14 +34,23 @@ final class PlayerKindTests: XCTestCase {
     func testRawValuesAreStable() {
         // Saved in the Players menu settings: renaming a case would forget people's choices.
         XCTAssertEqual(PlayerKind.allCases.map(\.rawValue),
-                       ["appleMusic", "spotify", "tidal", "amazonMusic", "deezer", "browser", "other"])
+                       ["appleMusic", "spotify", "tidal", "amazonMusic", "deezer", "browser", "other", "webContent"])
+    }
+
+    func testWebKitHelpersAreNeverPlayers() {
+        // Himawari's own YouTube loop plays in a WebKit process: following it would loop forever.
+        XCTAssertEqual(PlayerKind(bundleID: "com.apple.WebKit.WebContent"), .webContent)
+        XCTAssertEqual(PlayerKind(bundleID: "com.apple.WebKit.GPU"), .webContent)
+        XCTAssertFalse(PlayerChoice().follows(.webContent))
+        XCTAssertFalse(PlayerChoice(pinned: .webContent).follows(.webContent))
+        XCTAssertFalse(PlayerKind.menuCases.contains(.webContent))
     }
 }
 
 final class PlayerChoiceTests: XCTestCase {
     func testFollowsEverythingByDefault() {
         let choice = PlayerChoice()
-        XCTAssertTrue(PlayerKind.allCases.allSatisfy(choice.follows))
+        XCTAssertTrue(PlayerKind.menuCases.allSatisfy(choice.follows))
     }
 
     func testTurnedOffPlayersAreIgnored() {
@@ -80,6 +89,7 @@ final class PlayerCommandTests: XCTestCase {
         XCTAssertEqual(PlayerCommand.next.helperLine, "next")
         XCTAssertEqual(PlayerCommand.previous.helperLine, "previous")
         XCTAssertEqual(PlayerCommand.seek(to: 83.456).helperLine, "seek 83.46")
+        XCTAssertEqual(PlayerCommand.refresh.helperLine, "refresh")
     }
 
     func testSeekNeverNegativeAndAlwaysWithADot() {
