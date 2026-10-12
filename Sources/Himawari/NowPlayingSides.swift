@@ -42,8 +42,13 @@ final class NowPlayingSides: NSView {
     private let jog = CALayer()
     /// The knobs' live pointers (VOLUME, BASS, TREBLE): they show, and set, Music's settings.
     private var pointers: [GearControl: CAShapeLayer] = [:]
-    /// Where each control is, in this view's coordinates (y up), for the click catchers.
+    /// Where each control is, in this view's coordinates (y up).
     private(set) var controlRects: [GearControl: CGRect] = [:]
+    /// The controls the playing app supports: the ones the click catchers cover.
+    var activeControlRects: [GearControl: CGRect] { controlRects.filter { capabilities.contains($0.key.needs) } }
+    /// What the playing app lets the gear do; the other controls are dimmed.
+    var capabilities: PlayerCapabilities = .all { didSet { if capabilities != oldValue { dimUnsupported() } } }
+    private var dimmers: [CALayer] = []
     /// While the jog wheel is being turned: how far from now the song would land.
     private var previewOffset: Double?
     /// What the time display and progress ladder last showed ("" = draw again).
@@ -173,6 +178,7 @@ final class NowPlayingSides: NSView {
         analyzer.frame = CGRect(x: rightGap.minX + 8, y: video.minY + 8, width: rightGap.width - 16, height: video.height - 16)
         buildDeck(scale: scale)
         buildAnalyzer(scale: scale)
+        dimUnsupported()
     }
 
     private func buildDeck(scale: CGFloat) {
@@ -345,6 +351,24 @@ final class NowPlayingSides: NSView {
     }
 
     // MARK: Being played with (see GearControls)
+
+    /// Shades the controls this player can't use (Spotify has no equalizer Himawari can shape, say).
+    private func dimUnsupported() {
+        dimmers.forEach { $0.removeFromSuperlayer() }
+        dimmers = []
+        guard let root = layer, roomy else { return }
+        CATransaction.begin()
+        CATransaction.setDisableActions(true)
+        for (control, rect) in controlRects where !capabilities.contains(control.needs) {
+            let shade = CALayer()
+            shade.frame = rect.insetBy(dx: -2, dy: -2)
+            shade.cornerRadius = control == .volume || control == .bass || control == .treble ? rect.width / 2 : 5
+            shade.backgroundColor = NSColor(white: 0.04, alpha: 0.62).cgColor
+            root.addSublayer(shade)
+            dimmers.append(shade)
+        }
+        CATransaction.commit()
+    }
 
     /// A button was pressed: flash it, like a lit button on the real thing.
     func press(_ control: GearControl) {
@@ -921,6 +945,18 @@ enum GearControl: Hashable {
     case volume     // drag up / down
     case bass, treble          // drag up / down; double-click for flat
     case repeatMode, shuffle   // the words on the display: click to switch
+
+    /// What the playing app must support for this control to work.
+    var needs: PlayerCapabilities {
+        switch self {
+        case .previous, .playPause, .next, .stop: .transport
+        case .eject: [] // opens the player: always works
+        case .progress, .jog: .seek
+        case .volume: .volume
+        case .bass, .treble: .equalizer
+        case .repeatMode, .shuffle: .repeatShuffle
+        }
+    }
 
     init?(knob name: String) {
         switch name {

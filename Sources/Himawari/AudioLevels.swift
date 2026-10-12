@@ -24,6 +24,7 @@ final class AudioLevels: @unchecked Sendable {
     private let lastHeard = OSAllocatedUnfairLock(initialState: CFTimeInterval(0))
     private var startedAt: CFTimeInterval = 0
     private var tappedPid: pid_t?
+    private var tappedProcesses: [AudioObjectID] = []
     private var tapID = AudioObjectID(kAudioObjectUnknown)
     private var aggregateID = AudioObjectID(kAudioObjectUnknown)
     private var procID: AudioDeviceIOProcID?
@@ -33,6 +34,8 @@ final class AudioLevels: @unchecked Sendable {
     private var watchingOutput = false
     /// Why the last start didn't work (for the log).
     private(set) var problem = ""
+    /// The app to listen to: its process and bundle id (nil: Apple Music).
+    var target: (() -> (pid: pid_t, bundleID: String?)?)?
     /// Called (on the main thread) when the permission is granted, so the owner can start again.
     var onPermission: (() -> Void)?
 
@@ -60,9 +63,14 @@ final class AudioLevels: @unchecked Sendable {
 
     @discardableResult
     func start() -> Bool {
-        let musicPid = NSRunningApplication.runningApplications(withBundleIdentifier: "com.apple.Music").first?.processIdentifier
-        // Music quit and came back: the tap still points at the old process and hears nothing.
-        if running, musicPid == tappedPid { return true }
+        // The app that's playing (Apple Music unless told otherwise).
+        let app = target?() ?? NSRunningApplication.runningApplications(withBundleIdentifier: "com.apple.Music").first
+            .map { ($0.processIdentifier, $0.bundleIdentifier) }
+        let musicPid = app?.pid
+        // The player changed, quit and came back, or started playing from a new helper process:
+        // the tap still points at the old processes and hears nothing.
+        let wanted = musicPid.map { Self.tapTargets(among: Self.audioProcesses(), pid: $0, bundleID: app?.bundleID) } ?? []
+        if running, musicPid == tappedPid, Set(wanted) == Set(tappedProcesses) { return true }
         if running { stop() }
         watchOutputDevice()
         if let failedAt, Date().timeIntervalSince(failedAt) < 60 { return false } // don't retry (or re-prompt) constantly
@@ -84,25 +92,23 @@ final class AudioLevels: @unchecked Sendable {
         case .authorized:
             break
         }
-        guard let pid = musicPid else { problem = "Music isn't running"; return false }
+        guard let pid = musicPid else { problem = "nothing is playing"; return false }
 
-        // Music's audio process object; if macOS won't say, listen to everything (still mostly Music).
-        var process = AudioObjectID(kAudioObjectUnknown)
-        var address = AudioObjectPropertyAddress(mSelector: kAudioHardwarePropertyTranslatePIDToProcessObject,
-                                                 mScope: kAudioObjectPropertyScopeGlobal, mElement: kAudioObjectPropertyElementMain)
-        var pidValue = pid
-        var size = UInt32(MemoryLayout<AudioObjectID>.size)
-        let found = AudioObjectGetPropertyData(AudioObjectID(kAudioObjectSystemObject), &address,
-                                               UInt32(MemoryLayout<pid_t>.size), &pidValue, &size, &process) == noErr
-            && process != kAudioObjectUnknown
-        let description = found ? CATapDescription(stereoMixdownOfProcesses: [process])
+        // The player's audio processes (a browser plays from helper processes, not its main one);
+        // if macOS won't say, listen to everything (still mostly the music).
+        let processes = wanted
+        let found = !processes.isEmpty
+        let description = found ? CATapDescription(stereoMixdownOfProcesses: processes)
                                 : CATapDescription(stereoGlobalTapButExcludeProcesses: [])
+        var address = AudioObjectPropertyAddress(mSelector: kAudioTapPropertyFormat,
+                                                 mScope: kAudioObjectPropertyScopeGlobal, mElement: kAudioObjectPropertyElementMain)
+        var size = UInt32(0)
         description.uuid = UUID()
         description.name = "Himawari levels"
         description.isPrivate = true
         description.muteBehavior = .unmuted // you still hear everything, of course
         var err = AudioHardwareCreateProcessTap(description, &tapID)
-        guard err == noErr else { return fail("creating the tap (Music process found: \(found))", err) }
+        guard err == noErr else { return fail("creating the tap (player's audio found: \(found))", err) }
 
         var format = AudioStreamBasicDescription()
         size = UInt32(MemoryLayout<AudioStreamBasicDescription>.size)
@@ -140,9 +146,47 @@ final class AudioLevels: @unchecked Sendable {
         problem = "format \(format.mSampleRate) Hz, \(format.mChannelsPerFrame) ch, interleaved \(interleaved)"
         running = true
         tappedPid = pid
+        tappedProcesses = processes
         startedAt = CACurrentMediaTime()
         failedAt = nil
         return true
+    }
+
+    /// Every process Core Audio knows: its audio object, pid and bundle id.
+    static func audioProcesses() -> [(id: AudioObjectID, pid: pid_t, bundleID: String)] {
+        var address = AudioObjectPropertyAddress(mSelector: kAudioHardwarePropertyProcessObjectList,
+                                                 mScope: kAudioObjectPropertyScopeGlobal, mElement: kAudioObjectPropertyElementMain)
+        var size: UInt32 = 0
+        guard AudioObjectGetPropertyDataSize(AudioObjectID(kAudioObjectSystemObject), &address, 0, nil, &size) == noErr else { return [] }
+        var ids = [AudioObjectID](repeating: 0, count: Int(size) / MemoryLayout<AudioObjectID>.size)
+        guard AudioObjectGetPropertyData(AudioObjectID(kAudioObjectSystemObject), &address, 0, nil, &size, &ids) == noErr else { return [] }
+        return ids.map { id in
+            var pid: pid_t = 0
+            var pidSize = UInt32(MemoryLayout<pid_t>.size)
+            var a = AudioObjectPropertyAddress(mSelector: kAudioProcessPropertyPID, mScope: kAudioObjectPropertyScopeGlobal,
+                                               mElement: kAudioObjectPropertyElementMain)
+            AudioObjectGetPropertyData(id, &a, 0, nil, &pidSize, &pid)
+            var bundle: Unmanaged<CFString>?
+            var bundleSize = UInt32(MemoryLayout<Unmanaged<CFString>?>.size)
+            a.mSelector = kAudioProcessPropertyBundleID
+            let ok = AudioObjectGetPropertyData(id, &a, 0, nil, &bundleSize, &bundle) == noErr
+            return (id, pid, ok ? (bundle?.takeRetainedValue() as String? ?? "") : "")
+        }
+    }
+
+    /// Which of those to tap for a player: its own process, its helpers ("com.google.Chrome.helper"
+    /// for "com.google.Chrome"), and for Safari, WebKit's shared media processes.
+    static func tapTargets(among processes: [(id: AudioObjectID, pid: pid_t, bundleID: String)],
+                           pid: pid_t, bundleID: String?) -> [AudioObjectID] {
+        let app = bundleID?.lowercased() ?? ""
+        return processes.filter { p in
+            let b = p.bundleID.lowercased()
+            if p.pid == pid { return true }
+            guard !app.isEmpty, !b.isEmpty else { return false }
+            if b.hasPrefix(app + ".") { return true }
+            if app == "org.mozilla.firefox" && b.hasPrefix("org.mozilla.plugincontainer") { return true } // its content processes
+            return app == "com.apple.safari" && b.hasPrefix("com.apple.webkit")
+        }.map(\.id)
     }
 
     /// Running and actually hearing Music (a few seconds' grace after starting, and across quiet

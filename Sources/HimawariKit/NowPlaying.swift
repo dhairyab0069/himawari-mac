@@ -4,10 +4,13 @@ import AVFoundation
 import SwiftUI
 import WebKit
 
-/// What the Music app is playing, plus Apple Music's "motion artwork" (the
-/// looping cover videos the Music app shows) when the album has one.
+/// What's playing, in whichever player (Apple Music, Spotify, a browser…), plus Apple Music's
+/// "motion artwork" (the looping cover videos the Music app shows) when the album has one.
 ///
-/// • Track changes come from the Music app's own announcements (no permission).
+/// • Any player: the system's Now Playing stream (SystemNowPlaying) gives the song, its timing
+///   and the exact cover, and takes play/pause/skip/seek back to the player. `choice` decides
+///   which players are followed (see PlayerSource.swift).
+/// • Apple Music, in more depth: track changes come from the Music app's own announcements (no permission).
 /// • Position, cover art and the ⏮ ⏯ ⏭ controls talk to Music via AppleScript
 ///   (macOS asks once: "… wants to control Music").
 /// • Motion artwork: Apple's public iTunes Search API finds the album, and the
@@ -28,6 +31,26 @@ public final class MusicNowPlaying: ObservableObject {
     }
 
     @Published public private(set) var track: Track?
+    /// The player being followed (nil: none yet), and its process.
+    @Published public private(set) var player: PlayerKind?
+    @Published public private(set) var playerPID: pid_t?
+    public private(set) var playerBundleID: String?
+    /// What the gear can do with that player.
+    public var capabilities: PlayerCapabilities { (player ?? .appleMusic).capabilities }
+    /// Which players to follow (the Players menu). Turning off the one playing lets it go.
+    public var choice = PlayerChoice() {
+        didSet {
+            if let player, !choice.follows(player) { leavePlayer() }
+            // Look again for a player that's allowed now and already playing.
+            refresh()
+            system?.send(.refresh)
+        }
+    }
+    /// When a song was last playing (a skip reads as "not playing" for a moment).
+    private var lastPlayingAt = -Double.infinity
+    private var playingRecently: Bool { isPlaying || CACurrentMediaTime() - lastPlayingAt < 3 }
+    /// Apple's Music app is the one followed (or nothing else is): AppleScript may be used.
+    private var onAppleMusic: Bool { player == nil || player == .appleMusic }
     @Published public private(set) var isPlaying = false
     @Published public private(set) var position: Double = 0
     /// Music's last actual reading of the position, and when it was taken (CACurrentMediaTime),
@@ -75,10 +98,14 @@ public final class MusicNowPlaying: ObservableObject {
             let state = info["Player State"] as? String ?? ""
             let total = (info["Total Time"] as? Double ?? Double(info["Total Time"] as? Int ?? 0)) / 1000
             onMainActor {
-                guard let self else { return }
+                guard let self, self.choice.follows(.appleMusic) else { return }
+                // Another player is followed: Music takes over only by starting to play.
+                guard self.onAppleMusic || state == "Playing" else { return }
                 if state == "Stopped" || name == nil {
-                    self.set(track: nil, playing: false)
+                    if self.player == .appleMusic { self.leavePlayer() }
                 } else if let name {
+                    self.follow(.appleMusic, pid: NSRunningApplication.runningApplications(withBundleIdentifier: Self.music).first?.processIdentifier,
+                                bundleID: Self.music)
                     self.set(track: Track(name: name, artist: artist, album: album, duration: total), playing: state == "Playing")
                     self.refresh()
                 }
@@ -110,10 +137,27 @@ public final class MusicNowPlaying: ObservableObject {
         }
     }
 
-    /// A change pushed by the system's Now Playing (only Music's; other apps playing are ignored).
+    /// A change pushed by the system's Now Playing: whichever app the system says is playing.
     private func apply(_ s: SystemNowPlaying.State) {
-        guard let music = NSRunningApplication.runningApplications(withBundleIdentifier: Self.music).first,
-              s.pid == music.processIdentifier, let title = s.title else { return }
+        // Never follow ourselves: the YouTube loop on the wallpaper plays in a web view, which can
+        // report itself as Now Playing.
+        guard s.pid != ProcessInfo.processInfo.processIdentifier else { return }
+        let app = s.pid > 0 ? NSRunningApplication(processIdentifier: s.pid) : nil
+        let kind = PlayerKind(bundleID: app?.bundleIdentifier)
+        guard let title = s.title, !title.isEmpty, app != nil else {
+            // Nothing playing any more (the player stopped or quit). Music says so itself.
+            if player != nil, player != .appleMusic, s.pid == playerPID || app == nil { leavePlayer() }
+            return
+        }
+        guard choice.follows(kind) else {
+            // A player that's turned off (or not the pinned one) took the system's Now Playing
+            // slot by playing: the followed app (not Music, which announces itself) can't be heard
+            // from any more, so don't keep spinning its CD as if it still played.
+            if s.rate > 0, let player, player != .appleMusic, isPlaying { isPlaying = false }
+            return
+        }
+        if s.pid != playerPID, !PlayerChoice.switches(fromPlaying: playingRecently, toPlaying: s.rate > 0) { return }
+        follow(kind, pid: s.pid, bundleID: app?.bundleIdentifier)
         systemAt = CACurrentMediaTime()
         let playing = s.rate > 0
         set(track: Track(name: title, artist: s.artist ?? "", album: s.album ?? "", duration: s.duration), playing: playing)
@@ -153,22 +197,43 @@ public final class MusicNowPlaying: ObservableObject {
         }
         position = min(position + 1, track?.duration ?? .infinity)
         ticks += 1
-        if ticks % 5 == 0 { refresh() }
+        if ticks % 5 == 0, onAppleMusic { refresh() } // other players can't be asked: the stream will say
+        // The followed app quit without a word: let it go.
+        if let pid = playerPID, player != .appleMusic, NSRunningApplication(processIdentifier: pid) == nil { leavePlayer() }
+    }
+
+    // MARK: Which player
+
+    private func follow(_ kind: PlayerKind, pid: pid_t?, bundleID: String?) {
+        if player != kind { player = kind }
+        playerPID = pid
+        playerBundleID = bundleID
+    }
+
+    /// The followed player stopped, quit, or was turned off: nothing is playing.
+    private func leavePlayer() {
+        player = nil
+        playerPID = nil
+        playerBundleID = nil
+        set(track: nil, playing: false)
     }
 
     // MARK: Controls
 
-    public func playPause() { tell("playpause") }
+    // Apple Music by AppleScript (it works even when the system stream doesn't); any other
+    // player through the system's remote commands, like Control Center.
+    public func playPause() { onAppleMusic ? tell("playpause") : system?.send(.togglePlayPause) }
 
     /// Jump to a point in the song (seconds).
     public func seek(to seconds: Double) {
-        position = seconds // move the bar right away; Music catches up
+        position = seconds // move the bar right away; the player catches up
         measuredPosition = seconds
         measuredAt = CACurrentMediaTime()
-        tell("set player position to \(String(format: "%.1f", seconds))")
+        if onAppleMusic { tell("set player position to \(String(format: "%.1f", seconds))") }
+        else { system?.send(.seek(to: seconds)) }
     }
-    public func pause() { tell("pause") }
-    public func next() { tell("next track") }
+    public func pause() { onAppleMusic ? tell("pause") : system?.send(.pause) }
+    public func next() { onAppleMusic ? tell("next track") : system?.send(.next) }
 
     /// Music's own volume, 0…100 (not the Mac's).
     public func setVolume(_ percent: Int) { tell("set sound volume to \(max(0, min(100, percent)))") }
@@ -176,7 +241,7 @@ public final class MusicNowPlaying: ObservableObject {
     public func fetchVolume(_ done: @escaping @MainActor (Int?) -> Void) {
         Self.osascript("tell application id \"\(Self.music)\" to return sound volume as text") { done($0.flatMap { Int($0) }) }
     }
-    public func previous() { tell("previous track") }
+    public func previous() { onAppleMusic ? tell("previous track") : system?.send(.previous) }
 
     /// What the side gear shows besides the song: Music's volume, its repeat and shuffle
     /// settings, and the BASS / TREBLE of Himawari's equalizer preset.
@@ -257,8 +322,11 @@ public final class MusicNowPlaying: ObservableObject {
         """, block: true)
     }
 
-    public func openMusic() {
-        if let url = NSWorkspace.shared.urlForApplication(withBundleIdentifier: Self.music) {
+    /// Brings the player that's playing to the front (Apple Music if none).
+    public func openPlayer() {
+        if let pid = playerPID, let app = NSRunningApplication(processIdentifier: pid), !onAppleMusic {
+            app.activate()
+        } else if let url = NSWorkspace.shared.urlForApplication(withBundleIdentifier: Self.music) {
             NSWorkspace.shared.openApplication(at: url, configuration: .init())
         }
     }
@@ -272,8 +340,10 @@ public final class MusicNowPlaying: ObservableObject {
     // MARK: Reading Music's state
 
     private func refresh() {
+        // Only Apple's Music app answers AppleScript like this; don't let it override another player.
+        guard onAppleMusic, choice.follows(.appleMusic) else { return }
         guard !NSRunningApplication.runningApplications(withBundleIdentifier: Self.music).isEmpty else {
-            set(track: nil, playing: false)
+            if player == .appleMusic { leavePlayer() } else { set(track: nil, playing: false) }
             return
         }
         let sep = "\u{1F}"
@@ -285,9 +355,14 @@ public final class MusicNowPlaying: ObservableObject {
         & "\(sep)" & (duration of t) & "\(sep)" & (player position)
         end tell
         """) { [weak self] output, readAt in
-            guard let self, let output else { return }
+            guard let self, let output, self.onAppleMusic else { return }
             let parts = output.components(separatedBy: sep)
-            guard parts.count == 6 else { self.set(track: nil, playing: false); return }
+            guard parts.count == 6 else {
+                if self.player == .appleMusic { self.leavePlayer() } else { self.set(track: nil, playing: false) }
+                return
+            }
+            self.follow(.appleMusic, pid: NSRunningApplication.runningApplications(withBundleIdentifier: Self.music).first?.processIdentifier,
+                        bundleID: Self.music)
             let number = { (s: String) in Double(s.replacingOccurrences(of: ",", with: ".")) ?? 0 }
             self.set(track: Track(name: parts[1], artist: parts[2], album: parts[3], duration: number(parts[4])),
                      playing: parts[0] == "playing")
@@ -300,6 +375,7 @@ public final class MusicNowPlaying: ObservableObject {
 
     private func set(track new: Track?, playing: Bool) {
         isPlaying = playing
+        if playing { lastPlayingAt = CACurrentMediaTime() }
         guard new != track else { return }
         track = new
         position = 0
@@ -314,9 +390,10 @@ public final class MusicNowPlaying: ObservableObject {
     }
 
     private func loadArtwork(for track: Track, generation: Int) {
-        // 1) The cover Music has (works for your own imported songs too).
+        // 1) The cover Music has (works for your own imported songs too). Other players' covers
+        // come from the system stream (useSystemArtwork) or the catalog search below.
         let path = artworkFile.path
-        Self.osascript("""
+        if onAppleMusic { Self.osascript("""
         tell application id "\(Self.music)" to set d to raw data of artwork 1 of current track
         set f to open for access (POSIX file "\(path)") with write permission
         set eof f to 0
@@ -327,7 +404,7 @@ public final class MusicNowPlaying: ObservableObject {
             guard let self, self.generation == generation, ok == "ok",
                   self.systemArtworkGeneration != generation else { return } // the system's cover is exact
             self.artwork = NSImage(contentsOfFile: path)
-        }
+        } }
         // 2) Apple Music's motion artwork (and a cover, if Music didn't have one).
         // No album name: key by the song too, or every album-less song by this artist would share one answer.
         let key = track.artist + "|" + (track.album.isEmpty ? "song:" + track.name : track.album)

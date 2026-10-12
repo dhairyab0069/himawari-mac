@@ -16,6 +16,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     private let music = MusicNowPlaying()
     private var musicWatch: AnyCancellable?
     private var positionWatch: AnyCancellable?
+    private var playerWatch: AnyCancellable?
     private var pausedSince: Date? // when Music last stopped reporting "playing"
     private var clockHotKey: HotKey? // ⌃⌥⌘C: show / hide the desktop clock
     private var repairTimer: Timer?
@@ -80,8 +81,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         peek.onWallpaperClick = { [weak self] in if self?.wallpaper.cleared == true { self?.wallpaper.setClear(false) } }
         peek.enabled = settings.clickToClearDesktop
 
-        // Apple Music: while a song whose album has motion artwork is playing, the
-        // wallpaper becomes that looping video; pause / no video → back to yours.
+        // While a song plays (in Apple Music, Spotify, a browser…): if its album has Apple Music's
+        // motion artwork, the wallpaper becomes that looping video; otherwise the CD. Pause → yours.
+        music.choice = settings.playerChoice
         music.youtubeFallback = settings.musicWallpaper && settings.musicYouTube
         music.tracksPosition = false // the wallpaper doesn't need the song position: fewer checks, less battery
         PowerState.onChange { [weak self] in
@@ -95,7 +97,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
             return (self.songPosition(), track.duration)
         }
         wallpaper.gearControls.volumeNow = { [weak self] done in
-            self?.music.fetchVolume { done(Double($0 ?? 50) / 100) }
+            guard let self, self.music.capabilities.contains(.volume) else { return }
+            self.music.fetchVolume { done(Double($0 ?? 50) / 100) }
+        }
+        // The tap listens to whichever app is playing.
+        wallpaper.audioTarget = { [weak self] in
+            guard let self, let pid = self.music.playerPID else { return nil }
+            return (pid, self.music.playerBundleID)
         }
         wallpaper.gearControls.perform = { [weak self] action in
             guard let self else { return }
@@ -104,7 +112,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
             case .button(.playPause): self.music.playPause()
             case .button(.next): self.music.next()
             case .button(.stop): self.music.pause()
-            case .button(.eject): self.music.openMusic()
+            case .button(.eject): self.music.openPlayer()
             case .button(.repeatMode), .button(.shuffle):
                 var repeatButton = false
                 if case .button(.repeatMode) = action { repeatButton = true }
@@ -154,6 +162,18 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
             .sink { [weak self] _ in
                 onMainActor { self?.applyMusicWallpaper() }
             }
+        // A new player (or the same kind of player in another app): the gear's controls and the tap follow.
+        playerWatch = music.$playerPID
+            .removeDuplicates()
+            .receive(on: RunLoop.main)
+            .sink { [weak self] _ in
+                onMainActor {
+                    guard let self else { return }
+                    Log.write("player: \(self.music.player?.title ?? "none")" + (self.music.playerBundleID.map { " (\($0))" } ?? ""))
+                    self.wallpaper.playerCapabilities = self.music.capabilities
+                    self.wallpaper.retargetAudio()
+                }
+            }
         // A YouTube video on the wallpaper follows the song's position.
         positionWatch = music.$position
             .receive(on: RunLoop.main)
@@ -173,6 +193,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
 
     /// Apple Music motion artwork first; else a YouTube loop of the song; else your own video.
     private func applyMusicWallpaper() {
+        wallpaper.playerCapabilities = music.capabilities
         // Skipping songs, Music reports "not playing" for a moment (several times, as its two
         // status sources catch up). Only a pause that lasts counts, or every skip would drop
         // back to your own wallpaper and rebuild the scene instead of changing discs.
@@ -225,6 +246,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     }
 
     private func refreshDeck() {
+        // Volume, repeat, shuffle and the EQ can only be read from Apple Music (asking Music
+        // while another player plays would also launch it).
+        guard music.player == .appleMusic || music.player == nil, music.track != nil else { return }
         music.fetchDeck { [weak self] deck in
             guard let self, let deck, CACurrentMediaTime() - self.lastGearTouch > 1.5 else { return }
             self.deck = deck
@@ -395,7 +419,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         let sizingItem = NSMenuItem(title: "Music Video Sizing", action: nil, keyEquivalent: "")
         sizingItem.submenu = sizingMenu
         menu.addItem(sizingItem)
-        menu.addItem(item("Use Apple Music Artwork While Playing", #selector(toggleMusicWallpaper), checked: settings.musicWallpaper))
+        menu.addItem(item("Music Wallpaper While Playing", #selector(toggleMusicWallpaper), checked: settings.musicWallpaper))
+        menu.addItem(playersItem())
         let yt = item("    …or a YouTube Loop of the Song", #selector(toggleMusicYouTube), checked: settings.musicYouTube)
         yt.isEnabled = settings.musicWallpaper
         menu.addItem(yt)
@@ -425,6 +450,64 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
             quit.target = NSApp
             menu.addItem(quit)
         }
+    }
+
+    // MARK: - Players: which apps the music wallpaper follows
+
+    private func playersItem() -> NSMenuItem {
+        let entry = NSMenuItem(title: "Players", action: nil, keyEquivalent: "")
+        let sub = NSMenu()
+        let choice = settings.playerChoice
+        let now = NSMenuItem(title: music.player.map { "Following: \($0.title)" } ?? "Following: nothing playing", action: nil, keyEquivalent: "")
+        now.isEnabled = false
+        sub.addItem(now)
+        sub.addItem(.separator())
+        let auto = item("Follow Whichever Is Playing", #selector(followAnyPlayer), checked: choice.pinned == nil)
+        sub.addItem(auto)
+        for kind in PlayerKind.menuCases {
+            let follow = item(kind.title, #selector(togglePlayer(_:)), checked: choice.pinned == nil ? !choice.disabled.contains(kind) : choice.pinned == kind)
+            follow.representedObject = kind.rawValue
+            follow.isEnabled = choice.pinned == nil
+            sub.addItem(follow)
+        }
+        sub.addItem(.separator())
+        let pin = NSMenuItem(title: "Only Follow", action: nil, keyEquivalent: "")
+        let pins = NSMenu()
+        for kind in PlayerKind.menuCases {
+            let only = item(kind.title, #selector(pinPlayer(_:)), checked: choice.pinned == kind)
+            only.representedObject = kind.rawValue
+            pins.addItem(only)
+        }
+        pin.submenu = pins
+        sub.addItem(pin)
+        entry.submenu = sub
+        return entry
+    }
+
+    @objc private func togglePlayer(_ sender: NSMenuItem) {
+        guard let raw = sender.representedObject as? String, let kind = PlayerKind(rawValue: raw) else { return }
+        var choice = settings.playerChoice
+        if choice.disabled.contains(kind) { choice.disabled.remove(kind) } else { choice.disabled.insert(kind) }
+        applyPlayerChoice(choice)
+    }
+
+    @objc private func pinPlayer(_ sender: NSMenuItem) {
+        guard let raw = sender.representedObject as? String, let kind = PlayerKind(rawValue: raw) else { return }
+        var choice = settings.playerChoice
+        choice.pinned = choice.pinned == kind ? nil : kind
+        applyPlayerChoice(choice)
+    }
+
+    @objc private func followAnyPlayer() {
+        var choice = settings.playerChoice
+        choice.pinned = nil
+        applyPlayerChoice(choice)
+    }
+
+    private func applyPlayerChoice(_ choice: PlayerChoice) {
+        settings.playerChoice = choice
+        music.choice = choice
+        applyMusicWallpaper()
     }
 
     private func item(_ title: String, _ action: Selector, key: String = "", checked: Bool = false) -> NSMenuItem {
