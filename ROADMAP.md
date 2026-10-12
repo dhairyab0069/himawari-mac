@@ -1,6 +1,7 @@
 # Roadmap
 
-Two directions for what comes after the Beta 1.1 series:
+Two directions for what comes after the Beta 1.1 series. Betas 1.2 and 1.3 are the **last of
+Beta 1**; the listening work starts **Beta 2**.
 
 1. **More players.** Today the music wallpaper follows only Apple's Music app. Next, it follows
    Spotify, YouTube Music, TIDAL, Amazon Music and Deezer too.
@@ -10,17 +11,17 @@ Two directions for what comes after the Beta 1.1 series:
 
 | Release | Theme | Headline |
 |---|---|---|
-| **1.2** | Any player | The wallpaper, gear and CD follow whichever app is playing |
-| **1.3** | Per-player depth | Spotify and the others get the controls Apple Music has today, where their apps allow it |
-| **1.4** | Your listening, on device | A private listening history and a stats view across every service |
-| **1.5** | Recommendations | On-device suggestions that cross services, shown on the desktop |
+| **Beta 1.2** | Any player | The wallpaper, gear and CD follow whichever app is playing |
+| **Beta 1.3** (final Beta 1) | Per-player depth | Spotify and the others get the controls Apple Music has today, where their apps allow it |
+| **Beta 2.0** | Your listening, on device | A private listening history and a stats view across every service |
+| **Beta 2.1** | Recommendations | On-device suggestions that cross services, shown on the desktop |
 
 Each release ships through the usual pull request and CI, with unit tests for its logic
 (see [CONTRIBUTING.md](CONTRIBUTING.md)).
 
 ---
 
-## 1 · More players (1.2 – 1.3)
+## 1 · More players (Betas 1.2 – 1.3)
 
 ### Where the coupling is today
 
@@ -79,13 +80,13 @@ Local players (VLC, IINA, Plexamp) come for free through `SystemNowPlayingSource
 
 ### Milestones
 
-- **1.2: Any player**
+- **Beta 1.2: Any player**
   - Remove the Music-only filter, add `PlayerSource` and `SystemNowPlayingSource`, and move Apple
     Music's code into `AppleMusicSource`.
   - Generic transport controls on the gear. Capability-aware gear (unsupported controls dim).
   - A **Players** menu: which apps the wallpaper follows (all on by default), and a "pin" option.
   - Tests: source selection by bundle id, capability mapping, the two-players rule.
-- **1.3: Per-player depth**
+- **Beta 1.3: Per-player depth** (the final Beta 1 release)
   - `SpotifySource` (AppleScript: volume, shuffle, repeat, track id). Browser detection for YouTube
     Music so the CD shows the right cover and the YouTube loop can play.
   - TIDAL, Amazon Music and Deezer sources: just bundle ids and quirks (for example, players that
@@ -94,7 +95,7 @@ Local players (VLC, IINA, Plexamp) come for free through `SystemNowPlayingSource
 
 ---
 
-## 2 · Your listening, on device (1.4 – 1.5)
+## 2 · Your listening, on device (Betas 2.0 – 2.1)
 
 ### Principles
 
@@ -109,7 +110,7 @@ These hold for every feature in this section:
    data for training, and builds its models from what your own Mac observes playing. This needs
    a careful read of each service's terms before release.
 
-### 1.4: A private listening history and stats
+### Beta 2.0: A private listening history and stats
 
 **What gets recorded:** one row per play, in a local SQLite database (SwiftData or GRDB) in
 `~/Library/Application Support/Himawari/`.
@@ -144,7 +145,7 @@ one. Matching is on-device:
 **Tests:** play/skip classification, cross-service matching (positive and negative pairs), and
 aggregation queries on a fixture database.
 
-### 1.5: Recommendations across services
+### Beta 2.1: Recommendations across services
 
 The goal: suggest what to play next, drawn from everything you listen to, playable in whichever
 service you use.
@@ -180,9 +181,9 @@ The model retrains nightly when the Mac is plugged in and idle.
 
 ### Milestones
 
-- **1.4:** listening history (opt-in), cross-service matching, the stats window and desktop panel,
+- **Beta 2.0:** listening history (opt-in), cross-service matching, the stats window and desktop panel,
   export and delete, and the wallpaper tie-ins.
-- **1.5:** co-listening and `MLRecommender` models, candidate generation from Apple's catalog,
+- **Beta 2.1:** co-listening and `MLRecommender` models, candidate generation from Apple's catalog,
   the "Next up" shelf, feedback and offline evaluation. The sound features come later, if the
   simpler models leave room for them.
 
@@ -200,8 +201,8 @@ The model retrains nightly when the Mac is plugged in and idle.
   YouTube Music from a YouTube video in another tab. Heuristics: page title, album field, duration.
 - **Battery.** Recording plays costs nothing. Training must wait for power and idle time, and
   the stats window must stay off the main thread.
-- **Scope.** 1.2 alone makes Himawari useful to most people who don't use Apple Music. Ship it
-  before starting the listening work.
+- **Scope.** Beta 1.2 alone makes Himawari useful to most people who don't use Apple Music. Ship it,
+  and finish Beta 1 with 1.3, before starting the listening work in Beta 2.
 
 ## Done
 
