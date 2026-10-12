@@ -63,12 +63,15 @@ public final class MusicNowPlaying: ObservableObject {
     @Published public private(set) var youtubeVideos: [String] = []
     /// Still looking for this song's motion artwork / YouTube video.
     @Published public private(set) var searching = false {
-        didSet {
-            // Done looking and still no cover (a web player that shares none, say): a plain disc
-            // label with the title, so the CD scene still has something to print.
-            if !searching, artwork == nil, let track { artwork = Self.placeholderCover(for: track) }
-        }
+        didSet { if !searching { offerFallbackSoon() } }
     }
+    /// A plain disc label with the title, for a song nobody has a cover for (a web player that
+    /// shares none, say). Kept apart from `artwork`, so a real cover arriving late still wins.
+    @Published public private(set) var fallbackArtwork: NSImage?
+    /// What to print on the CD: the cover, or the plain label.
+    public var displayArtwork: NSImage? { artwork ?? fallbackArtwork }
+    /// The player has reported a real position for this song (Firefox, on many sites, never does).
+    private var reportsPosition = false
     /// Look for a YouTube loop when there's no motion artwork.
     public var youtubeFallback = true
     /// Keep the song position up to date (the widget's progress bar). Himawari doesn't need it,
@@ -205,16 +208,31 @@ public final class MusicNowPlaying: ObservableObject {
         let age = max(0, Date().timeIntervalSince1970 - s.timestamp) // how old the reading is
         // Some web players never report a position (Firefox on many sites says 0 every time):
         // keep counting ourselves instead of jumping back to the start.
-        guard Self.trustsElapsed(s.elapsed, estimate: estimate, sameSong: sameSong, playing: playing) else { return }
+        if s.elapsed > 0.5 { reportsPosition = true }
+        guard Self.trustsElapsed(s.elapsed, estimate: estimate, sameSong: sameSong, reportsPosition: reportsPosition) else { return }
         measuredPosition = s.elapsed
         measuredAt = CACurrentMediaTime() - age
         position = playing ? s.elapsed + age * s.rate : s.elapsed
     }
 
-    /// A reading of ~0 s for the song already playing for a while is a player that doesn't report
-    /// its position, not a restart (a restart of the same song is rare; skipping back is a new reading > 0).
-    nonisolated static func trustsElapsed(_ elapsed: Double, estimate: Double, sameSong: Bool, playing: Bool) -> Bool {
-        !(sameSong && playing && elapsed < 0.5 && estimate > 3)
+    /// A reading of ~0 s for a song we've been counting is ignored only from a player that has
+    /// never reported a real position for it (it just doesn't know its position). From any other
+    /// player, 0 is real: a restart, repeat-one, or a seek back to the start.
+    nonisolated static func trustsElapsed(_ elapsed: Double, estimate: Double, sameSong: Bool, reportsPosition: Bool) -> Bool {
+        !(sameSong && !reportsPosition && elapsed < 0.5 && estimate > 3)
+    }
+
+    /// Done looking for a cover: if none turns up within a moment (Music's own AppleScript cover
+    /// and the system's take a few hundred ms), offer the plain label.
+    private func offerFallbackSoon() {
+        guard artwork == nil, track != nil else { return }
+        let generation = generation
+        DispatchQueue.main.asyncAfter(deadline: .now() + 1.5) { [weak self] in
+            onMainActor {
+                guard let self, self.generation == generation, self.artwork == nil, let track = self.track else { return }
+                self.fallbackArtwork = Self.placeholderCover(for: track)
+            }
+        }
     }
 
     /// Keep the progress bar moving: count the seconds ourselves, and only ask Music
@@ -282,13 +300,17 @@ public final class MusicNowPlaying: ObservableObject {
     public func setVolume(_ percent: Int) {
         let v = max(0, min(100, percent))
         if onAppleMusic { tell("set sound volume to \(v)") }
-        else { Self.osascript("set volume output volume \(v)") { _ in } }
+        // In-process on the one serial script queue: a quick drag's steps arrive in order.
+        else { Self.timedScript("set volume output volume \(v)") { _, _ in } }
     }
 
+    /// nil when there's no answer (an output with no volume control, like HDMI, says "missing value").
     public func fetchVolume(_ done: @escaping @MainActor (Int?) -> Void) {
-        let script = onAppleMusic ? "tell application id \"\(Self.music)\" to return sound volume as text"
-                                  : "return (output volume of (get volume settings)) as text"
-        Self.osascript(script) { done($0.flatMap { Int($0) }) }
+        if onAppleMusic {
+            Self.osascript("tell application id \"\(Self.music)\" to return sound volume as text") { done($0.flatMap { Int($0) }) }
+        } else {
+            Self.timedScript("return (output volume of (get volume settings)) as text") { out, _ in done(out.flatMap { Int($0) }) }
+        }
     }
     public func previous() { onAppleMusic ? tell("previous track") : system?.send(.previous) }
 
@@ -432,6 +454,8 @@ public final class MusicNowPlaying: ObservableObject {
         measuredAt = CACurrentMediaTime()
         generation += 1
         youtubeVideos = []
+        fallbackArtwork = nil
+        reportsPosition = false
         searching = new != nil
         artwork = nil // never show the last song's cover for this one
         guard let new else { artwork = nil; motionVideo = nil; return }

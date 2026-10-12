@@ -102,15 +102,19 @@ final class PlayerCommandTests: XCTestCase {
 
 /// Web players that never report a position, and songs with no cover (found live with Firefox).
 final class WebPlayerQuirkTests: XCTestCase {
-    func testAZeroPositionMidSongIsIgnored() {
-        XCTAssertFalse(MusicNowPlaying.trustsElapsed(0.001, estimate: 95, sameSong: true, playing: true))
+    func testAZeroPositionMidSongIsIgnoredFromAPlayerThatNeverReportsOne() {
+        XCTAssertFalse(MusicNowPlaying.trustsElapsed(0.001, estimate: 95, sameSong: true, reportsPosition: false))
     }
 
-    func testRealReadingsAreUsed() {
-        XCTAssertTrue(MusicNowPlaying.trustsElapsed(42, estimate: 95, sameSong: true, playing: true), "a seek back")
-        XCTAssertTrue(MusicNowPlaying.trustsElapsed(0, estimate: 95, sameSong: false, playing: true), "a new song")
-        XCTAssertTrue(MusicNowPlaying.trustsElapsed(0, estimate: 1, sameSong: true, playing: true), "just started")
-        XCTAssertTrue(MusicNowPlaying.trustsElapsed(0, estimate: 95, sameSong: true, playing: false), "paused at the start")
+    func testZeroIsRealFromPlayersThatReportPositions() {
+        // Repeat-one, a restart with ⏮, or dragging back to the start.
+        XCTAssertTrue(MusicNowPlaying.trustsElapsed(0, estimate: 95, sameSong: true, reportsPosition: true))
+    }
+
+    func testOtherReadingsAreUsed() {
+        XCTAssertTrue(MusicNowPlaying.trustsElapsed(42, estimate: 95, sameSong: true, reportsPosition: false), "a real reading")
+        XCTAssertTrue(MusicNowPlaying.trustsElapsed(0, estimate: 95, sameSong: false, reportsPosition: false), "a new song")
+        XCTAssertTrue(MusicNowPlaying.trustsElapsed(0, estimate: 1, sameSong: true, reportsPosition: false), "just started")
     }
 
     @MainActor func testPlaceholderCoverIsSquareAndStable() {

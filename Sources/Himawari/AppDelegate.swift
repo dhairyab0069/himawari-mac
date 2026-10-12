@@ -98,7 +98,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         }
         wallpaper.gearControls.volumeNow = { [weak self] done in
             guard let self, self.music.capabilities.contains(.volume) else { return }
-            self.music.fetchVolume { done(Double($0 ?? 50) / 100) }
+            self.music.fetchVolume { if let v = $0 { done(Double(v) / 100) } } // no answer: keep the knob where it is
         }
         // The tap listens to whichever app is playing.
         wallpaper.audioTarget = { [weak self] in
@@ -139,7 +139,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
                     lastVolumeSent = now
                     self.music.setVolume(Int((v * 100).rounded()))
                 }
-                self.deck?.volume = v
+                if self.music.player == .appleMusic { self.deck?.volume = v } // the deck holds Music's own settings
             case .tone(let bass, let treble, let done):
                 self.setTone(bass: bass, treble: treble, done: done)
             }
@@ -157,7 +157,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         // The clock asks what's behind it; the wallpaper answers (and keeps it posted).
         WallpaperTone.onReadingRequest { [weak self] region in self?.wallpaper.clockMoved(to: region) }
         musicWatch = Publishers.CombineLatest4(music.$motionVideo, music.$isPlaying, music.$youtubeVideos, music.$artwork)
-            .combineLatest(music.$searching, music.$track)
+            .combineLatest(music.$searching, music.$track, music.$fallbackArtwork)
             .receive(on: RunLoop.main)
             .sink { [weak self] _ in
                 onMainActor { self?.applyMusicWallpaper() }
@@ -232,8 +232,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         // screen stays (no flash of your own video between songs); its cover changes when known.
         let wantsScene = on && music.motionVideo == nil && youtube == nil
         let scene: NSImage?
-        if wantsScene, !music.searching, let art = music.artwork { scene = art }
-        else if wantsScene, wallpaper.showingScene { scene = music.artwork }
+        if wantsScene, !music.searching, let art = music.displayArtwork { scene = art }
+        else if wantsScene, wallpaper.showingScene { scene = music.displayArtwork }
         else { scene = nil }
         if !(scene == nil && wantsScene && wallpaper.showingScene) { wallpaper.setScene(scene) }
         updateSong()
@@ -251,8 +251,14 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
 
     private func refreshDeck() {
         // Volume, repeat, shuffle and the EQ can only be read from Apple Music (asking Music
-        // while another player plays would also launch it).
-        guard music.player == .appleMusic || music.player == nil, music.track != nil else { return }
+        // while another player plays would also launch it). Other players: just the Mac's
+        // volume, which the volume keys may have changed.
+        guard music.player == .appleMusic || music.player == nil, music.track != nil else {
+            if music.capabilities.contains(.volume), CACurrentMediaTime() - lastGearTouch > 1.5 {
+                music.fetchVolume { [weak self] v in if let v { self?.wallpaper.showVolume(Double(v) / 100) } }
+            }
+            return
+        }
         music.fetchDeck { [weak self] deck in
             guard let self, let deck, CACurrentMediaTime() - self.lastGearTouch > 1.5 else { return }
             self.deck = deck
