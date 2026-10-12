@@ -5,16 +5,16 @@ Beta 1**; the listening work starts **Beta 2**.
 
 1. **More players.** Today the music wallpaper follows only Apple's Music app. Next, it follows
    Spotify, YouTube Music, TIDAL, Amazon Music and Deezer too.
-2. **On-device listening intelligence.** Himawari already sees every song you play. It could keep
-   a private listening history across all of those services, show you stats, and recommend music
-   across them, all without anything leaving your Mac.
+2. **On-device listening insights.** Himawari already sees every song you play. It could keep
+   a private listening history across all of those services, classify what you play, and report
+   stats and insights back to you, all on your Mac, without training any model on your data.
 
 | Release | Theme | Headline |
 |---|---|---|
 | **Beta 1.2** | Any player | The wallpaper, gear and CD follow whichever app is playing |
 | **Beta 1.3** (final Beta 1) | Per-player depth | Spotify and the others get the controls Apple Music has today, where their apps allow it |
 | **Beta 2.0** | Your listening, on device | A private listening history and a stats view across every service |
-| **Beta 2.1** | Recommendations | On-device suggestions that cross services, shown on the desktop |
+| **Beta 2.1** | Classification and insights | On-device labels (genre, mood, energy, language) and reports about your listening |
 
 Each release ships through the usual pull request and CI, with unit tests for its logic
 (see [CONTRIBUTING.md](CONTRIBUTING.md)).
@@ -97,18 +97,25 @@ Local players (VLC, IINA, Plexamp) come for free through `SystemNowPlayingSource
 
 ## 2 · Your listening, on device (Betas 2.0 – 2.1)
 
+Machine learning here is **only for classifying and reporting**: sorting what you play into
+categories (genre, mood, energy, era, language) and turning your history into stats and insights
+for you. **No model is trained on your listening data.** Himawari runs fixed, pre-trained
+classifiers and plain statistics, on the Mac.
+
 ### Principles
 
 These hold for every feature in this section:
 
-1. **Nothing leaves the Mac.** No accounts, no upload, no analytics. Models train and run locally.
-2. **Off until you turn it on.** You can see, export (JSON/CSV) and delete everything, any time.
-3. **Only what's needed.** A record of what played and how much of it, never audio. The meters'
-   audio measurements are never stored.
-4. **Respect each service's terms.** In particular, Spotify's developer policy forbids using its
-   platform's content to train machine-learning models. So Himawari never uses Spotify's Web API
-   data for training, and builds its models from what your own Mac observes playing. This needs
-   a careful read of each service's terms before release.
+1. **Nothing leaves the Mac.** No accounts, no upload, no analytics.
+2. **No training on your data.** Only fixed, pre-trained classifiers (Apple's built-in ones, or a
+   model shipped inside Himawari) and statistics. Your history is never used to train or tune a model.
+3. **Off until you turn it on.** You can see, export (JSON/CSV) and delete everything, any time.
+4. **Only what's needed.** A record of what played and how much of it, never audio. The meters'
+   audio measurements are never stored; at most a few derived numbers per song.
+5. **Respect each service's terms.** Spotify's developer policy, for example, restricts putting its
+   content into machine-learning models. Himawari never calls a service's API to gather data for
+   this, works only from what your own Mac observes playing, and each service's terms get a
+   careful read before release.
 
 ### Beta 2.0: A private listening history and stats
 
@@ -124,17 +131,18 @@ These hold for every feature in this section:
 | time of day, weekday, on battery / plugged in | the Mac |
 
 **One song, many services.** The same song played on Spotify and on Apple Music should count as
-one. Matching is on-device:
+one. Matching is on-device and rule-based:
 - normalised title and artist, plus duration within 3 s;
 - the album-matching rules already tested for animated covers (`albumKey`, `sameAlbum`, `artistNames`);
-- for borderline cases, Apple's `NaturalLanguage` sentence embeddings on "title — artist";
+- for borderline cases, a similarity score from Apple's pre-trained `NaturalLanguage` sentence
+  embeddings on "title — artist";
 - the ISRC (the industry-standard recording code) from Apple's catalog via MusicKit, where you
   allow it.
 
 **Stats view** (a window from the menu, and an optional desktop panel like the clock):
 - top artists, songs and albums by week, month and year, across all services or per service;
 - listening time, skip rate, "on repeat right now", and new artists discovered this month;
-- when you listen: a weekday × hour heat map, and your morning versus late-night taste;
+- when you listen: a weekday × hour heat map, and your morning versus late-night listening;
 - a year-in-review that's actually yours, computed locally.
 
 **Wallpaper tie-ins:**
@@ -145,47 +153,46 @@ one. Matching is on-device:
 **Tests:** play/skip classification, cross-service matching (positive and negative pairs), and
 aggregation queries on a fixture database.
 
-### Beta 2.1: Recommendations across services
+### Beta 2.1: Classification and insights
 
-The goal: suggest what to play next, drawn from everything you listen to, playable in whichever
-service you use.
+Each song gets labels from fixed classifiers, and the reports use them to describe your listening.
 
-**Models**, all on device, from simplest to richest:
+**Classifiers** (pre-trained, run on the Mac, never retrained):
 
-| Model | What it learns | How |
+| Label | From | Notes |
 |---|---|---|
-| **Co-listening** | Songs and artists you play near each other | Item-to-item counts over listening sessions. Fast, explainable ("because you played X") |
-| **Implicit-feedback recommender** | Your taste overall, weighting full listens up and skips down | Create ML's `MLRecommender`, trained on the Mac from the play history |
-| **Context** | What fits now: weekday, time of day, plugged in or on battery | A small Core ML classifier re-ranking candidates by context |
-| **Sound** (optional) | What songs sound like | Features from the spectrum Himawari already measures for the meters (loudness, brightness, tempo estimate), stored as a few numbers per song. Never audio |
+| **Genre** | The catalog genre (iTunes Search API), normalised to a small set of families | Metadata, no model needed; the fallback for everything else |
+| **Language** | `NaturalLanguage`'s built-in language identifier on the title (and album) | Short text, so only confident results are used |
+| **Sound character** | Apple's built-in `SoundAnalysis` classifier on a few seconds of the audio the meters already hear, while it plays | Keeps only the top labels (e.g. "acoustic guitar", "electronic", "speech/podcast"), never the audio |
+| **Energy and mood** | A few numbers from the meters' spectrum (loudness, brightness, tempo estimate), sorted into calm / steady / energetic by fixed thresholds | Simple, explainable rules |
+| **Era** | Release year from the catalog, grouped by decade | — |
 
-**Finding new music:** the history alone only recommends what you already know. New candidates
-come from Apple's public catalog:
-- artist and album lookups through the iTunes Search API Himawari already uses;
-- with MusicKit access, Apple Music's catalog and charts.
+**Reports and insights** built from those labels and the stats:
+- your mix by genre, language, energy and era, and how it shifts by time of day and weekday
+  ("Monday mornings are 70% calm acoustic");
+- per-service profiles: what you play on Spotify versus Apple Music versus the browser;
+- changes over time: "more electronic this month than last", "a new language in your top 20";
+- a weekly and yearly report, viewable in the stats window and exportable as PDF or image.
 
-The local models then rank those candidates. Anything Himawari recommends opens in the player you
-choose: Apple Music by catalog id, others by a search link.
+**Suggestions without training:** simple, explainable picks from the history and the labels,
+not a learned recommender:
+- "haven't played in a while": favourites you've drifted from;
+- "more like this": songs in your history with the same labels as what's playing;
+- from Apple's public catalog, by artist or genre lookup, other albums by artists you play.
 
-**Where it shows up:**
-- a "Next up for you" shelf in the stats window;
-- an optional "suggestion of the hour" cover on the CD's label;
-- with your permission, a playlist written to Apple Music.
+Anything suggested opens in the player you choose: Apple Music by catalog id, others by a search link.
 
 **Measuring it:**
-- offline, by hiding your last week of listening and checking whether the model ranks those
-  songs highly (hit rate and NDCG at 10);
-- online, from a thumbs up or down on each suggestion.
-
-The model retrains nightly when the Mac is plugged in and idle.
+- classifier accuracy on a small, hand-labelled fixture set;
+- a "that's wrong" button on any label, which overrides it for that song (stored as your
+  correction, not used to train anything).
 
 ### Milestones
 
-- **Beta 2.0:** listening history (opt-in), cross-service matching, the stats window and desktop panel,
-  export and delete, and the wallpaper tie-ins.
-- **Beta 2.1:** co-listening and `MLRecommender` models, candidate generation from Apple's catalog,
-  the "Next up" shelf, feedback and offline evaluation. The sound features come later, if the
-  simpler models leave room for them.
+- **Beta 2.0:** listening history (opt-in), cross-service matching, the stats window and desktop
+  panel, export and delete, and the wallpaper tie-ins.
+- **Beta 2.1:** the classifiers, the reports and insights, rule-based suggestions, label
+  corrections, and fixture tests for each classifier.
 
 ---
 
@@ -199,8 +206,8 @@ The model retrains nightly when the Mac is plugged in and idle.
   observes and never call that service's API.
 - **Browsers.** A web player's Now Playing comes from the browser, so Himawari can't always tell
   YouTube Music from a YouTube video in another tab. Heuristics: page title, album field, duration.
-- **Battery.** Recording plays costs nothing. Training must wait for power and idle time, and
-  the stats window must stay off the main thread.
+- **Battery.** Recording plays costs nothing. Classifying a song's sound runs once per song,
+  briefly, and the reports are built off the main thread.
 - **Scope.** Beta 1.2 alone makes Himawari useful to most people who don't use Apple Music. Ship it,
   and finish Beta 1 with 1.3, before starting the listening work in Beta 2.
 
