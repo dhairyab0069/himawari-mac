@@ -247,7 +247,7 @@ struct ClockView: View {
 }
 
 /// The clock's text: see-through white with an aqua glow on dark wallpapers;
-/// deep navy with a white glow on bright ones, so it always stands out.
+/// deep navy with a thin light edge on bright ones, so it always stands out (no wide glow).
 /// The fluorescent-display style glows cyan, with a dark halo so it reads on anything.
 private struct ClockInk: ViewModifier {
     let dark: Bool
@@ -262,17 +262,17 @@ private struct ClockInk: ViewModifier {
                 .shadow(color: Color(red: 0.45, green: 0.97, blue: 1).opacity(0.8), radius: 8)
                 .shadow(color: .black.opacity(dark || busy ? 0.8 : 0.45), radius: 3)
         } else if dark {
+            // No wide white glow: it read as a white blur over the wallpaper. A tight light edge
+            // is enough to lift dark text off a bright picture.
             content
                 .foregroundStyle(Color(red: 0.05, green: 0.12, blue: 0.25).opacity(opacity))
-                .shadow(color: .white.opacity(0.85), radius: 10)
-                .shadow(color: .white.opacity(0.6), radius: 2)
-                .shadow(color: .white.opacity(busy ? 0.9 : 0), radius: 18) // a soft light halo over busy art
+                .shadow(color: .white.opacity(0.45), radius: 1.5)
+                .shadow(color: .white.opacity(busy ? 0.35 : 0), radius: 5) // a little more over busy art
         } else {
             content
                 .foregroundStyle(.white.opacity(opacity))
-                .shadow(color: .aeroGlow.opacity(0.6), radius: 10)
                 .shadow(color: .black.opacity(0.55), radius: 3, y: 1) // keeps white readable over busy areas
-                .shadow(color: .black.opacity(busy ? 0.75 : 0), radius: 16) // a soft shade over busy art
+                .shadow(color: .black.opacity(busy ? 0.6 : 0.25), radius: 12) // a soft shade, never a white haze
         }
     }
 }

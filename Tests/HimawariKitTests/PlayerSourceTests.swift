@@ -27,7 +27,7 @@ final class PlayerKindTests: XCTestCase {
 
     func testOnlyAppleMusicIsScriptable() {
         XCTAssertEqual(PlayerKind.appleMusic.capabilities, .all)
-        for kind in PlayerKind.allCases where kind != .appleMusic {
+        for kind in PlayerKind.allCases where kind != .appleMusic && kind != .spotify {
             // VOLUME turns the Mac's volume for them; the EQ and repeat/shuffle need Music.
             XCTAssertEqual(kind.capabilities, [.transport, .seek, .volume], "\(kind)")
         }

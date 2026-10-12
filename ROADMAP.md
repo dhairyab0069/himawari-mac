@@ -95,7 +95,7 @@ Local players (VLC, IINA, Plexamp) come for free through `SystemNowPlayingSource
     commands, which controls each player gets, and the tap's process matching.
   - Still to do in a later pull request: moving Apple Music's AppleScript into its own source
     type (`AppleMusicSource`), which Beta 1.3's per-app sources will follow.
-- **Beta 1.3: Per-player depth**
+- **Beta 1.3: Per-player depth** (built; releases Tue 13 Oct 2026, 6:41 PM ET)
   - `SpotifySource` (AppleScript: volume, shuffle, repeat, track id). Browser detection for YouTube
     Music so the CD shows the right cover and the YouTube loop can play.
   - TIDAL, Amazon Music and Deezer sources: just bundle ids and quirks (for example, players that

@@ -111,7 +111,7 @@ final class GearCapabilityTests: XCTestCase {
     }
 
     func testOtherPlayersGetTransportSeekingAndVolume() {
-        let spotify = PlayerKind.spotify.capabilities
+        let spotify = PlayerKind.tidal.capabilities // (Spotify also gets repeat/shuffle: see SpotifyLinkTests)
         let usable: [GearControl] = [.previous, .playPause, .next, .stop, .eject, .progress, .jog, .volume]
         let dimmed: [GearControl] = [.bass, .treble, .repeatMode, .shuffle]
         XCTAssertTrue(usable.allSatisfy { spotify.contains($0.needs) })

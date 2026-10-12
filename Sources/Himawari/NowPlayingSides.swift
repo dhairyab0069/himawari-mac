@@ -55,6 +55,10 @@ final class NowPlayingSides: NSView {
     private var previewOffset: Double?
     /// What the time display and progress ladder last showed ("" = draw again).
     private var shownTime = ""
+    /// "DHH · 7 / 41": the playlist and the song's place in it, shown instead of the album.
+    var playlistLabel: String? {
+        didSet { if playlistLabel != oldValue, let info { album.string = playlistLabel ?? info.album } }
+    }
     /// Music's volume, 0…1: where the VOLUME knob points.
     var volume: Double = 0.5 { didSet { pointKnobs() } }
     /// BASS and TREBLE in dB, −12…12 (Himawari's equalizer preset in Music).
@@ -124,7 +128,7 @@ final class NowPlayingSides: NSView {
         if songChanged {
             title.string = info.title.uppercased()
             artist.string = info.artist.uppercased()
-            album.string = info.album
+            album.string = playlistLabel ?? info.album
             layoutTitle()
         }
         lightIndicators()

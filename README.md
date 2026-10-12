@@ -139,11 +139,24 @@ start off, because browsers and video players mostly play videos you're watching
   same thing Control Center shows), so the CD, the gear and the meters work with all of them. If the
   album is on Apple Music and has an animated cover, you get that too, whatever app is playing.
 - The gear's play/pause, skip, progress ladder, jog wheel and CD scrubbing control any player (the
-  same commands Control Center sends). With other players, VOLUME turns the Mac's volume (no other player can
-  be asked for its own); BASS / TREBLE and REPEAT / SHUFFLE need Apple Music's scripting, so they're
-  dimmed. Songs a player shares no cover for get a plain disc label with the title.
+  same commands Control Center sends). With **Spotify**, VOLUME, REPEAT and SHUFFLE work through its own scripting (macOS asks once to let
+  Himawari control Spotify); BASS / TREBLE need Apple Music's equalizer. With other players, VOLUME
+  turns the Mac's volume and the rest is dimmed. Songs a player shares no cover for get a plain disc label with the title.
 - If two apps report what they're playing, Himawari follows the one that started playing most
   recently, and never leaves a playing app for a paused one. **Players ▸ Only Follow** pins one.
+
+### Playlists: the disc changer
+
+Press the deck's **⏏** button (or **⌃⌥⌘P**, or **Himawari menu ▸ Disc Changer**) to open the disc
+changer: your playlists as discs to flip through and play.
+
+- **Apple Music:** every playlist, with its first song's cover; the deck's display shows the
+  playlist and the song's place in it ("DHH · 7 / 41"), and the changer lists what's next. Click a
+  song there to skip ahead to it. Right-click a playlist to pin it to the top.
+- **Spotify:** its AppleScript can play a playlist but not list them, so add the ones you want:
+  in Spotify, **Share ▸ Copy Link to Playlist**, then **Add Spotify Playlist from Clipboard** in the
+  changer. Their names and covers come from Spotify's public page (no sign-in).
+- **Other players:** the changer can open the player.
 
 ### Hide the desktop's files
 
@@ -170,7 +183,8 @@ macOS asks once for each of these, the first time it's needed.
 
 | App | Permission | Why |
 |---|---|---|
-| Himawari | **Automation ▸ Music** | Reads what's playing in Apple Music, its cover, volume and equalizer. Other players need no permission. |
+| Himawari | **Automation ▸ Music** | Reads what's playing in Apple Music, its cover, volume, equalizer and playlists. |
+| Himawari | **Automation ▸ Spotify** | Only if you use Spotify: its volume, repeat, shuffle and pinned playlists. |
 | Himawari | **Automation ▸ Finder** | Checks whether a desktop click landed on a file (click to hide files). |
 | Himawari | **System Audio Recording Only** | Measures the music's loudness for the VU meters. Nothing is recorded; decline and the meters animate on their own. |
 

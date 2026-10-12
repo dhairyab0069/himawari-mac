@@ -338,6 +338,11 @@ final class WallpaperManager {
         didSet { if playerCapabilities != oldValue { refreshControls() } }
     }
 
+    /// The playlist line on the deck's display (nil: the album).
+    func showPlaylist(_ label: String?) {
+        for g in gear { g.playlistLabel = label }
+    }
+
     /// Where the VOLUME knobs point (0…1).
     func showVolume(_ volume: Double) {
         for g in gear { g.volume = volume }
