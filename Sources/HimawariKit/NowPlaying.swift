@@ -62,7 +62,16 @@ public final class MusicNowPlaying: ObservableObject {
     /// YouTube videos to loop when the album has no motion artwork (tried in order).
     @Published public private(set) var youtubeVideos: [String] = []
     /// Still looking for this song's motion artwork / YouTube video.
-    @Published public private(set) var searching = false
+    @Published public private(set) var searching = false {
+        didSet { if !searching { offerFallbackSoon() } }
+    }
+    /// A plain disc label with the title, for a song nobody has a cover for (a web player that
+    /// shares none, say). Kept apart from `artwork`, so a real cover arriving late still wins.
+    @Published public private(set) var fallbackArtwork: NSImage?
+    /// What to print on the CD: the cover, or the plain label.
+    public var displayArtwork: NSImage? { artwork ?? fallbackArtwork }
+    /// The player has reported a real position for this song (Firefox, on many sites, never does).
+    private var reportsPosition = false
     /// Look for a YouTube loop when there's no motion artwork.
     public var youtubeFallback = true
     /// Keep the song position up to date (the widget's progress bar). Himawari doesn't need it,
@@ -137,6 +146,30 @@ public final class MusicNowPlaying: ObservableObject {
         }
     }
 
+    /// A disc label for a song with no cover: a soft gradient picked from the title, with the
+    /// title and artist printed on it.
+    static func placeholderCover(for track: Track) -> NSImage {
+        let seed = track.name.unicodeScalars.reduce(UInt32(2166136261)) { ($0 ^ $1.value) &* 16777619 }
+        let hue = CGFloat(seed % 360) / 360
+        let size = NSSize(width: 600, height: 600)
+        return NSImage(size: size, flipped: false) { rect in
+            NSGradient(colors: [NSColor(hue: hue, saturation: 0.55, brightness: 0.55, alpha: 1),
+                                NSColor(hue: (hue + 0.12).truncatingRemainder(dividingBy: 1), saturation: 0.65, brightness: 0.25, alpha: 1)])?
+                .draw(in: rect, angle: -60)
+            let style = NSMutableParagraphStyle()
+            style.alignment = .center
+            style.lineBreakMode = .byTruncatingTail
+            let title = NSAttributedString(string: track.name, attributes: [
+                .font: NSFont.systemFont(ofSize: 34, weight: .bold), .foregroundColor: NSColor.white, .paragraphStyle: style])
+            let artist = NSAttributedString(string: track.artist, attributes: [
+                .font: NSFont.systemFont(ofSize: 24, weight: .medium), .foregroundColor: NSColor(white: 1, alpha: 0.75), .paragraphStyle: style])
+            // Above the hub, where the print stays readable.
+            title.draw(in: NSRect(x: 50, y: 400, width: 500, height: 84))
+            artist.draw(in: NSRect(x: 50, y: 365, width: 500, height: 32))
+            return true
+        }
+    }
+
     /// A change pushed by the system's Now Playing: whichever app the system says is playing.
     private func apply(_ s: SystemNowPlaying.State) {
         // Never follow ourselves: the YouTube loop on the wallpaper plays in a web view, which can
@@ -160,7 +193,10 @@ public final class MusicNowPlaying: ObservableObject {
         follow(kind, pid: s.pid, bundleID: app?.bundleIdentifier)
         systemAt = CACurrentMediaTime()
         let playing = s.rate > 0
-        set(track: Track(name: title, artist: s.artist ?? "", album: s.album ?? "", duration: s.duration), playing: playing)
+        let newTrack = Track(name: title, artist: s.artist ?? "", album: s.album ?? "", duration: s.duration)
+        let sameSong = newTrack == track
+        let estimate = measuredPosition + (isPlaying ? CACurrentMediaTime() - measuredAt : 0)
+        set(track: newTrack, playing: playing)
         // Right after a skip the system can still hand over the last song's cover: the same
         // artwork for a different album is that, not this song's.
         let album = s.album ?? ""
@@ -170,9 +206,33 @@ public final class MusicNowPlaying: ObservableObject {
             useSystemArtwork(data, id: s.artworkID)
         }
         let age = max(0, Date().timeIntervalSince1970 - s.timestamp) // how old the reading is
+        // Some web players never report a position (Firefox on many sites says 0 every time):
+        // keep counting ourselves instead of jumping back to the start.
+        if s.elapsed > 0.5 { reportsPosition = true }
+        guard Self.trustsElapsed(s.elapsed, estimate: estimate, sameSong: sameSong, reportsPosition: reportsPosition) else { return }
         measuredPosition = s.elapsed
         measuredAt = CACurrentMediaTime() - age
         position = playing ? s.elapsed + age * s.rate : s.elapsed
+    }
+
+    /// A reading of ~0 s for a song we've been counting is ignored only from a player that has
+    /// never reported a real position for it (it just doesn't know its position). From any other
+    /// player, 0 is real: a restart, repeat-one, or a seek back to the start.
+    nonisolated static func trustsElapsed(_ elapsed: Double, estimate: Double, sameSong: Bool, reportsPosition: Bool) -> Bool {
+        !(sameSong && !reportsPosition && elapsed < 0.5 && estimate > 3)
+    }
+
+    /// Done looking for a cover: if none turns up within a moment (Music's own AppleScript cover
+    /// and the system's take a few hundred ms), offer the plain label.
+    private func offerFallbackSoon() {
+        guard artwork == nil, track != nil else { return }
+        let generation = generation
+        DispatchQueue.main.asyncAfter(deadline: .now() + 1.5) { [weak self] in
+            onMainActor {
+                guard let self, self.generation == generation, self.artwork == nil, let track = self.track else { return }
+                self.fallbackArtwork = Self.placeholderCover(for: track)
+            }
+        }
     }
 
     /// Keep the progress bar moving: count the seconds ourselves, and only ask Music
@@ -235,11 +295,22 @@ public final class MusicNowPlaying: ObservableObject {
     public func pause() { onAppleMusic ? tell("pause") : system?.send(.pause) }
     public func next() { onAppleMusic ? tell("next track") : system?.send(.next) }
 
-    /// Music's own volume, 0…100 (not the Mac's).
-    public func setVolume(_ percent: Int) { tell("set sound volume to \(max(0, min(100, percent)))") }
+    /// The VOLUME knob, 0…100: Apple Music's own volume, or the Mac's output volume for other
+    /// players (they can't be asked for theirs). Neither needs a permission beyond Music's.
+    public func setVolume(_ percent: Int) {
+        let v = max(0, min(100, percent))
+        if onAppleMusic { tell("set sound volume to \(v)") }
+        // In-process on the one serial script queue: a quick drag's steps arrive in order.
+        else { Self.timedScript("set volume output volume \(v)") { _, _ in } }
+    }
 
+    /// nil when there's no answer (an output with no volume control, like HDMI, says "missing value").
     public func fetchVolume(_ done: @escaping @MainActor (Int?) -> Void) {
-        Self.osascript("tell application id \"\(Self.music)\" to return sound volume as text") { done($0.flatMap { Int($0) }) }
+        if onAppleMusic {
+            Self.osascript("tell application id \"\(Self.music)\" to return sound volume as text") { done($0.flatMap { Int($0) }) }
+        } else {
+            Self.timedScript("return (output volume of (get volume settings)) as text") { out, _ in done(out.flatMap { Int($0) }) }
+        }
     }
     public func previous() { onAppleMusic ? tell("previous track") : system?.send(.previous) }
 
@@ -383,6 +454,8 @@ public final class MusicNowPlaying: ObservableObject {
         measuredAt = CACurrentMediaTime()
         generation += 1
         youtubeVideos = []
+        fallbackArtwork = nil
+        reportsPosition = false
         searching = new != nil
         artwork = nil // never show the last song's cover for this one
         guard let new else { artwork = nil; motionVideo = nil; return }

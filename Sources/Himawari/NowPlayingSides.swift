@@ -40,6 +40,8 @@ final class NowPlayingSides: NSView {
     private let album = NowPlayingSides.text(11, .regular, alpha: 0.5)
     private let playLED = CALayer()
     private let jog = CALayer()
+    /// How far a knob's click area reaches past the knob (easier to grab).
+    private static let knobGrabMargin: CGFloat = 10
     /// The knobs' live pointers (VOLUME, BASS, TREBLE): they show, and set, Music's settings.
     private var pointers: [GearControl: CAShapeLayer] = [:]
     /// Where each control is, in this view's coordinates (y up).
@@ -344,7 +346,7 @@ final class NowPlayingSides: NSView {
             pointer.lineCap = .round
             analyzer.addSublayer(pointer)
             pointers[control] = pointer
-            controlRects[control] = rect.insetBy(dx: -10, dy: -10)
+            controlRects[control] = rect.insetBy(dx: -Self.knobGrabMargin, dy: -Self.knobGrabMargin)
                 .offsetBy(dx: analyzer.frame.origin.x, dy: analyzer.frame.origin.y)
         }
         pointKnobs()
@@ -361,8 +363,12 @@ final class NowPlayingSides: NSView {
         CATransaction.setDisableActions(true)
         for (control, rect) in controlRects where !capabilities.contains(control.needs) {
             let shade = CALayer()
-            shade.frame = rect.insetBy(dx: -2, dy: -2)
-            shade.cornerRadius = control == .volume || control == .bass || control == .treble ? rect.width / 2 : 5
+            // Knobs' click areas reach 10 pt past the knob (easier to grab): shade only the knob
+            // itself, so its label underneath stays readable.
+            let isKnob = control.knobName != nil
+            let visible = isKnob ? rect.insetBy(dx: Self.knobGrabMargin, dy: Self.knobGrabMargin) : rect
+            shade.frame = visible.insetBy(dx: -2, dy: -2)
+            shade.cornerRadius = isKnob ? shade.frame.width / 2 : 5
             shade.backgroundColor = NSColor(white: 0.04, alpha: 0.62).cgColor
             root.addSublayer(shade)
             dimmers.append(shade)
@@ -955,6 +961,16 @@ enum GearControl: Hashable {
         case .volume: .volume
         case .bass, .treble: .equalizer
         case .repeatMode, .shuffle: .repeatShuffle
+        }
+    }
+
+    /// The knob's label, for the knobs.
+    var knobName: String? {
+        switch self {
+        case .volume: "VOLUME"
+        case .bass: "BASS"
+        case .treble: "TREBLE"
+        default: nil
         }
     }
 

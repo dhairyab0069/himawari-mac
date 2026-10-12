@@ -58,8 +58,9 @@ public enum PlayerKind: String, CaseIterable, Sendable, Codable {
     public var capabilities: PlayerCapabilities {
         switch self {
         case .appleMusic: .all
-        // The system's remote commands: what Control Center can do with any player.
-        default: [.transport, .seek]
+        // The system's remote commands (what Control Center can do with any player), and the
+        // VOLUME knob turns the Mac's own volume (no other player can be asked for its own).
+        default: [.transport, .seek, .volume]
         }
     }
 }
@@ -73,7 +74,7 @@ public struct PlayerCapabilities: OptionSet, Sendable, Hashable {
     public static let transport = PlayerCapabilities(rawValue: 1 << 0)
     /// Jump to a point in the song (the progress ladder, the jog wheel, turning the CD).
     public static let seek = PlayerCapabilities(rawValue: 1 << 1)
-    /// The player's own volume (the VOLUME knob).
+    /// The VOLUME knob: Apple Music's own volume, or the Mac's for other players.
     public static let volume = PlayerCapabilities(rawValue: 1 << 2)
     /// Repeat and shuffle (the words on the deck's display).
     public static let repeatShuffle = PlayerCapabilities(rawValue: 1 << 3)

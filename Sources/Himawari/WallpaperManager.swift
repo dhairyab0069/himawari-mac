@@ -338,6 +338,11 @@ final class WallpaperManager {
         didSet { if playerCapabilities != oldValue { refreshControls() } }
     }
 
+    /// Where the VOLUME knobs point (0…1).
+    func showVolume(_ volume: Double) {
+        for g in gear { g.volume = volume }
+    }
+
     /// The player changed: point the meters at it (if they're listening).
     func retargetAudio() {
         if audio.running { audio.start() }
