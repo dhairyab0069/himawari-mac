@@ -12,7 +12,7 @@ work starts **Beta 2**, which I'm building myself, hands-on, as part of learning
 | Release | Theme | Headline |
 |---|---|---|
 | **Beta 1.2** | Any player | The wallpaper, gear and CD follow whichever app is playing |
-| **Beta 1.3** | Per-player depth | Spotify and the others get the controls Apple Music has today, where their apps allow it |
+| **Beta 1.3** | Per-player depth and playlists | Spotify and the others get the controls Apple Music has today, where their apps allow it; playlists on the desktop |
 | **Beta 1.4** (final Beta 1) | Styles and skins | CD player layouts from different eras, skins for each, and looks that follow the genre |
 | **Beta 2.0** | Your listening, on device | A private listening history and a stats view across every service |
 | **Beta 2.1** | Classification and insights | On-device labels (genre, mood, energy, language) and reports about your listening |
@@ -101,6 +101,45 @@ Local players (VLC, IINA, Plexamp) come for free through `SystemNowPlayingSource
   - TIDAL, Amazon Music and Deezer sources: just bundle ids and quirks (for example, players that
     report position late).
   - Per-app permission prompts explained in the README (Automation ▸ Spotify, and so on).
+  - **Playlists** (below).
+
+### Playlists (Beta 1.3)
+
+The deck shows songs; with playlists it also becomes a **disc changer**: a row of your playlists,
+each a disc or a case with its cover, which you can browse and play from the desktop.
+
+**What you can do:**
+- **See where you are:** the deck's display shows the playlist (or album) that's playing, and the
+  song's place in it ("7 / 24"). The disc's label shows the playlist's name.
+- **Up next:** the next few songs, scrolling on the display; click one to jump to it.
+- **Switch playlists:** open the changer (a button on the deck, or ⌃⌥⌘P), flip through your
+  playlists, and click one to play it. The disc changes with the usual slide.
+- **Pin favourites:** pin the playlists you play most so they're always first in the changer.
+- **Shuffle and repeat a playlist** with the deck's buttons, where the player supports them.
+
+**What each player allows** (and so what the changer shows):
+
+| Player | Read the current playlist | List your playlists | Play a playlist | Up next / jump to a song |
+|---|---|---|---|---|
+| **Apple Music** | Yes (AppleScript: `current playlist`) | Yes (`user playlists`, with their artwork) | Yes (`play playlist`) | Yes (its tracks, in order) |
+| **Spotify** | The playing context's link, if its AppleScript gives it | No (only through Spotify's Web API, which needs sign-in) | Yes, by link (`play track "spotify:playlist:…"`) | No |
+| **TIDAL, Amazon Music, Deezer, web players** | No | No | No | No |
+
+So the full changer is an Apple Music feature. For Spotify you can **pin playlists by their link**
+(Share ▸ Copy Link to Playlist) and play them from the changer. For the others, the changer shows
+your pinned links, which open in the player. Signing in to a service's API to list playlists is a
+possible later option, but it means accounts and tokens, so it isn't in 1.3.
+
+**Design:**
+- A `PlaylistSource` capability alongside `PlayerCapabilities` (`.playlists`, `.upNext`), so the
+  changer and the up-next display dim the same way the other controls do.
+- Playlists are read when the changer opens, not polled. Covers come from the player (Apple
+  Music's artwork) or a generated mosaic of the first four song covers.
+- The changer is drawn by the gear (so Beta 1.4's eras can restyle it: a CD changer, a cassette
+  rack, a crate of records).
+
+**Tests:** playlist parsing from AppleScript output, the "7 / 24" position, pinned-link validation
+(Spotify playlist links only), and that the changer's controls dim per player.
 
 ---
 
