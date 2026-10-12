@@ -1,4 +1,5 @@
 import XCTest
+import AppKit
 @testable import HimawariKit
 
 /// Which app is playing, what Himawari may do with it, and which ones it follows (Beta 1.2).
@@ -27,7 +28,8 @@ final class PlayerKindTests: XCTestCase {
     func testOnlyAppleMusicIsScriptable() {
         XCTAssertEqual(PlayerKind.appleMusic.capabilities, .all)
         for kind in PlayerKind.allCases where kind != .appleMusic {
-            XCTAssertEqual(kind.capabilities, [.transport, .seek], "\(kind)")
+            // VOLUME turns the Mac's volume for them; the EQ and repeat/shuffle need Music.
+            XCTAssertEqual(kind.capabilities, [.transport, .seek, .volume], "\(kind)")
         }
     }
 
@@ -95,5 +97,26 @@ final class PlayerCommandTests: XCTestCase {
     func testSeekNeverNegativeAndAlwaysWithADot() {
         XCTAssertEqual(PlayerCommand.seek(to: -5).helperLine, "seek 0.00")
         XCTAssertFalse(PlayerCommand.seek(to: 1.5).helperLine.contains(","), "the helper parses a C-locale number")
+    }
+}
+
+/// Web players that never report a position, and songs with no cover (found live with Firefox).
+final class WebPlayerQuirkTests: XCTestCase {
+    func testAZeroPositionMidSongIsIgnored() {
+        XCTAssertFalse(MusicNowPlaying.trustsElapsed(0.001, estimate: 95, sameSong: true, playing: true))
+    }
+
+    func testRealReadingsAreUsed() {
+        XCTAssertTrue(MusicNowPlaying.trustsElapsed(42, estimate: 95, sameSong: true, playing: true), "a seek back")
+        XCTAssertTrue(MusicNowPlaying.trustsElapsed(0, estimate: 95, sameSong: false, playing: true), "a new song")
+        XCTAssertTrue(MusicNowPlaying.trustsElapsed(0, estimate: 1, sameSong: true, playing: true), "just started")
+        XCTAssertTrue(MusicNowPlaying.trustsElapsed(0, estimate: 95, sameSong: true, playing: false), "paused at the start")
+    }
+
+    @MainActor func testPlaceholderCoverIsSquareAndStable() {
+        let track = MusicNowPlaying.Track(name: "Big Pressure", artist: "TopSuperKicker", album: "", duration: 147)
+        let a = MusicNowPlaying.placeholderCover(for: track), b = MusicNowPlaying.placeholderCover(for: track)
+        XCTAssertEqual(a.size, NSSize(width: 600, height: 600))
+        XCTAssertEqual(a.tiffRepresentation, b.tiffRepresentation, "same song, same label")
     }
 }

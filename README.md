@@ -10,7 +10,7 @@
 </p>
 
 <p align="center">
-  <a href="https://github.com/dhairyab0069/himawari-mac/releases/latest/download/Himawari-1.2.dmg"><b>⬇︎ Download Himawari Beta 1.2 (DMG)</b></a>
+  <a href="https://github.com/dhairyab0069/himawari-mac/releases/latest/download/Himawari-1.2.1.dmg"><b>⬇︎ Download Himawari Beta 1.2.1 (DMG)</b></a>
   &nbsp;·&nbsp; macOS 14.4 or later &nbsp;·&nbsp; Apple Silicon and Intel
 </p>
 
@@ -60,7 +60,7 @@
 
 ## Install
 
-1. [Download the DMG](https://github.com/dhairyab0069/himawari-mac/releases/latest/download/Himawari-1.2.dmg) and open it.
+1. [Download the DMG](https://github.com/dhairyab0069/himawari-mac/releases/latest/download/Himawari-1.2.1.dmg) and open it.
 2. Drag **Himawari** onto **Applications**, then open it from Applications.
 3. The first time, macOS may say it can't check Himawari for malicious software: Himawari isn't notarized
    (that needs a paid Apple Developer ID). Either right-click Himawari ▸ **Open** ▸ **Open**, or go to
@@ -139,8 +139,9 @@ start off, because browsers and video players mostly play videos you're watching
   same thing Control Center shows), so the CD, the gear and the meters work with all of them. If the
   album is on Apple Music and has an animated cover, you get that too, whatever app is playing.
 - The gear's play/pause, skip, progress ladder, jog wheel and CD scrubbing control any player (the
-  same commands Control Center sends). VOLUME, BASS / TREBLE and REPEAT / SHUFFLE need Apple Music's
-  scripting, so with other players they're dimmed.
+  same commands Control Center sends). With other players, VOLUME turns the Mac's volume (no other player can
+  be asked for its own); BASS / TREBLE and REPEAT / SHUFFLE need Apple Music's scripting, so they're
+  dimmed. Songs a player shares no cover for get a plain disc label with the title.
 - If two apps report what they're playing, Himawari follows the one that started playing most
   recently, and never leaves a playing app for a paused one. **Players ▸ Only Follow** pins one.
 

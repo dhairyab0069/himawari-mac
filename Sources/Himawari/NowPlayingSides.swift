@@ -361,8 +361,12 @@ final class NowPlayingSides: NSView {
         CATransaction.setDisableActions(true)
         for (control, rect) in controlRects where !capabilities.contains(control.needs) {
             let shade = CALayer()
-            shade.frame = rect.insetBy(dx: -2, dy: -2)
-            shade.cornerRadius = control == .volume || control == .bass || control == .treble ? rect.width / 2 : 5
+            // Knobs' click areas reach 10 pt past the knob (easier to grab): shade only the knob
+            // itself, so its label underneath stays readable.
+            let isKnob = control == .volume || control == .bass || control == .treble
+            let visible = isKnob ? rect.insetBy(dx: 10, dy: 10) : rect
+            shade.frame = visible.insetBy(dx: -2, dy: -2)
+            shade.cornerRadius = isKnob ? shade.frame.width / 2 : 5
             shade.backgroundColor = NSColor(white: 0.04, alpha: 0.62).cgColor
             root.addSublayer(shade)
             dimmers.append(shade)

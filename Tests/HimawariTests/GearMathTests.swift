@@ -110,10 +110,10 @@ final class GearCapabilityTests: XCTestCase {
         XCTAssertEqual(GearControl.eject.needs, [], "opening the player always works")
     }
 
-    func testSpotifyGetsTransportAndSeekingOnly() {
+    func testOtherPlayersGetTransportSeekingAndVolume() {
         let spotify = PlayerKind.spotify.capabilities
-        let usable: [GearControl] = [.previous, .playPause, .next, .stop, .eject, .progress, .jog]
-        let dimmed: [GearControl] = [.volume, .bass, .treble, .repeatMode, .shuffle]
+        let usable: [GearControl] = [.previous, .playPause, .next, .stop, .eject, .progress, .jog, .volume]
+        let dimmed: [GearControl] = [.bass, .treble, .repeatMode, .shuffle]
         XCTAssertTrue(usable.allSatisfy { spotify.contains($0.needs) })
         XCTAssertTrue(dimmed.allSatisfy { !spotify.contains($0.needs) })
     }

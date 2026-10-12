@@ -172,6 +172,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
                     Log.write("player: \(self.music.player?.title ?? "none")" + (self.music.playerBundleID.map { " (\($0))" } ?? ""))
                     self.wallpaper.playerCapabilities = self.music.capabilities
                     self.wallpaper.retargetAudio()
+                    // The VOLUME knob now means this player's volume (the Mac's, for most): show it.
+                    if self.music.player != nil, self.music.capabilities.contains(.volume) {
+                        self.music.fetchVolume { [weak self] v in if let v { self?.wallpaper.showVolume(Double(v) / 100) } }
+                    }
                 }
             }
         // A YouTube video on the wallpaper follows the song's position.
