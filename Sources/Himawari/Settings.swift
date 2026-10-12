@@ -94,6 +94,23 @@ final class Settings {
         set { defaults.set(newValue, forKey: "movingLockScreen") }
     }
 
+    /// Playlists pinned to the top of the disc changer (their ids).
+    var pinnedPlaylists: [String] {
+        get { defaults.stringArray(forKey: "pinnedPlaylists") ?? [] }
+        set { defaults.set(newValue, forKey: "pinnedPlaylists") }
+    }
+
+    /// Spotify playlists added by link: (spotify:playlist:… uri, name).
+    var spotifyPlaylists: [(uri: String, name: String)] {
+        get {
+            (defaults.array(forKey: "spotifyPlaylists") as? [[String: String]] ?? []).compactMap { d in
+                guard let uri = d["uri"], PlaylistLibrary.spotifyURI(fromLink: uri) == uri else { return nil }
+                return (uri, d["name"] ?? "Spotify playlist")
+            }
+        }
+        set { defaults.set(newValue.map { ["uri": $0.uri, "name": $0.name] }, forKey: "spotifyPlaylists") }
+    }
+
     /// Click an empty spot on the desktop to hide its files (just the wallpaper); click again for them back.
     var clickToClearDesktop: Bool {
         get { defaults.bool(forKey: "clickToClearDesktop") }

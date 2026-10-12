@@ -98,6 +98,7 @@ public final class MusicNowPlaying: ObservableObject {
     private static let retryEmptyAfter: TimeInterval = 120
     private static func fresh(_ found: Bool, _ at: Date) -> Bool { found || Date().timeIntervalSince(at) < retryEmptyAfter }
     private static let music = "com.apple.Music"
+    static let spotify = "com.spotify.client"
 
     public init() {
         DistributedNotificationCenter.default().addObserver(forName: .init("com.apple.Music.playerInfo"), object: nil,
@@ -300,6 +301,7 @@ public final class MusicNowPlaying: ObservableObject {
     public func setVolume(_ percent: Int) {
         let v = max(0, min(100, percent))
         if onAppleMusic { tell("set sound volume to \(v)") }
+        else if player == .spotify { tellSpotify("set sound volume to \(v)") }
         // In-process on the one serial script queue: a quick drag's steps arrive in order.
         else { Self.timedScript("set volume output volume \(v)") { _, _ in } }
     }
@@ -308,6 +310,8 @@ public final class MusicNowPlaying: ObservableObject {
     public func fetchVolume(_ done: @escaping @MainActor (Int?) -> Void) {
         if onAppleMusic {
             Self.osascript("tell application id \"\(Self.music)\" to return sound volume as text") { done($0.flatMap { Int($0) }) }
+        } else if player == .spotify {
+            Self.timedScript("tell application id \"\(Self.spotify)\" to return sound volume as text") { out, _ in done(out.flatMap { Int($0) }) }
         } else {
             Self.timedScript("return (output volume of (get volume settings)) as text") { out, _ in done(out.flatMap { Int($0) }) }
         }
@@ -332,6 +336,20 @@ public final class MusicNowPlaying: ObservableObject {
 
     public func fetchDeck(_ done: @escaping @MainActor (Deck?) -> Void) {
         let sep = "\u{1F}"
+        if player == .spotify {
+            // Spotify's dictionary: its own volume (0…100), repeat and shuffle; no equalizer.
+            Self.timedScript("""
+            tell application id "\(Self.spotify)"
+                return (sound volume as text) & "\(sep)" & (repeating as text) & "\(sep)" & (shuffling as text)
+            end tell
+            """) { output, _ in
+                let parts = output?.components(separatedBy: sep) ?? []
+                guard parts.count == 3, let volume = Double(parts[0]) else { return done(nil) }
+                done(Deck(volume: volume / 100, repeating: parts[1] == "true", shuffling: parts[2] == "true",
+                          bass: 0, treble: 0, equalizerOn: false, preset: ""))
+            }
+            return
+        }
         Self.timedScript("""
         tell application id "\(Self.music)"
             set b to 0
@@ -363,8 +381,12 @@ public final class MusicNowPlaying: ObservableObject {
         return ([b, b, b / 2, 0, 0, 0, 0, t / 2, t, t], -max(b, t, 0) / 2)
     }
 
-    public func setRepeat(_ on: Bool) { tell("set song repeat to \(on ? "all" : "off")") }
-    public func setShuffle(_ on: Bool) { tell("set shuffle enabled to \(on)") }
+    public func setRepeat(_ on: Bool) {
+        if player == .spotify { tellSpotify("set repeating to \(on)") } else { tell("set song repeat to \(on ? "all" : "off")") }
+    }
+    public func setShuffle(_ on: Bool) {
+        if player == .spotify { tellSpotify("set shuffling to \(on)") } else { tell("set shuffle enabled to \(on)") }
+    }
 
     /// BASS and TREBLE in dB (−12…12), as shelves on Himawari's equalizer preset, which becomes
     /// Music's current one. Both back at 0 puts back the equalizer as it was (`restore`).
@@ -400,6 +422,12 @@ public final class MusicNowPlaying: ObservableObject {
         } else if let url = NSWorkspace.shared.urlForApplication(withBundleIdentifier: Self.music) {
             NSWorkspace.shared.openApplication(at: url, configuration: .init())
         }
+    }
+
+    /// Spotify, only while it's the player (so a script never launches it).
+    private func tellSpotify(_ command: String) {
+        guard player == .spotify else { return }
+        Self.timedScript("tell application id \"\(Self.spotify)\" to \(command)") { _, _ in }
     }
 
     private func tell(_ command: String, block: Bool = false) {
@@ -490,7 +518,9 @@ public final class MusicNowPlaying: ObservableObject {
         }
         motionVideo = nil
         Task { [weak self] in
-            let result = await MotionArtwork.find(artist: track.artist, album: track.album, song: track.name, duration: track.duration)
+            // A web player's "song" is often a video title: search with the artist and song in it.
+            let names = self?.player == .browser ? WebTitle.clean(title: track.name, artist: track.artist) : (title: track.name, artist: track.artist)
+            let result = await MotionArtwork.find(artist: names.artist, album: track.album, song: names.title, duration: track.duration)
             guard let self else { return }
             Self.motionCache[key] = (result, Date())
             guard self.generation == generation else { return }
@@ -551,7 +581,7 @@ public final class MusicNowPlaying: ObservableObject {
     private static let scriptQueue = DispatchQueue(label: "local.dhairyabhatia.nowplaying.script", qos: .userInitiated)
     nonisolated(unsafe) private static var compiled: [String: NSAppleScript] = [:] // touched only on scriptQueue
 
-    private static func timedScript(_ source: String, completion: @escaping @MainActor (String?, Double) -> Void) {
+    static func timedScript(_ source: String, completion: @escaping @MainActor (String?, Double) -> Void) {
         let done = TimedCompletion(completion)
         scriptQueue.async {
             let script = compiled[source] ?? NSAppleScript(source: source)

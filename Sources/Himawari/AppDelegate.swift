@@ -26,6 +26,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     private static let pauseGraceSeconds: TimeInterval = 3
     private let settings = Settings.shared
     private let clock = ClockHelper()
+    private let changer = PlaylistChanger()
+    private var changerHotKey: HotKey? // ⌃⌥⌘P: the disc changer
+    private var positionWatchPlaylist: AnyCancellable?
     /// Music's volume, repeat, shuffle and tone, as last read (the side gear shows them).
     private var deck: MusicNowPlaying.Deck?
     private var deckTimer: Timer?
@@ -70,6 +73,18 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         }
         if clockHotKey == nil { Log.write("⌃⌥⌘C is taken by another app: show the clock from the menu instead") }
         // ⌃⌥⌘D hides or shows the desktop's files, with or without music.
+        changerHotKey = HotKey(keyCode: kVK_ANSI_P, modifiers: cmdKey | optionKey | controlKey, id: 9) { [weak self] in
+            onMainActor { self?.toggleChanger() }
+        }
+        changer.openPlayer = { [weak self] in self?.music.openPlayer() }
+        // For checking the changer's look: `open -a Himawari --args -HimawariShowChanger YES`.
+        if UserDefaults.standard.volatileDomain(forName: UserDefaults.argumentDomain)["HimawariShowChanger"] != nil {
+            DispatchQueue.main.asyncAfter(deadline: .now() + 4) { [weak self] in onMainActor { self?.toggleChanger() } }
+        }
+        // The deck's display shows the playlist and the song's place in it.
+        positionWatchPlaylist = changer.library.$position
+            .receive(on: RunLoop.main)
+            .sink { [weak self] position in onMainActor { self?.wallpaper.showPlaylist(position?.label) } }
         filesHotKey = HotKey(keyCode: kVK_ANSI_D, modifiers: cmdKey | optionKey | controlKey, id: 8) { [weak self] in
             onMainActor { self?.toggleDesktopFiles() }
         }
@@ -112,7 +127,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
             case .button(.playPause): self.music.playPause()
             case .button(.next): self.music.next()
             case .button(.stop): self.music.pause()
-            case .button(.eject): self.music.openPlayer()
+            case .button(.eject): self.toggleChanger() // the disc changer (it can open the player too)
             case .button(.repeatMode), .button(.shuffle):
                 var repeatButton = false
                 if case .button(.repeatMode) = action { repeatButton = true }
@@ -139,7 +154,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
                     lastVolumeSent = now
                     self.music.setVolume(Int((v * 100).rounded()))
                 }
-                if self.music.player == .appleMusic { self.deck?.volume = v } // the deck holds Music's own settings
+                if self.music.player == .appleMusic || self.music.player == .spotify { self.deck?.volume = v } // the player's own settings
             case .tone(let bass, let treble, let done):
                 self.setTone(bass: bass, treble: treble, done: done)
             }
@@ -172,6 +187,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
                     Log.write("player: \(self.music.player?.title ?? "none")" + (self.music.playerBundleID.map { " (\($0))" } ?? ""))
                     self.wallpaper.playerCapabilities = self.music.capabilities
                     self.wallpaper.retargetAudio()
+                    self.deck = nil // the last player's settings
+                    self.refreshDeck()
+                    self.changer.player = self.music.player
+                    self.changer.capabilities = self.music.capabilities
+                    self.refreshPlaylistPosition()
                     // The VOLUME knob now means this player's volume (the Mac's, for most): show it.
                     if self.music.player != nil, self.music.capabilities.contains(.volume) {
                         self.music.fetchVolume { [weak self] v in if let v { self?.wallpaper.showVolume(Double(v) / 100) } }
@@ -249,11 +269,24 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         music.measuredPosition + (music.isPlaying ? CACurrentMediaTime() - music.measuredAt : 0)
     }
 
+    /// Apple Music's playlist and the song's place in it, for the deck and the changer.
+    private func refreshPlaylistPosition() {
+        guard music.player == .appleMusic, music.track != nil else { changer.library.clearPosition(); return }
+        changer.library.refreshPosition(shuffling: deck?.shuffling ?? false)
+    }
+
+    @objc private func toggleChanger() {
+        changer.player = music.player
+        changer.capabilities = music.capabilities
+        if music.player == .appleMusic { refreshPlaylistPosition() }
+        changer.toggle()
+    }
+
     private func refreshDeck() {
-        // Volume, repeat, shuffle and the EQ can only be read from Apple Music (asking Music
+        // Volume, repeat, shuffle and the EQ can be read from Apple Music, and all but the EQ from Spotify (asking Music
         // while another player plays would also launch it). Other players: just the Mac's
         // volume, which the volume keys may have changed.
-        guard music.player == .appleMusic || music.player == nil, music.track != nil else {
+        guard music.player == .appleMusic || music.player == .spotify || music.player == nil, music.track != nil else {
             if music.capabilities.contains(.volume), CACurrentMediaTime() - lastGearTouch > 1.5 {
                 music.fetchVolume { [weak self] v in if let v { self?.wallpaper.showVolume(Double(v) / 100) } }
             }
@@ -302,6 +335,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         let key = track.name + "|" + track.artist
         guard key != recentSongs.last else { return }
         refreshDeck()
+        refreshPlaylistPosition()
         if recentSongs.count >= 2, recentSongs[recentSongs.count - 2] == key {
             recentSongs.removeLast()
             wallpaper.discDirection = .backward
@@ -431,6 +465,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         menu.addItem(sizingItem)
         menu.addItem(item("Music Wallpaper While Playing", #selector(toggleMusicWallpaper), checked: settings.musicWallpaper))
         menu.addItem(playersItem())
+        let changerItem = item("Disc Changer (Playlists)…", #selector(toggleChanger), key: "p")
+        changerItem.keyEquivalentModifierMask = [.command, .option, .control]
+        menu.addItem(changerItem)
         let yt = item("    …or a YouTube Loop of the Song", #selector(toggleMusicYouTube), checked: settings.musicYouTube)
         yt.isEnabled = settings.musicWallpaper
         menu.addItem(yt)

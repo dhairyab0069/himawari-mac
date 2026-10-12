@@ -27,7 +27,8 @@ final class DesktopPeek {
                 localMonitor = NSEvent.addLocalMonitorForEvents(matching: [.leftMouseDown]) { [weak self] event in
                     // The wallpaper itself, not the gear's click catchers: pressing a
                     // button on the gear mustn't bring the files back.
-                    if let window = event.window, window.identifier != GearControls.catcherID,
+                    // (Himawari's other little windows, like the disc changer, aren't the wallpaper either.)
+                    if let window = event.window, !(window.identifier?.rawValue.hasPrefix("himawari.") ?? false),
                        window.level.rawValue < NSWindow.Level.normal.rawValue {
                         onMainActor { self?.onWallpaperClick?() }
                     }

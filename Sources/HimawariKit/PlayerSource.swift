@@ -58,6 +58,8 @@ public enum PlayerKind: String, CaseIterable, Sendable, Codable {
     public var capabilities: PlayerCapabilities {
         switch self {
         case .appleMusic: .all
+        // Spotify's AppleScript: its own volume, repeat and shuffle, and playing a playlist by link.
+        case .spotify: [.transport, .seek, .volume, .repeatShuffle, .playlists]
         // The system's remote commands (what Control Center can do with any player), and the
         // VOLUME knob turns the Mac's own volume (no other player can be asked for its own).
         default: [.transport, .seek, .volume]
@@ -81,7 +83,12 @@ public struct PlayerCapabilities: OptionSet, Sendable, Hashable {
     /// An equalizer Himawari can shape (BASS and TREBLE).
     public static let equalizer = PlayerCapabilities(rawValue: 1 << 4)
 
-    public static let all: PlayerCapabilities = [.transport, .seek, .volume, .repeatShuffle, .equalizer]
+    /// Playing a playlist (Apple Music: any of yours; Spotify: one you've pinned by its link).
+    public static let playlists = PlayerCapabilities(rawValue: 1 << 5)
+    /// Reading the playlist that's playing, the song's place in it and what comes next.
+    public static let upNext = PlayerCapabilities(rawValue: 1 << 6)
+
+    public static let all: PlayerCapabilities = [.transport, .seek, .volume, .repeatShuffle, .equalizer, .playlists, .upNext]
 }
 
 /// Which player the wallpaper follows.

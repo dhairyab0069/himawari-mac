@@ -10,6 +10,9 @@ import HimawariKit
 final class VideoCanvas: NSView {
     private let backdrop: AVPlayerLayer
     private let video: AVPlayerLayer
+    /// Darkens the blurred fill above the video, under the menu bar: a bright video's blur there
+    /// read as a white haze along the top of the screen.
+    private let topShade = CAGradientLayer()
     private let band = CALayer() // clips the video to the visible slice (Widescreen trims tall videos)
     var sizing: VideoSizing = .fitWidth { didSet { if sizing != oldValue { arrange() } } }
     private let ambient = AmbientLayer()
@@ -69,6 +72,10 @@ final class VideoCanvas: NSView {
         layer?.masksToBounds = true
         for l in [backdrop, video] { l.contentsScale = scale } // full Retina sharpness (a hand-added layer defaults to 1×)
         layer?.addSublayer(backdrop)
+        topShade.colors = [NSColor(white: 0, alpha: 0.6).cgColor, NSColor(white: 0, alpha: 0.97).cgColor]
+        topShade.startPoint = CGPoint(x: 0.5, y: 0) // bottom (by the video) …
+        topShade.endPoint = CGPoint(x: 0.5, y: 1)   // … to the top edge
+        layer?.addSublayer(topShade)
         layer?.addSublayer(ambient)
         band.masksToBounds = true
         band.addSublayer(video)
@@ -108,6 +115,8 @@ final class VideoCanvas: NSView {
         video.frame = full.offsetBy(dx: -visible.minX, dy: -visible.minY) // relative to the band
         let covered = visible.contains(bounds)
         backdrop.isHidden = barFill != .blurred || covered
+        topShade.isHidden = backdrop.isHidden || visible.maxY >= bounds.maxY - 1
+        topShade.frame = CGRect(x: bounds.minX, y: visible.maxY, width: bounds.width, height: max(bounds.maxY - visible.maxY, 0))
         ambient.isHidden = barFill != .ambient || covered
         if !ambient.isHidden { ambient.arrange(in: bounds, around: visible) }
         sides?.place(around: visible)
