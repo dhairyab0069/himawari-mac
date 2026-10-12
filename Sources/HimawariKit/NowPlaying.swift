@@ -311,6 +311,7 @@ public final class MusicNowPlaying: ObservableObject {
         if onAppleMusic {
             Self.osascript("tell application id \"\(Self.music)\" to return sound volume as text") { done($0.flatMap { Int($0) }) }
         } else if player == .spotify {
+            guard spotifyRunning else { return done(nil) }
             Self.timedScript("tell application id \"\(Self.spotify)\" to return sound volume as text") { out, _ in done(out.flatMap { Int($0) }) }
         } else {
             Self.timedScript("return (output volume of (get volume settings)) as text") { out, _ in done(out.flatMap { Int($0) }) }
@@ -337,6 +338,7 @@ public final class MusicNowPlaying: ObservableObject {
     public func fetchDeck(_ done: @escaping @MainActor (Deck?) -> Void) {
         let sep = "\u{1F}"
         if player == .spotify {
+            guard spotifyRunning else { return done(nil) } // never relaunch Spotify after it's quit
             // Spotify's dictionary: its own volume (0…100), repeat and shuffle; no equalizer.
             Self.timedScript("""
             tell application id "\(Self.spotify)"
@@ -425,8 +427,12 @@ public final class MusicNowPlaying: ObservableObject {
     }
 
     /// Spotify, only while it's the player (so a script never launches it).
+    private var spotifyRunning: Bool {
+        !NSRunningApplication.runningApplications(withBundleIdentifier: Self.spotify).isEmpty
+    }
+
     private func tellSpotify(_ command: String) {
-        guard player == .spotify else { return }
+        guard player == .spotify, spotifyRunning else { return }
         Self.timedScript("tell application id \"\(Self.spotify)\" to \(command)") { _, _ in }
     }
 
@@ -585,6 +591,8 @@ public final class MusicNowPlaying: ObservableObject {
         let done = TimedCompletion(completion)
         scriptQueue.async {
             let script = compiled[source] ?? NSAppleScript(source: source)
+            // Scripts with ids in them (playlists, links) make new sources: keep the cache bounded.
+            if compiled[source] == nil, compiled.count >= 64 { compiled.removeAll(keepingCapacity: true) }
             compiled[source] = script
             var error: NSDictionary?
             let before = CACurrentMediaTime()

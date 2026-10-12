@@ -9,20 +9,31 @@ public enum WebTitle {
     private static let packaging = ["official", "video", "audio", "lyric", "lyrics", "visualizer", "visualiser",
                                     "music video", "mv", "m/v", "hd", "4k", "hq", "remastered", "live", "color coded"]
 
+    /// Whether the text before a title's dash names the artist: it matches the channel (ignoring
+    /// "VEVO", "- Topic", "Official", "Music"), or there's no channel name to go by.
+    static func isArtist(_ left: String, channel: String) -> Bool {
+        let tidy = { (s: String) in YouTubeLoop.normalize(s.replacingOccurrences(of: #"(?i)\s*-\s*topic$|vevo$|\s+(official|music|records)$"#, with: "", options: .regularExpression)) }
+        let a = tidy(left), c = tidy(channel)
+        guard !c.isEmpty else { return true }
+        return a == c || c.hasPrefix(a + " ") || a.hasPrefix(c + " ") || c.replacingOccurrences(of: " ", with: "") == a.replacingOccurrences(of: " ", with: "")
+    }
+
     public static func clean(title: String, artist: String) -> (title: String, artist: String) {
         var song = title
         var by = artist
         // Drop "(Official Video)", "[Lyrics]", "【MV】" and the like.
-        song = song.replacingOccurrences(of: #"\s*[\(\[【][^\)\]】]*[\)\]】]"#, with: "", options: .regularExpression) { inner in
+        song = song.replacingOccurrences(of: #"\s*[\(\[【][^\)\]】]*[\)\]】]"#, with: "") { inner in
             let lower = inner.lowercased()
             return packaging.contains { word in lower.range(of: "\\b" + NSRegularExpression.escapedPattern(for: word) + "\\b", options: .regularExpression) != nil }
         }
-        // "Artist - Song": the part before the first dash is the artist.
-        for dash in [" - ", " – ", " — ", " | "] {
+        // "Artist - Song": the part before the first dash is the artist, but only when it is the
+        // artist (the channel's name, or close to it). "Bohemian Rhapsody - Remastered 2011" by
+        // Queen is a song with a subtitle, not a song by "Bohemian Rhapsody".
+        for dash in [" - ", " – ", " — "] {
             if let range = song.range(of: dash) {
                 let left = song[..<range.lowerBound].trimmingCharacters(in: .whitespaces)
                 let right = song[range.upperBound...].trimmingCharacters(in: .whitespaces)
-                if !left.isEmpty, !right.isEmpty { by = left; song = right }
+                if !left.isEmpty, !right.isEmpty, Self.isArtist(left, channel: artist) { by = left; song = right }
                 break
             }
         }
@@ -38,8 +49,7 @@ public enum WebTitle {
 
 private extension String {
     /// Like replacingOccurrences(of:with:options:), but only where `keep` says to.
-    func replacingOccurrences(of pattern: String, with replacement: String, options: String.CompareOptions,
-                              keep: (String) -> Bool) -> String {
+    func replacingOccurrences(of pattern: String, with replacement: String, keep: (String) -> Bool) -> String {
         guard let regex = try? NSRegularExpression(pattern: pattern) else { return self }
         var result = self
         for match in regex.matches(in: self, range: NSRange(startIndex..., in: self)).reversed() {

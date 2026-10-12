@@ -21,11 +21,18 @@ final class PlaylistParsingTests: XCTestCase {
 
     func testPositionAndUpNext() {
         // Seen live: DHH playing its first song.
-        let out = "DHH\(u)none\(u)1\(u)41\(r)2\(u)Astaghfirullah\(u)MC Stan\(r)3\(u)Baap Se\(u)Fotty Seven & KR$NA\(r)"
+        let out = "DHH\(u)none\(u)1\(u)41\(u)false\(r)2\(u)Astaghfirullah\(u)MC Stan\(r)3\(u)Baap Se\(u)Fotty Seven & KR$NA\(r)"
         let p = PlaylistLibrary.parsePosition(out)
         XCTAssertEqual(p?.label, "DHH · 1 / 41")
         XCTAssertEqual(p?.upNext.map(\.index), [2, 3])
         XCTAssertEqual(p?.upNext.first?.artist, "MC Stan")
+    }
+
+    func testNoUpNextWhileShuffling() {
+        let out = "DHH\(u)none\(u)7\(u)41\(u)true\(r)8\(u)Next\(u)Someone\(r)"
+        let p = PlaylistLibrary.parsePosition(out)
+        XCTAssertEqual(p?.label, "DHH · 7 / 41")
+        XCTAssertEqual(p?.upNext, [], "the playlist's order isn't what plays next")
     }
 
     func testTheWholeLibraryIsntAPlaylist() {
@@ -82,6 +89,19 @@ final class WebTitleTests: XCTestCase {
     func testChannelNamesAreTidied() {
         XCTAssertEqual(WebTitle.clean(title: "Starboy", artist: "The Weeknd - Topic").artist, "The Weeknd")
         XCTAssertEqual(WebTitle.clean(title: "Shake It Off", artist: "TaylorSwiftVEVO").artist, "TaylorSwift")
+    }
+
+    func testSubtitlesAreNotArtists() {
+        // YouTube Music: "Song - Remastered 2011" by Queen.
+        let c = WebTitle.clean(title: "Bohemian Rhapsody - Remastered 2011", artist: "Queen")
+        XCTAssertEqual(c.artist, "Queen")
+        XCTAssertEqual(c.title, "Bohemian Rhapsody - Remastered 2011")
+    }
+
+    func testChannelVariantsStillSplit() {
+        let c = WebTitle.clean(title: "Taylor Swift - Shake It Off", artist: "TaylorSwiftVEVO")
+        XCTAssertEqual(c.artist, "Taylor Swift")
+        XCTAssertEqual(c.title, "Shake It Off")
     }
 
     func testCleanNamesPassThrough() {

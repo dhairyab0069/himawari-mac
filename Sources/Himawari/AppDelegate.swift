@@ -272,7 +272,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     /// Apple Music's playlist and the song's place in it, for the deck and the changer.
     private func refreshPlaylistPosition() {
         guard music.player == .appleMusic, music.track != nil else { changer.library.clearPosition(); return }
-        changer.library.refreshPosition(shuffling: deck?.shuffling ?? false)
+        changer.library.refreshPosition()
     }
 
     @objc private func toggleChanger() {

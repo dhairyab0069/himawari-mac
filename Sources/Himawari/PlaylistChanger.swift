@@ -27,6 +27,7 @@ final class PlaylistChanger: ObservableObject {
         spotifyLinks = Settings.shared.spotifyPlaylists.map {
             Playlist(source: .spotify(uri: $0.uri), name: $0.name, count: nil)
         }
+        library.loadSavedCovers(for: spotifyLinks)
     }
 
     var isOpen: Bool { panel?.isVisible == true }
@@ -52,7 +53,10 @@ final class PlaylistChanger: ObservableObject {
             onMainActor { self?.close() }
         } as Any)
         monitors.append(NSEvent.addLocalMonitorForEvents(matching: [.leftMouseDown]) { [weak self] event in
-            if event.window !== self?.panel { onMainActor { self?.close() } }
+            // Not for clicks on the gear's controls: the ⏏ button toggles the changer itself
+            // (closing here first would make it open again).
+            let gear = event.window?.identifier == GearControls.catcherID
+            if event.window !== self?.panel, !gear { onMainActor { self?.close() } }
             return event
         } as Any)
     }
@@ -169,7 +173,7 @@ private struct ChangerView: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
             header
-            if let position = library.position, changer.player == .appleMusic {
+            if let position = library.position, changer.capabilities.contains(.upNext) {
                 upNext(position)
             }
             if changer.canPlayPlaylists || !changer.spotifyLinks.isEmpty {

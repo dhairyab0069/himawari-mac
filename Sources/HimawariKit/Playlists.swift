@@ -77,22 +77,24 @@ public final class PlaylistLibrary: ObservableObject {
         """) { [weak self] output, _ in
             guard let self else { return }
             self.loading = false
-            self.playlists = Self.parsePlaylists(output ?? "")
+            guard let output else { return } // a failed read keeps the list we had
+            self.playlists = Self.parsePlaylists(output)
             for p in self.playlists { self.loadCover(p) }
         }
     }
 
     /// The playlist that's playing in Apple Music, the song's place in it, and the next few
     /// songs (nil while shuffling: the order isn't the playlist's then, so "next" would be wrong).
-    public func refreshPosition(shuffling: Bool) {
-        guard !NSRunningApplication.runningApplications(withBundleIdentifier: Self.music).isEmpty else { position = nil; return }
+    public func refreshPosition() {
+        guard !NSRunningApplication.runningApplications(withBundleIdentifier: Self.music).isEmpty else { clearPosition(); return }
+        let asked = positionGeneration
         MusicNowPlaying.timedScript("""
         tell application id "\(Self.music)"
             if player state is stopped then return ""
             set p to current playlist
             set i to index of current track
             set n to count of tracks of p
-            set out to (name of p) & "\(Self.unit)" & (special kind of p as text) & "\(Self.unit)" & i & "\(Self.unit)" & n & "\(Self.record)"
+            set out to (name of p) & "\(Self.unit)" & (special kind of p as text) & "\(Self.unit)" & i & "\(Self.unit)" & n & "\(Self.unit)" & (shuffle enabled as text) & "\(Self.record)"
             repeat with k from (i + 1) to (i + 5)
                 if k > n then exit repeat
                 set t to track k of p
@@ -101,14 +103,19 @@ public final class PlaylistLibrary: ObservableObject {
             return out
         end tell
         """) { [weak self] output, _ in
-            guard let self else { return }
-            var p = Self.parsePosition(output ?? "")
-            if shuffling, let current = p { p = PlaylistPosition(playlist: current.playlist, index: current.index, count: current.count, upNext: []) }
-            self.position = p
+            // Asked for Apple Music, but the player changed meanwhile: this answer is stale.
+            guard let self, self.positionGeneration == asked else { return }
+            self.position = Self.parsePosition(output ?? "")
         }
     }
 
-    public func clearPosition() { if position != nil { position = nil } }
+    /// Another player took over: forget Apple Music's position (and any answer still on its way).
+    public func clearPosition() {
+        positionGeneration += 1
+        if position != nil { position = nil }
+    }
+    private var positionGeneration = 0
+    private var coversAsked: Set<String> = []
 
     public func play(_ playlist: Playlist) {
         switch playlist.source {
@@ -132,15 +139,21 @@ public final class PlaylistLibrary: ObservableObject {
             end repeat
         end tell
         """) { [weak self] _, _ in
-            self?.refreshPosition(shuffling: false)
+            self?.refreshPosition()
         }
     }
 
     /// The first song's cover, cached on disk (Music has no playlist artwork of its own to ask for).
     private func loadCover(_ playlist: Playlist) {
-        guard case .appleMusic(let id) = playlist.source, covers[playlist.id] == nil else { return }
-        let file = coverFolder.appending(path: Self.safeFileName(id) + ".img")
-        if let image = NSImage(contentsOf: file) { covers[playlist.id] = image; return }
+        guard covers[playlist.id] == nil else { return }
+        let file = coverFile(playlist)
+        // Saved covers last a week (a playlist's first song can change); one with no cover is
+        // remembered too, so it isn't asked for on every open.
+        let age = (try? file.resourceValues(forKeys: [.contentModificationDateKey]).contentModificationDate).map { -$0.timeIntervalSinceNow } ?? .infinity
+        if age < 7 * 86400, let image = NSImage(contentsOf: file) { covers[playlist.id] = image; return }
+        if FileManager.default.fileExists(atPath: file.path + ".none") { return }
+        guard case .appleMusic(let id) = playlist.source, !coversAsked.contains(playlist.id) else { return }
+        coversAsked.insert(playlist.id)
         try? FileManager.default.createDirectory(at: coverFolder, withIntermediateDirectories: true)
         MusicNowPlaying.timedScript("""
         tell application id "\(Self.music)"
@@ -155,6 +168,7 @@ public final class PlaylistLibrary: ObservableObject {
         close access f
         return "ok"
         """) { [weak self] ok, _ in
+            if ok == "none" { FileManager.default.createFile(atPath: file.path + ".none", contents: nil) }
             guard ok == "ok", let image = NSImage(contentsOf: file) else { return }
             self?.covers[playlist.id] = image
         }
@@ -179,8 +193,25 @@ public final class PlaylistLibrary: ObservableObject {
         return (Playlist(source: .spotify(uri: uri), name: name, count: nil), cover)
     }
 
+    /// A cover from elsewhere (Spotify's page), saved so it's there after a relaunch too.
     public func setCover(_ image: NSImage?, for playlist: Playlist) {
-        if let image { covers[playlist.id] = image }
+        guard let image else { return }
+        covers[playlist.id] = image
+        try? FileManager.default.createDirectory(at: coverFolder, withIntermediateDirectories: true)
+        if let tiff = image.tiffRepresentation, let png = NSBitmapImageRep(data: tiff)?.representation(using: .png, properties: [:]) {
+            try? png.write(to: coverFile(playlist))
+        }
+    }
+
+    /// Covers for playlists that aren't from Apple Music (pinned Spotify links), from disk.
+    public func loadSavedCovers(for playlists: [Playlist]) {
+        for p in playlists where covers[p.id] == nil {
+            if let image = NSImage(contentsOf: coverFile(p)) { covers[p.id] = image }
+        }
+    }
+
+    private func coverFile(_ playlist: Playlist) -> URL {
+        coverFolder.appending(path: Self.safeFileName(playlist.id) + ".img")
     }
 
     // MARK: Parsing (pure, tested)
@@ -195,11 +226,13 @@ public final class PlaylistLibrary: ObservableObject {
 
     nonisolated static func parsePosition(_ output: String) -> PlaylistPosition? {
         let records = output.components(separatedBy: record).filter { !$0.isEmpty }
-        guard let head = records.first?.components(separatedBy: unit), head.count == 4,
+        guard let head = records.first?.components(separatedBy: unit), head.count >= 4,
               let index = Int(head[2]), let count = Int(head[3]), count > 0 else { return nil }
         // The whole library ("Music") isn't a playlist anyone picked: don't show "Music · 812 / 936".
         guard head[1] == "none" else { return nil }
-        let next = records.dropFirst().compactMap { line -> PlaylistPosition.UpNext? in
+        // Shuffling: the playlist's order isn't the play order, so "next" would be wrong.
+        let shuffling = head.count > 4 && head[4] == "true"
+        let next = shuffling ? [] : records.dropFirst().compactMap { line -> PlaylistPosition.UpNext? in
             let f = line.components(separatedBy: unit)
             guard f.count == 3, let k = Int(f[0]) else { return nil }
             return .init(index: k, title: f[1], artist: f[2])
