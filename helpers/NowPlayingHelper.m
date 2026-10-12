@@ -6,8 +6,11 @@
 // One line per change (play, pause, seek, skip, new song) plus a heartbeat every 5 s:
 //   {"pid":123,"title":"…","artist":"…","album":"…","duration":166.4,"elapsed":42.1,"rate":1,"timestamp":1790457715.5,
 //    "artworkID":"https://…/800x800bb.jpg", "artwork":"<base64 JPEG, only when the cover changes>"}
-// `elapsed` was true at `timestamp` (Unix time) and moves at `rate`. It exits when Himawari
-// goes away (its stdin closes).
+// `elapsed` was true at `timestamp` (Unix time) and moves at `rate`.
+//
+// It also takes commands for whichever app is playing, one per line on stdin (the same remote
+// commands Control Center sends): play, pause, toggle, next, previous, seek <seconds>.
+// It exits when Himawari goes away (its stdin closes).
 #import <Foundation/Foundation.h>
 #include <math.h>
 #include <dlfcn.h>
@@ -15,9 +18,13 @@
 typedef void (*RegisterFn)(dispatch_queue_t);
 typedef void (*GetInfoFn)(dispatch_queue_t, void (^)(NSDictionary *));
 typedef void (*GetPIDFn)(dispatch_queue_t, void (^)(int));
+typedef Boolean (*SendCommandFn)(int, NSDictionary *);
+typedef void (*SetElapsedFn)(double);
 
 static GetInfoFn getInfo;
 static GetPIDFn getPID;
+static SendCommandFn sendCommand;
+static SetElapsedFn setElapsed;
 static NSString *lastArtwork; // the cover already sent (sent again only when it changes)
 
 static id value(NSDictionary *info, NSString *key) { return info[[@"kMRMediaRemoteNowPlayingInfo" stringByAppendingString:key]]; }
@@ -58,6 +65,25 @@ static void emit(void) {
     });
 }
 
+// MediaRemote's command numbers (MRMediaRemoteCommand).
+enum { kPlay = 0, kPause = 1, kTogglePlayPause = 2, kNextTrack = 4, kPreviousTrack = 5 };
+
+static void perform(NSString *line) {
+    NSArray<NSString *> *words = [line componentsSeparatedByCharactersInSet:NSCharacterSet.whitespaceCharacterSet];
+    NSString *verb = words.firstObject;
+    if ([verb isEqualToString:@"seek"] && words.count > 1) {
+        double seconds = words[1].doubleValue;
+        if (setElapsed && isfinite(seconds) && seconds >= 0) setElapsed(seconds);
+    } else if (sendCommand) {
+        NSDictionary *commands = @{@"play": @(kPlay), @"pause": @(kPause), @"toggle": @(kTogglePlayPause),
+                                   @"next": @(kNextTrack), @"previous": @(kPreviousTrack)};
+        NSNumber *command = commands[verb];
+        if (command) sendCommand(command.intValue, nil);
+    }
+    // Show the result straight away (the player's own notification can lag).
+    dispatch_after(dispatch_time(DISPATCH_TIME_NOW, NSEC_PER_SEC / 4), dispatch_get_main_queue(), ^{ emit(); });
+}
+
 // Called from perl as an XS sub (perl passes its interpreter and CV; unused).
 void himawari_now_playing(void *interpreter, void *cv) {
     void *mr = dlopen("/System/Library/PrivateFrameworks/MediaRemote.framework/MediaRemote", RTLD_NOW);
@@ -66,6 +92,8 @@ void himawari_now_playing(void *interpreter, void *cv) {
     getInfo = (GetInfoFn)dlsym(mr, "MRMediaRemoteGetNowPlayingInfo");
     getPID = (GetPIDFn)dlsym(mr, "MRMediaRemoteGetNowPlayingApplicationPID");
     if (!registerFn || !getInfo || !getPID) { fprintf(stderr, "MediaRemote symbols missing\n"); exit(1); }
+    sendCommand = (SendCommandFn)dlsym(mr, "MRMediaRemoteSendCommand");   // optional: commands just do nothing
+    setElapsed = (SetElapsedFn)dlsym(mr, "MRMediaRemoteSetElapsedTime");
 
     registerFn(dispatch_get_main_queue());
     const char *names[] = {"kMRMediaRemoteNowPlayingInfoDidChangeNotification",
@@ -85,11 +113,23 @@ void himawari_now_playing(void *interpreter, void *cv) {
     dispatch_source_set_event_handler(beat, ^{ emit(); });
     dispatch_resume(beat);
 
-    // Himawari quit (or crashed): our stdin closes, so we go too.
+    // Commands, one per line. Himawari quit (or crashed): our stdin closes, so we go too.
+    static NSMutableData *pending;
+    pending = [NSMutableData data];
     dispatch_source_t input = dispatch_source_create(DISPATCH_SOURCE_TYPE_READ, STDIN_FILENO, 0, dispatch_get_main_queue());
     dispatch_source_set_event_handler(input, ^{
         char buffer[256];
-        if (read(STDIN_FILENO, buffer, sizeof buffer) <= 0) exit(0);
+        ssize_t n = read(STDIN_FILENO, buffer, sizeof buffer);
+        if (n <= 0) exit(0);
+        [pending appendBytes:buffer length:(NSUInteger)n];
+        if (pending.length > 4096) pending.length = 0; // nonsense: drop it
+        while (true) {
+            NSRange newline = [pending rangeOfData:[NSData dataWithBytes:"\n" length:1] options:0 range:NSMakeRange(0, pending.length)];
+            if (newline.location == NSNotFound) break;
+            NSString *line = [[NSString alloc] initWithData:[pending subdataWithRange:NSMakeRange(0, newline.location)] encoding:NSUTF8StringEncoding];
+            [pending replaceBytesInRange:NSMakeRange(0, newline.location + 1) withBytes:NULL length:0];
+            if (line.length) perform(line);
+        }
     });
     dispatch_resume(input);
 

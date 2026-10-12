@@ -329,7 +329,19 @@ final class WallpaperManager {
 
     /// Puts the click catchers over whatever gear and disc are on screen now.
     func refreshControls() {
+        for g in gear { g.capabilities = playerCapabilities }
         gearControls.update(gear: gear, scenes: scenes, active: gearActive)
+    }
+
+    /// What the playing app lets the gear do: the rest of its controls are dimmed and don't take clicks.
+    var playerCapabilities: PlayerCapabilities = .all {
+        didSet { if playerCapabilities != oldValue { refreshControls() } }
+    }
+
+    /// The app the meters listen to (nil: Apple Music).
+    var audioTarget: (() -> (pid: pid_t, bundleID: String?)?)? {
+        get { audio.target }
+        set { audio.target = newValue }
     }
 
     /// The side gear is on screen and playable.

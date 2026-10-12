@@ -1,4 +1,5 @@
 import Foundation
+import HimawariKit
 
 /// The live wallpaper's settings, saved in UserDefaults so they survive restarts.
 /// (The desktop services keep their own settings; Himawari is only the wallpaper.)
@@ -21,6 +22,21 @@ final class Settings {
             "movingLockScreen": false,  // it swaps Aerial videos and converts for a long while: opt in
             "videoSizing": VideoSizing.widescreen.rawValue,
         ])
+    }
+
+    /// Which players the music wallpaper follows (the Players menu).
+    var playerChoice: PlayerChoice {
+        get {
+            // Browsers and general players are off at first: they mostly play videos and podcasts,
+            // and a YouTube video you're watching shouldn't turn the wallpaper into a CD.
+            let saved = defaults.stringArray(forKey: "disabledPlayers") ?? [PlayerKind.browser.rawValue, PlayerKind.other.rawValue]
+            let disabled = saved.compactMap(PlayerKind.init(rawValue:))
+            return PlayerChoice(disabled: Set(disabled), pinned: defaults.string(forKey: "pinnedPlayer").flatMap(PlayerKind.init(rawValue:)))
+        }
+        set {
+            defaults.set(newValue.disabled.map(\.rawValue).sorted(), forKey: "disabledPlayers")
+            defaults.set(newValue.pinned?.rawValue, forKey: "pinnedPlayer")
+        }
     }
 
     var videoPath: String? {

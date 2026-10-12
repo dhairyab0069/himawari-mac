@@ -1,7 +1,7 @@
 # Roadmap
 
-Two directions for what comes after the Beta 1.1 series. Betas 1.2 and 1.3 are the **last of
-Beta 1**; the listening work starts **Beta 2**.
+What comes after the Beta 1.1 series. Betas 1.2 to 1.4 are the **last of Beta 1**; the listening
+work starts **Beta 2**, which I'm building myself, hands-on, as part of learning machine learning.
 
 1. **More players.** Today the music wallpaper follows only Apple's Music app. Next, it follows
    Spotify, YouTube Music, TIDAL, Amazon Music and Deezer too.
@@ -12,7 +12,8 @@ Beta 1**; the listening work starts **Beta 2**.
 | Release | Theme | Headline |
 |---|---|---|
 | **Beta 1.2** | Any player | The wallpaper, gear and CD follow whichever app is playing |
-| **Beta 1.3** (final Beta 1) | Per-player depth | Spotify and the others get the controls Apple Music has today, where their apps allow it |
+| **Beta 1.3** | Per-player depth | Spotify and the others get the controls Apple Music has today, where their apps allow it |
+| **Beta 1.4** (final Beta 1) | Styles and skins | CD player layouts from different eras, skins for each, and looks that follow the genre |
 | **Beta 2.0** | Your listening, on device | A private listening history and a stats view across every service |
 | **Beta 2.1** | Classification and insights | On-device labels (genre, mood, energy, language) and reports about your listening |
 
@@ -80,13 +81,21 @@ Local players (VLC, IINA, Plexamp) come for free through `SystemNowPlayingSource
 
 ### Milestones
 
-- **Beta 1.2: Any player**
-  - Remove the Music-only filter, add `PlayerSource` and `SystemNowPlayingSource`, and move Apple
-    Music's code into `AppleMusicSource`.
-  - Generic transport controls on the gear. Capability-aware gear (unsupported controls dim).
-  - A **Players** menu: which apps the wallpaper follows (all on by default), and a "pin" option.
-  - Tests: source selection by bundle id, capability mapping, the two-players rule.
-- **Beta 1.3: Per-player depth** (the final Beta 1 release)
+- **Beta 1.2: Any player** (built)
+  - The Music-only filter is gone. `PlayerKind` / `PlayerCapabilities` / `PlayerChoice`
+    (`PlayerSource.swift`) say which app is playing, what it allows, and whether to follow it;
+    Apple Music keeps its AppleScript path, every other app goes through the system stream.
+  - The Now Playing helper takes play/pause/next/previous/seek on its input and sends them to the
+    playing app (Control Center's remote commands).
+  - Capability-aware gear: unsupported controls dim and get no click catcher.
+  - The meters tap the playing app, including a browser's helper processes.
+  - A **Players** menu: which apps to follow (browsers and other apps start off: they mostly play
+    videos), and **Only Follow** to pin one. A paused app never takes over from a playing one.
+  - Tests: player detection by bundle id, capabilities, the follow and switching rules, helper
+    commands, which controls each player gets, and the tap's process matching.
+  - Still to do in a later pull request: moving Apple Music's AppleScript into its own source
+    type (`AppleMusicSource`), which Beta 1.3's per-app sources will follow.
+- **Beta 1.3: Per-player depth**
   - `SpotifySource` (AppleScript: volume, shuffle, repeat, track id). Browser detection for YouTube
     Music so the CD shows the right cover and the YouTube loop can play.
   - TIDAL, Amazon Music and Deezer sources: just bundle ids and quirks (for example, players that
@@ -95,7 +104,58 @@ Local players (VLC, IINA, Plexamp) come for free through `SystemNowPlayingSource
 
 ---
 
+## 1.4 · Styles and skins (Beta 1.4, the final Beta 1)
+
+The side gear and the CD scene are one look today: a black 2000s hi-fi rack and a picture disc.
+Beta 1.4 makes the look a choice, built as **themes** the gear and the scene draw from.
+
+### Eras of players
+
+Each era is a layout (what the hardware is and where its controls sit) plus its own skins:
+
+| Era | The player | The disc / media | Skins |
+|---|---|---|---|
+| **1970s hi-fi** | Walnut receiver, big tuning dial, analog VU meters | Vinyl on a turntable with a tonearm (the "CD" becomes a record: scrub by turning it) | Walnut, brushed silver |
+| **1980s cassette deck** | Twin-deck tape player, spooling reels, LED meters | A cassette whose reels turn; scrubbing winds the tape | Black plastic, chrome "Metal" |
+| **1990s portable** | Discman-style player, LCD display | A CD in a clear lid | Silver, translucent colours |
+| **2000s rack** (today's) | The current CD deck and stereo analyzer | Picture CD | Black, champagne gold |
+| **2000s pocket player** | Click-wheel music player | Cover art on a small screen, the wheel scrubs | White, black, colours |
+| **Today, minimal** | Flat glass panels, large cover, thin waveform | Floating cover card | Light, dark, frosted |
+
+The controls stay the same everywhere (play/pause, skip, the progress control, turning to scrub,
+volume), so `GearControls` keeps working: each layout just reports where its controls are
+(`controlRects`), as the current gear does.
+
+### Looks that follow the genre
+
+A theme can pick its era and skin from the song's genre (the catalog genre Himawari already looks
+up), so the desktop matches the music:
+
+- Jazz, soul, classic rock → 1970s hi-fi; synth-pop, 80s → cassette deck; hip-hop, R&B → 2000s rack;
+  electronic → minimal with neon accents; classical → walnut, quiet animation.
+- You can set your own genre → look rules, pin one look, or let it follow the album's cover colours.
+
+### Customising
+
+- A **Style** menu and a small window to pick era, skin and genre rules, with live previews.
+- Per-look options: animation amount, meter type (needles / LEDs / spectrum), label text.
+- Skins as simple files (colours, materials, fonts, layout numbers) in
+  `~/Library/Application Support/Himawari/Skins/`, so new skins don't need code.
+
+### Milestones
+
+- **Beta 1.4:** a `GearTheme` protocol that the current gear becomes the first theme of; two new eras to
+  start (1970s turntable and 1980s cassette); skins as files; genre rules; the Style menu.
+  Other eras follow in point releases.
+- **Tests:** each layout's control positions stay inside its frame and don't overlap; genre → look
+  rules; skin files load and reject bad values.
+
+---
+
 ## 2 · Your listening, on device (Betas 2.0 – 2.1)
+
+> Built by me, hands-on, as a machine-learning learning project: the plan below is a starting
+> point, not a spec to hand off.
 
 Machine learning here is **only for classifying and reporting**: sorting what you play into
 categories (genre, mood, energy, era, language) and turning your history into stats and insights

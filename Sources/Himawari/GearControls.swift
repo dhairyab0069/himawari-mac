@@ -36,7 +36,7 @@ final class GearControls {
         var wanted: [(key: String, rect: NSRect, make: () -> Catcher)] = []
         if active {
             for view in gear where view.window != nil {
-                for (control, rect) in view.controlRects {
+                for (control, rect) in view.activeControlRects { // only what the playing app supports
                     guard let screen = Self.screenRect(rect, in: view) else { continue }
                     wanted.append(("\(view.catcherKey).\(control)", screen, { [unowned self] in
                         self.catcher(for: control, gear: view)

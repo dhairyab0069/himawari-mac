@@ -1,4 +1,6 @@
 import XCTest
+import CoreAudio
+import HimawariKit
 @testable import Himawari
 
 /// Turning the jog wheel or the CD: how far a drag has gone round, in radians.
@@ -93,5 +95,54 @@ final class DiscPlacementTests: XCTestCase {
         let p = DiscPrint.placement(of: busy, inner: 0.22)
         XCTAssertGreaterThan(p.zoom, 1, "a square cover can only move once it's enlarged")
         XCTAssertGreaterThan(p.center.x, 0.5, "the art shifts so the hub lands right of the detail")
+    }
+}
+
+/// Beta 1.2: the gear shows every control, but only those the playing app supports work.
+final class GearCapabilityTests: XCTestCase {
+    func testWhatEachControlNeeds() {
+        XCTAssertEqual(GearControl.playPause.needs, .transport)
+        XCTAssertEqual(GearControl.jog.needs, .seek)
+        XCTAssertEqual(GearControl.progress.needs, .seek)
+        XCTAssertEqual(GearControl.volume.needs, .volume)
+        XCTAssertEqual(GearControl.bass.needs, .equalizer)
+        XCTAssertEqual(GearControl.shuffle.needs, .repeatShuffle)
+        XCTAssertEqual(GearControl.eject.needs, [], "opening the player always works")
+    }
+
+    func testSpotifyGetsTransportAndSeekingOnly() {
+        let spotify = PlayerKind.spotify.capabilities
+        let usable: [GearControl] = [.previous, .playPause, .next, .stop, .eject, .progress, .jog]
+        let dimmed: [GearControl] = [.volume, .bass, .treble, .repeatMode, .shuffle]
+        XCTAssertTrue(usable.allSatisfy { spotify.contains($0.needs) })
+        XCTAssertTrue(dimmed.allSatisfy { !spotify.contains($0.needs) })
+    }
+}
+
+/// The meters tap the playing app's audio: its own process and its helpers.
+final class TapTargetTests: XCTestCase {
+    let processes: [(id: AudioObjectID, pid: pid_t, bundleID: String)] = [
+        (1, 100, "com.apple.Music"),
+        (2, 200, "com.google.Chrome"),
+        (3, 201, "com.google.Chrome.helper"),
+        (4, 202, "com.google.Chrome.helper.Renderer"),
+        (5, 300, "com.apple.Safari"),
+        (6, 301, "com.apple.WebKit.GPU"),
+        (7, 400, "com.spotify.client"),
+        (8, 401, "com.spotify.client.helper"),
+        (9, 500, "com.google.Chromecast"), // a prefix that isn't a helper
+    ]
+
+    func testAppAndItsHelpers() {
+        XCTAssertEqual(AudioLevels.tapTargets(among: processes, pid: 200, bundleID: "com.google.Chrome"), [2, 3, 4])
+        XCTAssertEqual(AudioLevels.tapTargets(among: processes, pid: 400, bundleID: "com.spotify.client"), [7, 8])
+    }
+
+    func testSafariPlaysThroughWebKit() {
+        XCTAssertEqual(AudioLevels.tapTargets(among: processes, pid: 300, bundleID: "com.apple.Safari"), [5, 6])
+    }
+
+    func testJustTheProcessWithoutABundle() {
+        XCTAssertEqual(AudioLevels.tapTargets(among: processes, pid: 100, bundleID: nil), [1])
     }
 }

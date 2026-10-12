@@ -3,7 +3,7 @@ import Foundation
 /// The system's Now Playing state (what Control Center shows), pushed the moment it changes:
 /// play, pause, seek, skip. macOS only lets Apple's own programs read it, so the bundled
 /// helper (helpers/NowPlayingHelper.m) runs inside Apple's /usr/bin/perl, which may, and
-/// prints one JSON line per change. If it can't run (a future macOS closes the door), this
+/// prints one JSON line per change, and takes play/pause/skip/seek commands on its input. If it can't run (a future macOS closes the door), this
 /// simply reports nothing and callers keep asking Music over AppleScript.
 public final class SystemNowPlaying: @unchecked Sendable {
     public struct State: Sendable {
@@ -78,6 +78,12 @@ public final class SystemNowPlaying: @unchecked Sendable {
             guard let self, !self.stopped, self.process == nil else { return }
             self.start()
         }
+    }
+
+    /// Tells whichever app is playing to play, pause, skip or seek (Control Center's commands).
+    public func send(_ command: PlayerCommand) {
+        guard let input else { return }
+        try? input.fileHandleForWriting.write(contentsOf: Data((command.helperLine + "\n").utf8))
     }
 
     public func stop() {

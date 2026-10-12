@@ -10,7 +10,7 @@
 </p>
 
 <p align="center">
-  <a href="https://github.com/dhairyab0069/himawari-mac/releases/latest/download/Himawari-1.1.4.dmg"><b>⬇︎ Download Himawari Beta 1.1.4 (DMG)</b></a>
+  <a href="https://github.com/dhairyab0069/himawari-mac/releases/latest/download/Himawari-1.2.dmg"><b>⬇︎ Download Himawari Beta 1.2 (DMG)</b></a>
   &nbsp;·&nbsp; macOS 14.4 or later &nbsp;·&nbsp; Apple Silicon and Intel
 </p>
 
@@ -60,7 +60,7 @@
 
 ## Install
 
-1. [Download the DMG](https://github.com/dhairyab0069/himawari-mac/releases/latest/download/Himawari-1.1.4.dmg) and open it.
+1. [Download the DMG](https://github.com/dhairyab0069/himawari-mac/releases/latest/download/Himawari-1.2.dmg) and open it.
 2. Drag **Himawari** onto **Applications**, then open it from Applications.
 3. The first time, macOS may say it can't check Himawari for malicious software: Himawari isn't notarized
    (that needs a paid Apple Developer ID). Either right-click Himawari ▸ **Open** ▸ **Open**, or go to
@@ -96,7 +96,8 @@ Himawari never keeps your Mac awake. `.webm` files won't play; convert them with
 
 <p align="center"><img src="docs/animated-cover.gif" width="640" alt="An album's animated cover playing as the wallpaper"></p>
 
-Turn on **Use Apple Music Artwork While Playing**. While a song plays in Music:
+Turn on **Music Wallpaper While Playing**. While a song plays, in Apple Music or another player
+(see [Players](#players)):
 
 - **Albums with an animated cover:** the animation becomes the wallpaper, shown whole and kept below
   the notch, streamed at the sharpest size your screen can show (up to 2160×2160). The bars at its
@@ -127,6 +128,22 @@ Turn on **Use Apple Music Artwork While Playing**. While a song plays in Music:
 where needed), *Show Whole Video*, *Fit Width*, *Fill Screen*, and **Fill Gaps With ▸** *Soft Colors*
 (a slow glow in the video's own edge colors, the default), *Blurred Video* or *Black Bars*.
 
+### Players
+
+Since Beta 1.2 the music wallpaper follows more than Apple Music: **Spotify, TIDAL, Amazon Music
+and Deezer** are followed out of the box, and **web players** (YouTube Music, SoundCloud… in any
+browser) and **other apps** (VLC, IINA, QuickTime…) can be turned on in **Players ▸**. Those two
+start off, because browsers and video players mostly play videos you're watching.
+
+- Any player gives the song, its timing and its exact cover (from the system's Now Playing, the
+  same thing Control Center shows), so the CD, the gear and the meters work with all of them. If the
+  album is on Apple Music and has an animated cover, you get that too, whatever app is playing.
+- The gear's play/pause, skip, progress ladder, jog wheel and CD scrubbing control any player (the
+  same commands Control Center sends). VOLUME, BASS / TREBLE and REPEAT / SHUFFLE need Apple Music's
+  scripting, so with other players they're dimmed.
+- If two apps report what they're playing, Himawari follows the one that started playing most
+  recently, and never leaves a playing app for a paused one. **Players ▸ Only Follow** pins one.
+
 ### Hide the desktop's files
 
 With **Click Desktop to Hide Files** on (the default), click an empty spot on the desktop: the files
@@ -152,7 +169,7 @@ macOS asks once for each of these, the first time it's needed.
 
 | App | Permission | Why |
 |---|---|---|
-| Himawari | **Automation ▸ Music** | Reads what's playing and the album cover. |
+| Himawari | **Automation ▸ Music** | Reads what's playing in Apple Music, its cover, volume and equalizer. Other players need no permission. |
 | Himawari | **Automation ▸ Finder** | Checks whether a desktop click landed on a file (click to hide files). |
 | Himawari | **System Audio Recording Only** | Measures the music's loudness for the VU meters. Nothing is recorded; decline and the meters animate on their own. |
 
