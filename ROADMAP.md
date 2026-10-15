@@ -1,7 +1,9 @@
 # Roadmap
 
-What comes after the Beta 1.1 series. Betas 1.2 to 1.4 are the **last of Beta 1**; the listening
-work starts **Beta 2**, which I'm building myself, hands-on, as part of learning machine learning.
+What comes after the Beta 1.1 series. Betas 1.2 to 1.5 are the **last of Beta 1**; the listening
+work is **Beta 2**, which I'm building myself, hands-on, as part of learning machine learning. Then
+comes the **first full release for the Mac**, and after that **Himawari for Linux** (Debian and
+Ubuntu), starting as its own beta.
 
 1. **More players.** Today the music wallpaper follows only Apple's Music app. Next, it follows
    Spotify, YouTube Music, TIDAL, Amazon Music and Deezer too.
@@ -13,9 +15,12 @@ work starts **Beta 2**, which I'm building myself, hands-on, as part of learning
 |---|---|---|
 | **Beta 1.2** | Any player | The wallpaper, gear and CD follow whichever app is playing |
 | **Beta 1.3** | Per-player depth and playlists | Spotify and the others get the controls Apple Music has today, where their apps allow it; playlists on the desktop |
-| **Beta 1.4** (final Beta 1) | Styles and skins | CD player layouts from different eras, skins for each, and looks that follow the genre |
+| **Beta 1.4** | Styles, part 1: eras and skins | A theme system, the first new eras (1970s turntable, 1980s cassette), skins as files, a Style menu |
+| **Beta 1.5** (final Beta 1) | Styles, part 2: genres and customising | The other eras, looks that follow the genre, a customise window with live previews, the changer restyled per era |
 | **Beta 2.0** | Your listening, on device | A private listening history and a stats view across every service |
 | **Beta 2.1** | Classification and insights | On-device labels (genre, mood, energy, language) and reports about your listening |
+| **Himawari 3.0** | First full release (Mac) | Notarized, auto-updating, polished and documented: everything from Betas 1 and 2, finished |
+| **Linux Beta 1** | Debian and Ubuntu | The wallpaper and the music wallpaper on GNOME (and other desktops), packaged as .deb and Flatpak |
 
 Each release ships through the usual pull request and CI, with unit tests for its logic
 (see [CONTRIBUTING.md](CONTRIBUTING.md)).
@@ -95,7 +100,7 @@ Local players (VLC, IINA, Plexamp) come for free through `SystemNowPlayingSource
     commands, which controls each player gets, and the tap's process matching.
   - Still to do in a later pull request: moving Apple Music's AppleScript into its own source
     type (`AppleMusicSource`), which Beta 1.3's per-app sources will follow.
-- **Beta 1.3: Per-player depth** (built; releases Tue 13 Oct 2026, 6:41 PM ET)
+- **Beta 1.3: Per-player depth** (released 15 Oct 2026)
   - `SpotifySource` (AppleScript: volume, shuffle, repeat, track id). Browser detection for YouTube
     Music so the CD shows the right cover and the YouTube loop can play.
   - TIDAL, Amazon Music and Deezer sources: just bundle ids and quirks (for example, players that
@@ -135,7 +140,7 @@ possible later option, but it means accounts and tokens, so it isn't in 1.3.
   changer and the up-next display dim the same way the other controls do.
 - Playlists are read when the changer opens, not polled. Covers come from the player (Apple
   Music's artwork) or a generated mosaic of the first four song covers.
-- The changer is drawn by the gear (so Beta 1.4's eras can restyle it: a CD changer, a cassette
+- The changer is drawn by the gear (so Beta 1.5's eras can restyle it: a CD changer, a cassette
   rack, a crate of records).
 
 **Tests:** playlist parsing from AppleScript output, the "7 / 24" position, pinned-link validation
@@ -143,23 +148,24 @@ possible later option, but it means accounts and tokens, so it isn't in 1.3.
 
 ---
 
-## 1.4 · Styles and skins (Beta 1.4, the final Beta 1)
+## Styles and skins (Betas 1.4 and 1.5, the end of Beta 1)
 
 The side gear and the CD scene are one look today: a black 2000s hi-fi rack and a picture disc.
-Beta 1.4 makes the look a choice, built as **themes** the gear and the scene draw from.
+Betas 1.4 and 1.5 make the look a choice, built as **themes** the gear and the scene draw from:
+1.4 builds the theme system and the first new eras, 1.5 the rest, the genre rules and customising.
 
 ### Eras of players
 
 Each era is a layout (what the hardware is and where its controls sit) plus its own skins:
 
-| Era | The player | The disc / media | Skins |
-|---|---|---|---|
-| **1970s hi-fi** | Walnut receiver, big tuning dial, analog VU meters | Vinyl on a turntable with a tonearm (the "CD" becomes a record: scrub by turning it) | Walnut, brushed silver |
-| **1980s cassette deck** | Twin-deck tape player, spooling reels, LED meters | A cassette whose reels turn; scrubbing winds the tape | Black plastic, chrome "Metal" |
-| **1990s portable** | Discman-style player, LCD display | A CD in a clear lid | Silver, translucent colours |
-| **2000s rack** (today's) | The current CD deck and stereo analyzer | Picture CD | Black, champagne gold |
-| **2000s pocket player** | Click-wheel music player | Cover art on a small screen, the wheel scrubs | White, black, colours |
-| **Today, minimal** | Flat glass panels, large cover, thin waveform | Floating cover card | Light, dark, frosted |
+| Era | The player | The disc / media | Skins | In |
+|---|---|---|---|---|
+| **1970s hi-fi** | Walnut receiver, big tuning dial, analog VU meters | Vinyl on a turntable with a tonearm (the "CD" becomes a record: scrub by turning it) | Walnut, brushed silver | 1.4 |
+| **1980s cassette deck** | Twin-deck tape player, spooling reels, LED meters | A cassette whose reels turn; scrubbing winds the tape | Black plastic, chrome "Metal" | 1.4 |
+| **1990s portable** | Discman-style player, LCD display | A CD in a clear lid | Silver, translucent colours | 1.5 |
+| **2000s rack** (today's) | The current CD deck and stereo analyzer | Picture CD | Black, champagne gold | 1.4 (made a theme) |
+| **2000s pocket player** | Click-wheel music player | Cover art on a small screen, the wheel scrubs | White, black, colours | 1.5 |
+| **Today, minimal** | Flat glass panels, large cover, thin waveform | Floating cover card | Light, dark, frosted | 1.5 |
 
 The controls stay the same everywhere (play/pause, skip, the progress control, turning to scrub,
 volume), so `GearControls` keeps working: each layout just reports where its controls are
@@ -183,11 +189,27 @@ up), so the desktop matches the music:
 
 ### Milestones
 
-- **Beta 1.4:** a `GearTheme` protocol that the current gear becomes the first theme of; two new eras to
-  start (1970s turntable and 1980s cassette); skins as files; genre rules; the Style menu.
-  Other eras follow in point releases.
-- **Tests:** each layout's control positions stay inside its frame and don't overlap; genre → look
-  rules; skin files load and reject bad values.
+- **Beta 1.4: eras and skins**
+  - A `GearTheme` protocol: a layout (where each control sits, reported as `controlRects` so
+    `GearControls` keeps working), the drawn hardware, and the media in the middle. Today's 2000s
+    rack and picture CD become the first theme, with no visible change.
+  - Two new eras: **1970s hi-fi** (walnut receiver and a turntable: the record scrubs like the CD)
+    and **1980s cassette deck** (spooling reels; scrubbing winds the tape).
+  - **Skins as files** (colours, materials, fonts, layout numbers) in
+    `~/Library/Application Support/Himawari/Skins/`, with the built-in ones as examples.
+  - A **Style** menu: pick the era and skin.
+  - Also in 1.4: the live meters running on battery (the 1.3.1 fix), and any small features
+    that come up along the way.
+  - **Tests:** each layout's controls stay inside its frame and don't overlap; skin files load and
+    reject bad values; switching themes keeps the song, position and playing state.
+- **Beta 1.5: genres and customising** (the final Beta 1)
+  - The other eras: **1990s portable**, **2000s pocket player**, **today, minimal**.
+  - **Looks that follow the genre**, with your own genre → look rules, a pinned look, or the
+    cover's colours.
+  - A **customise window** with live previews: era, skin, genre rules, animation amount, meter type
+    (needles, LEDs, spectrum), label text.
+  - The **disc changer restyled per era**: a CD changer, a cassette rack, a crate of records.
+  - **Tests:** genre → look rules; the customise window's choices round-trip through settings.
 
 ---
 
@@ -295,6 +317,55 @@ Anything suggested opens in the player you choose: Apple Music by catalog id, ot
 
 ---
 
+## Himawari 3.0: the first full release (Mac)
+
+After Beta 2, the Mac app gets finished rather than extended. Versions go straight to **3.0** (the
+1.x and 2.x numbers belong to the betas, and their tags already exist).
+
+- **Trust and installing:** a Developer ID signature and **notarization** (no more right-click ▸
+  Open), and **automatic updates** (Sparkle, signed update feeds).
+- **First run:** a short welcome that picks a video and asks for each permission at the moment
+  it's needed, with what it's for.
+- **A Settings window** in place of the long menu, with the Players, Style and Disc Changer
+  options in one place; the menu keeps the everyday switches.
+- **Polish:** accessibility (VoiceOver labels on the gear and changer, reduced motion,
+  reduced transparency), localisation-ready strings, and a pass with the apple-design guidelines
+  (springs that start from the current value, consistent motion and materials).
+- **Reliability:** tests around every pure piece, a performance budget checked in CI (idle CPU,
+  memory), crash reporting that stays local unless you choose to send a report.
+- **Docs:** an updated code report, a user guide on the project page, a privacy statement.
+- Less reliance on undocumented behaviour where Apple now offers a public way.
+
+## Himawari for Linux (Debian and Ubuntu): Linux Beta 1
+
+Then the wallpaper comes to Linux, starting as its own beta. It began from Hanabi for GNOME,
+so this is something of a homecoming, but it's a separate implementation: none of Hanabi's
+(GPL-3.0) code is used, as with the Mac app.
+
+The Mac code can't be reused directly (AppKit, AVFoundation, Core Animation and Core Audio
+are Apple's), but the design can: the same parts, each with a Linux counterpart.
+
+| Part | Mac | Linux |
+|---|---|---|
+| Wallpaper window under the icons | desktop-level `NSWindow` | GNOME: a small GNOME Shell extension that places the window as the background (GNOME has no layer-shell); KDE, Sway and other wlroots desktops: `wlr-layer-shell` (background layer); X11: a desktop-type window |
+| Video playback | AVFoundation | GStreamer (hardware decoding via VA-API) |
+| Drawing the gear and CD | Core Animation | GTK 4 (GSK, GPU-drawn) |
+| What's playing, and controls | MediaRemote + AppleScript | **MPRIS** over D-Bus: the standard every Linux player speaks (Spotify, browsers, Rhythmbox, VLC…), with play/pause/seek/volume, and even shuffle and repeat |
+| VU meters and spectrum | Core Audio process tap | a PipeWire monitor stream of the player's output |
+| Animated covers | Apple Music's public pages | the same lookup (it's just the web) |
+| Lock screen | Aerial swap | out of scope at first (GNOME's lock screen is drawn by the shell) |
+
+- **Language:** Rust with GTK 4, GStreamer, `zbus` (MPRIS) and PipeWire bindings: fast, safe and
+  well supported on both distributions. The cover-matching rules, title cleaning and gear maths
+  are ported with their tests, so the two apps agree.
+- **Packaging:** a `.deb` for Debian 13 and Ubuntu 24.04 LTS and later, and a Flatpak (Flathub) for
+  everyone else.
+- **Linux Beta 1 scope:** your own video wallpaper, the music wallpaper (animated covers and the
+  CD), the side gear with play/pause/skip/seek/volume through MPRIS, and the meters. Then, as on the
+  Mac: Players, playlists (MPRIS has a playlists interface), styles.
+- **Tests and CI:** unit tests for the ported logic, and a GitHub Actions job that builds the
+  `.deb` and Flatpak on Ubuntu.
+
 ## Risks and open questions
 
 - **Private APIs.** Following other players leans further on MediaRemote, the same undocumented
@@ -308,7 +379,7 @@ Anything suggested opens in the player you choose: Apple Music by catalog id, ot
 - **Battery.** Recording plays costs nothing. Classifying a song's sound runs once per song,
   briefly, and the reports are built off the main thread.
 - **Scope.** Beta 1.2 alone makes Himawari useful to most people who don't use Apple Music. Ship it,
-  and finish Beta 1 with Betas 1.3 and 1.4, before starting the listening work in Beta 2.
+  and finish Beta 1 with Betas 1.3 to 1.5, before starting the listening work in Beta 2.
 
 ## Done
 
