@@ -5,6 +5,8 @@
 # tags; creates the GitHub release in himawari-mac and himawari-io (with the code report); points
 # the README and the project page at the new DMG. Release notes come from docs/release-notes/<v>.md.
 set -euo pipefail
+# Anything that stops the script early (not just the checks below) still says so.
+trap '[ $? -eq 0 ] || osascript -e "display notification \"Release stopped early: see ~/Library/Logs/himawari-release.log\" with title \"Himawari release\"" || true' EXIT
 export PATH="/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin:$HOME/.local/bin"
 V="${1:?version, e.g. 1.3}"
 CHECKOUT="$(cd "$(dirname "$0")/.." && pwd)"
@@ -19,7 +21,7 @@ cd "$CHECKOUT"
 git fetch -q origin main --tags || fail "couldn't fetch"
 REPO="$(mktemp -d)/himawari-$V"
 git worktree add -q --detach "$REPO" origin/main || fail "couldn't make a worktree"
-trap 'cd "$CHECKOUT"; git worktree remove --force "$REPO" 2>/dev/null || true' EXIT
+trap 'rc=$?; cd "$CHECKOUT"; git worktree remove --force "$REPO" 2>/dev/null || true; [ $rc -eq 0 ] || notify "Release $V stopped early: see ~/Library/Logs/himawari-release.log"' EXIT
 cd "$REPO"
 PLIST_V=$(/usr/libexec/PlistBuddy -c "Print CFBundleShortVersionString" Resources/Info.plist)
 [ "$PLIST_V" = "$V" ] || fail "main is at version $PLIST_V, not $V"
@@ -36,11 +38,17 @@ DMG="build/Himawari-$V.dmg"
 
 cp "$CHECKOUT/build/Himawari-Code-Report.pdf" build/ 2>/dev/null || true
 [ -f build/Himawari-Code-Report.pdf ] || fail "no code report PDF in $CHECKOUT/build"
-git tag "v$V" && git push -q origin "v$V"
+# The tag (an earlier, interrupted run may have made it already: fine if it's this commit).
+if git rev-parse -q --verify "refs/tags/v$V" >/dev/null; then
+    [ "$(git rev-parse "v$V^{commit}")" = "$(git rev-parse HEAD)" ] || fail "tag v$V already exists on another commit"
+else
+    git tag "v$V" && git push -q origin "v$V"
+fi
 for r in himawari-mac himawari-io; do
     extra=(); [ "$r" = himawari-io ] && extra=(--target main)
     gh release create "v$V" "$DMG" build/Himawari-Code-Report.pdf -R "dhairyab0069/$r" \
-        --title "Himawari Beta $V" --notes-file "docs/release-notes/$V.md" "${extra[@]}"
+        --title "Himawari Beta $V" --notes-file "docs/release-notes/$V.md" ${extra[@]+"${extra[@]}"} \
+        || fail "creating the $r release"
 done
 
 # The README's download links, through a pull request (main is protected).
