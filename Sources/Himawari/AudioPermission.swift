@@ -11,7 +11,7 @@ enum AudioPermission {
     enum Status { case authorized, denied, unknown }
 
     private static let service = "kTCCServiceAudioCapture" as CFString
-    private typealias Preflight = @convention(c) (CFString, CFDictionary?) -> Int
+    private typealias Preflight = @convention(c) (CFString, CFDictionary?) -> Int32 // C `int`: Int would read undefined upper bits
     private typealias Request = @convention(c) (CFString, CFDictionary?, @escaping (Bool) -> Void) -> Void
 
     private static let tcc = dlopen("/System/Library/PrivateFrameworks/TCC.framework/Versions/A/TCC", RTLD_NOW)
