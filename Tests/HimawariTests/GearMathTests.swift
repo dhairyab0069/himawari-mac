@@ -52,6 +52,15 @@ final class VUScaleTests: XCTestCase {
         XCTAssertEqual(NowPlayingSides.vuFraction(Float(pow(10, -14.0 / 20))), 0.82, accuracy: 1e-3)
     }
 
+    func testNeedleLandsOnEachPrintedMark() {
+        // The face is printed from the same table: a level at a mark's dB puts the needle on it.
+        for mark in NowPlayingSides.vuMarks where mark.dB > -20 && mark.dB < 3 { // the ends rest and pin
+            let rms = Float(pow(10, (mark.dB - 14) / 20))
+            XCTAssertEqual(NowPlayingSides.vuFraction(rms), mark.fraction, accuracy: 1e-3, "\(mark.dB) dB")
+        }
+        XCTAssertEqual(NowPlayingSides.vuMarks.first { $0.dB == 0 }?.fraction, NowPlayingSides.zeroVU)
+    }
+
     func testSilenceRestsAtTheLeft() {
         XCTAssertEqual(NowPlayingSides.vuFraction(0), 0)
     }
