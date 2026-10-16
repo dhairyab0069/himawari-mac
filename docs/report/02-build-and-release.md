@@ -420,7 +420,7 @@ it off with `launchctl bootout`.
 | Lines | Step |
 |---|---|
 | 18 | A fixed `PATH` including `~/.local/bin` (where `claude` lives) and both Homebrew prefixes, because launchd starts jobs with a minimal environment. |
-| 20–24 | `REPO=~/hanabi-mac`; all output appended to `maintenance/logs/<date>.log` via `exec >>"$LOG" 2>&1`; `cd` into the repo or exit. |
+| 20–24 | `REPO` is this checkout (the folder above `maintenance/`, `~/hanabi-mac` here); all output appended to `maintenance/logs/<date>.log` via `exec >>"$LOG" 2>&1`; `cd` into the repo or exit. |
 | 26 | `notify()` posts a macOS notification with `osascript … display notification`. |
 | 29–34 | Records `BEFORE=$(git rev-parse HEAD)`. If `git status --porcelain` shows anything (modified *or untracked* files), logs and notifies "Skipped" and exits 0, so the bot never mixes its changes with the user's work in progress. |
 | 36–46 | Unless `--dry-run`: `brew update && brew upgrade && brew upgrade --cask --greedy ghostty && brew cleanup -s`, then `rustup update stable`. Failures only change the `DEPS` summary text. |

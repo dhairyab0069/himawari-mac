@@ -60,7 +60,6 @@ PLIST
 }
 
 mkdir -p build
-cp Resources/Info.plist build/Himawari.Info.plist.tmp
 make_app build/Himawari.app Himawari "Himawari" local.dhairyabhatia.himawari
 cp Resources/Info.plist build/Himawari.app/Contents/Info.plist      # Himawari's own plist (has the icon entry)
 cp Resources/AppIcon.icns build/Himawari.app/Contents/Resources/AppIcon.icns
@@ -70,7 +69,6 @@ clang -dynamiclib -fobjc-arc -O2 -mmacosx-version-min=14.4 ${ARCHS[@]+"${ARCHS[@
     helpers/NowPlayingHelper.m -o build/Himawari.app/Contents/Resources/NowPlayingHelper.dylib
 codesign --force --sign "$IDENTITY" build/Himawari.app/Contents/Resources/NowPlayingHelper.dylib
 codesign --force --sign "$IDENTITY" build/Himawari.app
-rm build/Himawari.Info.plist.tmp
 
 # The desktop clock, as a helper app inside Himawari.app.
 make_app build/DesktopClock.tmp.app HimawariClock "Desktop Clock" local.dhairyabhatia.desktop.clock
