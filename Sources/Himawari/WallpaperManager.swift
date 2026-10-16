@@ -553,7 +553,9 @@ final class WallpaperManager {
         player.volume = volume
         player.isMuted = muted
         // Switch between the picture-only and the with-sound version of a local video.
-        if muteChanged, let current, current.isFileURL, youtube == nil, sceneArt == nil { start(current) }
+        // Also under the CD or YouTube: start() keeps the player paused there, and the right version is
+        // then ready when they go (otherwise unmuting under the CD left the video silent afterwards).
+        if muteChanged, let current, current.isFileURL { start(current) }
     }
 
     /// A version of the video with no audio track (nothing to decode but the picture).
