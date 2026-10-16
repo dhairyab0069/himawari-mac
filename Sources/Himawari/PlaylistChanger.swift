@@ -110,6 +110,10 @@ final class PlaylistChanger: ObservableObject {
         spotifyLinks.removeAll { $0.id == playlist.id }
         pinned.removeAll { $0 == playlist.id }
         settings.pinnedPlaylists = pinned
+        saveSpotifyLinks()
+    }
+
+    private func saveSpotifyLinks() {
         settings.spotifyPlaylists = spotifyLinks.compactMap {
             if case .spotify(let uri) = $0.source { (uri, $0.name) } else { nil }
         }
@@ -123,12 +127,14 @@ final class PlaylistChanger: ObservableObject {
         }
         notice = "Adding…"
         Task { [weak self] in
-            guard let self, let (playlist, cover) = await self.library.spotifyPlaylist(fromLink: text) else { return }
+            guard let self else { return }
+            guard let (playlist, cover) = await self.library.spotifyPlaylist(fromLink: text) else {
+                self.notice = "Couldn't read that playlist. Check it's public and you're online." // not "Adding…" forever
+                return
+            }
             if !self.spotifyLinks.contains(where: { $0.id == playlist.id }) { self.spotifyLinks.append(playlist) }
             self.library.setCover(cover, for: playlist)
-            self.settings.spotifyPlaylists = self.spotifyLinks.compactMap {
-                if case .spotify(let uri) = $0.source { (uri, $0.name) } else { nil }
-            }
+            self.saveSpotifyLinks()
             self.notice = "Added “\(playlist.name)”."
         }
     }
