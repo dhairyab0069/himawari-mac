@@ -65,6 +65,16 @@ final class SpotifyLinkTests: XCTestCase {
         XCTAssertFalse(spotify.contains(.upNext), "Spotify's AppleScript can't read what's next")
     }
 
+    func testSavedCoversAndNoCoverMarkersBothExpire() {
+        let week = PlaylistLibrary.coverMaxAge
+        XCTAssertEqual(PlaylistLibrary.coverAction(imageAge: 3600, noCoverAge: nil), .useSaved)
+        XCTAssertEqual(PlaylistLibrary.coverAction(imageAge: nil, noCoverAge: 3600), .skip)
+        XCTAssertEqual(PlaylistLibrary.coverAction(imageAge: week + 1, noCoverAge: nil), .fetch)
+        // A playlist that had no cover a week ago may have songs with artwork now.
+        XCTAssertEqual(PlaylistLibrary.coverAction(imageAge: nil, noCoverAge: week + 1), .fetch)
+        XCTAssertEqual(PlaylistLibrary.coverAction(imageAge: nil, noCoverAge: nil), .fetch)
+    }
+
     func testAppleScriptStringsAreEscaped() {
         XCTAssertEqual(PlaylistLibrary.escaped(#"a"b\c"#), #"a\"b\\c"#)
     }
