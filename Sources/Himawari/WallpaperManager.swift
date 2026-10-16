@@ -19,9 +19,9 @@ final class WallpaperManager {
     // Brightness sampling, so the desktop clock can pick readable text.
     private var output: AVPlayerItemVideoOutput?
     private var outputItem: AVPlayerItem?
-    private let tone = ToneReporter()
+    private let tone = ToneReporter() // tells the desktop clock what's behind it
     /// Click catchers over the side gear and the CD (they're below Finder's icons otherwise).
-    let gearControls = GearControls()                   // tells the desktop clock what's behind it
+    let gearControls = GearControls()
     private var sceneArt: NSImage?                     // the CD scene, for songs with nothing to loop
     private var scenes: [MusicScene] = []
     private var sceneSong: String? // the song whose cover is on the CD
@@ -30,8 +30,8 @@ final class WallpaperManager {
     private var song: SongInfo?
     private let audio = AudioLevels()
     private var levelsStop: DispatchWorkItem?
-    private var audioHeard = false
-    private var retries = 0, retryAt = Date.distantPast // failed-stream back-off // the tap is carrying sound (else the gear animates itself)
+    private var audioHeard = false // the tap is carrying sound (else the gear animates itself)
+    private var retries = 0, retryAt = Date.distantPast // failed-stream back-off
     /// The side gear (and the CD scene) move whenever the desktop can be seen, even while the
     /// video itself is paused for the battery: they cost next to nothing.
     private var desktopVisible = true
@@ -55,7 +55,7 @@ final class WallpaperManager {
     private var sizeWatch: NSKeyValueObservation?
     private var playing = false
 
-    /// How the video is sized to the screen (Himawari menu ▸ Video Sizing).
+    /// What fills the bars around the video (Himawari menu ▸ Video Sizing).
     var barFill = Settings.shared.barFill { didSet { applyBarFill() } }
 
     /// Battery Saver swaps the blurred video for the (still) soft colors, and stops their drift.
@@ -101,7 +101,6 @@ final class WallpaperManager {
 
     var hasVideo: Bool { chosen != nil || override != nil }
 
-    /// Your chosen wallpaper video.
     /// Just above Finder's desktop icons: covers them.
     private static let clearLevel = NSWindow.Level(rawValue: Int(CGWindowLevelForKey(.desktopIconWindow)) + 1)
 

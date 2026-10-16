@@ -138,13 +138,15 @@ final class Settings {
     }
 }
 
-/// How the wallpaper video is sized to the screen.
+/// What fills the bars around a video that doesn't cover the screen.
+/// (The raw values are stored in settings: rewording one resets everyone's choice.)
 enum BarFill: String, CaseIterable {
     case ambient = "Soft Colors (Apple Music Style)" // slow glow in the video's own edge colors
     case blurred = "Blurred Video"
     case black = "Black Bars"
 }
 
+/// How the wallpaper video is sized to the screen.
 enum VideoSizing: String, CaseIterable {
     case widescreen = "Widescreen (Bars Top & Bottom)" // whole video, never cropped; bars fill the rest
     case fit = "Show Whole Video"        // nothing cropped; bars (black or blurred) around it
