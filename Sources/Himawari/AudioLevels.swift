@@ -40,13 +40,17 @@ final class AudioLevels: @unchecked Sendable {
     var onPermission: (() -> Void)?
 
     // Analysis (touched only on `queue` once running)
-    private let n = 1024
-    private let fft = vDSP.FFT(log2n: 10, radix: .radix2, ofType: DSPSplitComplex.self)
-    private let window = vDSP.window(ofType: Float.self, usingSequence: .hanningDenormalized, count: 1024, isHalfWindow: false)
-    private var mono = [Float](repeating: 0, count: 1024)
+    // Every buffer is sized from these two, so changing the FFT size can't leave one behind
+    // (a mismatch would overrun memory on the audio thread).
+    private static let log2n = 10
+    private static let fftSize = 1 << log2n
+    private let n = AudioLevels.fftSize
+    private let fft = vDSP.FFT(log2n: vDSP_Length(AudioLevels.log2n), radix: .radix2, ofType: DSPSplitComplex.self)
+    private let window = vDSP.window(ofType: Float.self, usingSequence: .hanningDenormalized, count: AudioLevels.fftSize, isHalfWindow: false)
+    private var mono = [Float](repeating: 0, count: AudioLevels.fftSize)
     private var filled = 0
-    private var real = [Float](repeating: 0, count: 512), imag = [Float](repeating: 0, count: 512)
-    private var power = [Float](repeating: 0, count: 512)
+    private var real = [Float](repeating: 0, count: AudioLevels.fftSize / 2), imag = [Float](repeating: 0, count: AudioLevels.fftSize / 2)
+    private var power = [Float](repeating: 0, count: AudioLevels.fftSize / 2)
     private var bandBins: [Range<Int>] = []
     private var interleaved = true
 
