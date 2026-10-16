@@ -147,11 +147,14 @@ public final class PlaylistLibrary: ObservableObject {
     private func loadCover(_ playlist: Playlist) {
         guard covers[playlist.id] == nil else { return }
         let file = coverFile(playlist)
-        // Saved covers last a week (a playlist's first song can change); one with no cover is
-        // remembered too, so it isn't asked for on every open.
-        let age = (try? file.resourceValues(forKeys: [.contentModificationDateKey]).contentModificationDate).map { -$0.timeIntervalSinceNow } ?? .infinity
-        if age < 7 * 86400, let image = NSImage(contentsOf: file) { covers[playlist.id] = image; return }
-        if FileManager.default.fileExists(atPath: file.path + ".none") { return }
+        switch Self.coverAction(imageAge: Self.age(of: file), noCoverAge: Self.age(of: file.appendingPathExtension("none"))) {
+        case .useSaved:
+            if let image = NSImage(contentsOf: file) { covers[playlist.id] = image; return }
+        case .skip:
+            return
+        case .fetch:
+            break
+        }
         guard case .appleMusic(let id) = playlist.source, !coversAsked.contains(playlist.id) else { return }
         coversAsked.insert(playlist.id)
         try? FileManager.default.createDirectory(at: coverFolder, withIntermediateDirectories: true)
@@ -255,6 +258,24 @@ public final class PlaylistLibrary: ObservableObject {
         }
         guard let id, (16...32).contains(id.count), id.allSatisfy({ $0.isASCII && ($0.isLetter || $0.isNumber) }) else { return nil }
         return "spotify:playlist:" + id
+    }
+
+    /// Saved covers last a week (a playlist's first song can change). A playlist with no cover is
+    /// remembered for a week too, so it isn't asked for on every open, but is asked again after.
+    nonisolated static let coverMaxAge: TimeInterval = 7 * 86400
+
+    enum CoverAction: Equatable { case useSaved, skip, fetch }
+
+    /// What to do for a playlist's cover, given how old the saved cover and the no-cover marker are.
+    nonisolated static func coverAction(imageAge: TimeInterval?, noCoverAge: TimeInterval?) -> CoverAction {
+        if let imageAge, imageAge < coverMaxAge { return .useSaved }
+        if let noCoverAge, noCoverAge < coverMaxAge { return .skip }
+        return .fetch
+    }
+
+    /// Seconds since `file` was last written, nil if it doesn't exist.
+    nonisolated private static func age(of file: URL) -> TimeInterval? {
+        (try? file.resourceValues(forKeys: [.contentModificationDateKey]).contentModificationDate).map { -$0.timeIntervalSinceNow }
     }
 
     nonisolated static func escaped(_ s: String) -> String {

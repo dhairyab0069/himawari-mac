@@ -56,7 +56,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
             if settings.movingLockScreen {
                 MovingLockScreen.shared.adopt(video: URL(fileURLWithPath: path)) // a swap made by hand counts
                 // Already made: just checks it's in place. Interrupted (quit mid-conversion): starts again.
-                _ = MovingLockScreen.shared.apply(video: URL(fileURLWithPath: path))
+                if let problem = MovingLockScreen.shared.apply(video: URL(fileURLWithPath: path)) { Log.write("moving lock screen: \(problem)") }
                 startRepairTimer()
             }
         }
@@ -72,10 +72,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
             onMainActor { self?.toggleDesktopClock() }
         }
         if clockHotKey == nil { Log.write("⌃⌥⌘C is taken by another app: show the clock from the menu instead") }
-        // ⌃⌥⌘D hides or shows the desktop's files, with or without music.
+        // ⌃⌥⌘P opens or closes the disc changer.
         changerHotKey = HotKey(keyCode: kVK_ANSI_P, modifiers: cmdKey | optionKey | controlKey, id: 9) { [weak self] in
             onMainActor { self?.toggleChanger() }
         }
+        if changerHotKey == nil { Log.write("⌃⌥⌘P is taken by another app: open the disc changer from the menu instead") }
         changer.openPlayer = { [weak self] in self?.music.openPlayer() }
         // For checking the changer's look: `open -a Himawari --args -HimawariShowChanger YES`.
         if UserDefaults.standard.volatileDomain(forName: UserDefaults.argumentDomain)["HimawariShowChanger"] != nil {
@@ -85,6 +86,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         positionWatchPlaylist = changer.library.$position
             .receive(on: RunLoop.main)
             .sink { [weak self] position in onMainActor { self?.wallpaper.showPlaylist(position?.label) } }
+        // ⌃⌥⌘D hides or shows the desktop's files, with or without music.
         filesHotKey = HotKey(keyCode: kVK_ANSI_D, modifiers: cmdKey | optionKey | controlKey, id: 8) { [weak self] in
             onMainActor { self?.toggleDesktopFiles() }
         }
@@ -588,7 +590,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         settings.videoPath = url.path
         wallpaper.load(url: url)
         if settings.lockScreenMatch { LockScreen.show(frameOf: url) }
-        if settings.movingLockScreen { _ = MovingLockScreen.shared.apply(video: url) }
+        if settings.movingLockScreen, let problem = MovingLockScreen.shared.apply(video: url) {
+            Log.write("moving lock screen: \(problem)") // it keeps the previous video until this is fixed
+        }
         monitor.evaluate()
     }
 

@@ -171,7 +171,13 @@ final class MovingLockScreen {
             return nil
         }
         if !fm.fileExists(atPath: backup.path), fm.fileExists(atPath: target.path) {
-            try? fm.moveItem(at: target, to: backup) // Apple's original, kept
+            // Apple's original, kept. If it can't be kept, leave it in place: removing it below
+            // would lose the only copy, with nothing for restore() to put back.
+            do { try fm.moveItem(at: target, to: backup) } catch {
+                Log.write("moving lock screen: couldn't keep Apple's \(id): \(error.localizedDescription)")
+                try? fm.removeItem(at: trimmed)
+                return nil
+            }
         }
         try? fm.removeItem(at: target)
         guard (try? fm.moveItem(at: trimmed, to: target)) != nil else { return nil }

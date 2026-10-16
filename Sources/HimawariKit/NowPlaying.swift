@@ -399,7 +399,7 @@ public final class MusicNowPlaying: ObservableObject {
             let preset = restore.preset.isEmpty || restore.preset == Self.tonePreset ? "Flat" : restore.preset
             tell("""
             try
-                set current EQ preset to EQ preset "\(preset.replacingOccurrences(of: "\"", with: "\\\""))"
+                set current EQ preset to EQ preset "\(PlaylistLibrary.escaped(preset))"
             end try
             set EQ enabled to \(restore.on && restore.preset != Self.tonePreset)
             """, block: true)

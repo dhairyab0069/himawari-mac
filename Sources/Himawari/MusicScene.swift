@@ -495,10 +495,14 @@ final class MusicScene: NSView {
         var cast: [(image: CGImage, facesLeft: Bool, size: CGFloat, speed: CGFloat)] = animals.compactMap { emoji in
             Sprites.emoji(emoji, size: 64).map { ($0, true, CGFloat.random(in: 46...62), emoji == "🐢" ? 0.45 : 1) }
         }
-        cast.append((Sprites.chibi(hair: NSColor(red: 0.98, green: 0.62, blue: 0.78, alpha: 1),
-                                   outfit: NSColor(red: 0.42, green: 0.55, blue: 0.95, alpha: 1), catEars: true), false, 78, 0.8))
-        cast.append((Sprites.chibi(hair: NSColor(red: 0.30, green: 0.26, blue: 0.45, alpha: 1),
-                                   outfit: NSColor(red: 0.98, green: 0.78, blue: 0.35, alpha: 1), catEars: false), false, 74, 0.9))
+        if let girl = Sprites.chibi(hair: NSColor(red: 0.98, green: 0.62, blue: 0.78, alpha: 1),
+                                    outfit: NSColor(red: 0.42, green: 0.55, blue: 0.95, alpha: 1), catEars: true) {
+            cast.append((girl, false, 78, 0.8))
+        }
+        if let boy = Sprites.chibi(hair: NSColor(red: 0.30, green: 0.26, blue: 0.45, alpha: 1),
+                                   outfit: NSColor(red: 0.98, green: 0.78, blue: 0.35, alpha: 1), catEars: false) {
+            cast.append((boy, false, 74, 0.9))
+        }
         let now = CACurrentMediaTime()
         for (i, actor) in cast.shuffled().enumerated() {
             let rightward = i % 2 == 0
@@ -595,7 +599,7 @@ enum Sprites {
     }
 
     /// An original chibi character: big head, big shiny eyes, blush, tiny body.
-    static func chibi(hair: NSColor, outfit: NSColor, catEars: Bool) -> CGImage {
+    static func chibi(hair: NSColor, outfit: NSColor, catEars: Bool) -> CGImage? {
         let key = "chibi \(hair) \(outfit) \(catEars)"
         if let hit = cache[key] { return hit }
         let skin = NSColor(red: 1, green: 0.9, blue: 0.82, alpha: 1)
@@ -649,7 +653,7 @@ enum Sprites {
             NSColor(red: 0.55, green: 0.25, blue: 0.3, alpha: 1).setStroke(); mouth.stroke()
             return true
         }
-        let cg = image.cgImage(forProposedRect: nil, context: nil, hints: nil)!
+        guard let cg = image.cgImage(forProposedRect: nil, context: nil, hints: nil) else { return nil }
         cache[key] = cg
         return cg
     }

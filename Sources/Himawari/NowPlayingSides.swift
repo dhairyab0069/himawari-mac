@@ -416,9 +416,6 @@ final class NowPlayingSides: NSView {
         updateTime()
     }
 
-    /// Where the song is shown to be right now (including a jog-wheel preview).
-    var shownPosition: Double { currentPosition() }
-
     /// Where a knob points, 0…1 round its scale.
     func knobValue(_ control: GearControl) -> Double {
         switch control {
@@ -574,12 +571,19 @@ final class NowPlayingSides: NSView {
         CATransaction.commit()
     }
 
+    /// The VU scale: each printed mark (dB) and where it sits across the meter (0…1). The needle
+    /// maths and the printed face both read this, so they can't drift apart.
+    nonisolated static let vuMarks: [(dB: Double, fraction: Double)] = [
+        (-20, 0), (-10, 0.28), (-7, 0.42), (-5, 0.53), (-3, 0.64), (-2, 0.7),
+        (-1, 0.76), (0, 0.82), (1, 0.88), (2, 0.94), (3, 1)]
+    /// Where 0 VU sits; above it is the red zone.
+    nonisolated static let zeroVU = 0.82
+
     /// RMS (0…1) → place on the VU scale (0 = −20, 0.82 = 0 VU, 1 = +3). 0 VU is set at
     /// −14 dBFS, where modern masters sit, so the needles live around the 0 mark.
     nonisolated static func vuFraction(_ rms: Float) -> Double {
         let vu = 20 * log10(Double(max(rms, 1e-6))) + 14
-        let marks: [(Double, Double)] = [(-20, 0), (-10, 0.28), (-7, 0.42), (-5, 0.53), (-3, 0.64), (-2, 0.7),
-                                          (-1, 0.76), (0, 0.82), (1, 0.88), (2, 0.94), (3, 1)]
+        let marks = vuMarks
         if vu <= -20 { return 0 }
         for j in 1..<marks.count where vu <= marks[j].0 {
             let (a0, f0) = marks[j - 1], (a1, f1) = marks[j]
@@ -853,23 +857,23 @@ private enum Hardware {
         func point(_ angle: CGFloat, _ rad: CGFloat) -> CGPoint {
             CGPoint(x: pivot.x - sin(angle) * rad, y: pivot.y + cos(angle) * rad)
         }
-        let marks: [(Double, String)] = [(0, "20"), (0.28, "10"), (0.42, "7"), (0.53, "5"), (0.64, "3"), (0.7, "2"),
-                                          (0.76, "1"), (0.82, "0"), (0.88, "1"), (0.94, "2"), (1, "3")]
+        let marks = NowPlayingSides.vuMarks.map { ($0.fraction, String(Int(abs($0.dB)))) } // printed without signs
+        let zero = NowPlayingSides.zeroVU
         let arc = NSBezierPath()
         arc.appendArc(withCenter: pivot, radius: radius, startAngle: 90 + 0.72 * 180 / .pi, endAngle: 90 - 0.72 * 180 / .pi, clockwise: true)
         ink.setStroke(); arc.lineWidth = 1.2; arc.stroke()
         let red = NSBezierPath()
-        red.appendArc(withCenter: pivot, radius: radius + 2.5, startAngle: 90 + needleAngle(0.82) * 180 / .pi,
+        red.appendArc(withCenter: pivot, radius: radius + 2.5, startAngle: 90 + needleAngle(zero) * 180 / .pi,
                       endAngle: 90 + needleAngle(1) * 180 / .pi, clockwise: true)
         NSColor(red: 0.82, green: 0.12, blue: 0.1, alpha: 0.9).setStroke(); red.lineWidth = 4.5; red.stroke()
         for (level, text) in marks {
             let a = needleAngle(level)
             let t = NSBezierPath()
             t.move(to: point(a, radius)); t.line(to: point(a, radius + 7))
-            (level > 0.82 ? NSColor(red: 0.75, green: 0.1, blue: 0.08, alpha: 1) : ink).setStroke()
+            (level > zero ? NSColor(red: 0.75, green: 0.1, blue: 0.08, alpha: 1) : ink).setStroke()
             t.lineWidth = 1.2; t.stroke()
             let s = NSAttributedString(string: text, attributes: [.font: NSFont.systemFont(ofSize: 8, weight: .semibold),
-                                                                  .foregroundColor: level > 0.82 ? NSColor(red: 0.75, green: 0.1, blue: 0.08, alpha: 1) : ink])
+                                                                  .foregroundColor: level > zero ? NSColor(red: 0.75, green: 0.1, blue: 0.08, alpha: 1) : ink])
             let p = point(a, radius + 14), w = s.size()
             s.draw(at: NSPoint(x: p.x - w.width / 2, y: p.y - w.height / 2))
         }
@@ -888,7 +892,7 @@ private enum Hardware {
         NSGradient(colors: [NSColor(white: 0.36, alpha: 1), NSColor(white: 0.5, alpha: 1)])?
             .draw(in: NSBezierPath(ovalIn: r.insetBy(dx: r.width * 0.14, dy: r.width * 0.14)), angle: -70)
         let c = CGPoint(x: r.midX, y: r.midY), a = CGFloat.pi * 0.25
-        if drawPointer { // the VOLUME knob gets a live pointer layer instead
+        if drawPointer { // knobs that set something (VOLUME, BASS, TREBLE) get a live pointer layer instead
             let pointer = NSBezierPath()
             pointer.move(to: CGPoint(x: c.x - sin(a) * r.width * 0.12, y: c.y + cos(a) * r.width * 0.12))
             pointer.line(to: CGPoint(x: c.x - sin(a) * r.width * 0.36, y: c.y + cos(a) * r.width * 0.36))

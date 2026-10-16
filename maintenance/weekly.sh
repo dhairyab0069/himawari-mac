@@ -17,7 +17,7 @@
 set -uo pipefail
 export PATH="$HOME/.local/bin:/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin"
 
-REPO="$HOME/hanabi-mac"
+REPO="$(cd "$(dirname "$0")/.." && pwd)" # this checkout, wherever it lives
 LOG="$REPO/maintenance/logs/$(date +%Y-%m-%d).log"
 mkdir -p "$(dirname "$LOG")"
 exec >>"$LOG" 2>&1
