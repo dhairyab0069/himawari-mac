@@ -30,8 +30,10 @@ gh release view "v$V" -R dhairyab0069/himawari-mac >/dev/null 2>&1 && fail "v$V 
 CI=$(gh run list -R dhairyab0069/himawari-mac --branch main --limit 1 --json conclusion -q '.[0].conclusion')
 [ "$CI" = "success" ] || fail "CI on main is '$CI'"
 
-swift test 2>&1 | tail -3
-swift test >/dev/null 2>&1 || fail "unit tests"
+# One run: its last lines go in the log, and a failure is reported as one.
+TEST_LOG="$(mktemp)"
+swift test >"$TEST_LOG" 2>&1 || { tail -20 "$TEST_LOG"; fail "unit tests"; }
+tail -3 "$TEST_LOG"
 UNIVERSAL=1 scripts/make_dmg.sh | tail -1
 DMG="build/Himawari-$V.dmg"
 [ -f "$DMG" ] || fail "no DMG"
@@ -42,7 +44,9 @@ cp "$CHECKOUT/build/Himawari-Code-Report.pdf" build/ 2>/dev/null || true
 if git rev-parse -q --verify "refs/tags/v$V" >/dev/null; then
     [ "$(git rev-parse "v$V^{commit}")" = "$(git rev-parse HEAD)" ] || fail "tag v$V already exists on another commit"
 else
-    git tag "v$V" && git push -q origin "v$V"
+    # (set -e doesn't stop on the left of &&: a failed tag would let gh make one itself.)
+    git tag "v$V" || fail "couldn't tag v$V"
+    git push -q origin "v$V" || fail "couldn't push tag v$V"
 fi
 for r in himawari-mac himawari-io; do
     extra=(); [ "$r" = himawari-io ] && extra=(--target main)
@@ -52,7 +56,7 @@ for r in himawari-mac himawari-io; do
 done
 
 # The README's download links, through a pull request (main is protected).
-OLD=$(grep -o 'Himawari-[0-9.]*\.dmg' README.md | head -1)
+OLD=$(grep -o 'Himawari-[0-9.]*\.dmg' README.md | head -1 || true) # no link yet: don't stop after publishing
 if [ "$OLD" != "Himawari-$V.dmg" ]; then
     git switch -q -c "readme-$V"
     sed -i '' "s/$OLD/Himawari-$V.dmg/g; s/Download Himawari Beta [0-9.]* (DMG)/Download Himawari Beta $V (DMG)/" README.md
