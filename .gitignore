@@ -1,4 +1,5 @@
 .build/
+.build-maint/
 build/
 maintenance/logs/
 .DS_Store
