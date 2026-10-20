@@ -72,6 +72,7 @@ final class NowPlayingSides: NSView {
     /// Live levels of the song (the Core Audio tap); without them the gear animates by itself.
     var meterSource: AudioLevels? { didSet { if meterSource !== oldValue { restartMotion() } } }
     private var meterTimer: Timer?
+    private var lastMeterState = ""
     private var needleLevel: [CGFloat] = [0, 0]
     private var bandLevel = [CGFloat](repeating: 0.07, count: AudioLevels.bandCount)
     private var columns: [CALayer] = []
@@ -81,7 +82,13 @@ final class NowPlayingSides: NSView {
     private var video = CGRect.zero
     private var ticker: Timer?
     /// Off in Battery Saver: the needles, meter and jog wheel rest; the display still shows the song.
-    var lively = true { didSet { if lively != oldValue { restartMotion() } } }
+    var lively = true {
+        didSet {
+            guard lively != oldValue else { return }
+            stopLiveMeters() // restarted at the new frame rate
+            restartMotion()
+        }
+    }
     /// Off while the wallpaper is paused (covered, locked…): the gear stops moving; the time
     /// still follows the song, so it's right the moment you see it again.
     var animating = true { didSet { if animating != oldValue { restartMotion() } } }
@@ -468,7 +475,14 @@ final class NowPlayingSides: NSView {
         CATransaction.setDisableActions(true)
         defer { CATransaction.commit() }
         let moving = info.playing && lively && animating
-        let live = moving && (meterSource?.hearing ?? false)
+        // Live levels keep going in Battery Saver too (at half the frame rate): resting needles
+        // while the song plays looked broken. Only the gear's own made-up animation rests.
+        let live = info.playing && animating && (meterSource?.hearing ?? false)
+        let meterState = live ? "live" : moving ? "self-animated" : "resting"
+        if meterState != lastMeterState {
+            lastMeterState = meterState
+            Log.write("meters: \(meterState) (playing \(info.playing), lively \(lively), animating \(animating), hearing \(meterSource?.hearing ?? false))")
+        }
         if live { startLiveMeters() } else { stopLiveMeters() }
 
         // A title too long for the display scrolls, pausing at each end.
@@ -537,7 +551,7 @@ final class NowPlayingSides: NSView {
     private func startLiveMeters() {
         guard meterTimer == nil else { return }
         _ = meterSource?.read() // drop what piled up while nobody was looking
-        meterTimer = Timer.scheduledTimer(withTimeInterval: 1.0 / 30, repeats: true) { [weak self] timer in
+        meterTimer = Timer.scheduledTimer(withTimeInterval: 1.0 / meterRate, repeats: true) { [weak self] timer in
             onMainActor {
                 guard let self else { timer.invalidate(); return }
                 self.stepMeters()
@@ -545,6 +559,11 @@ final class NowPlayingSides: NSView {
         }
         meterTimer?.tolerance = 0.004
     }
+
+    /// Frames a second for the live meters: 30, or 15 in Battery Saver.
+    private var meterRate: Double { lively ? 30 : 15 }
+    /// A per-frame smoothing amount tuned at 30 fps, for the current rate (same feel at 15).
+    private func perFrame(_ k: CGFloat) -> CGFloat { 1 - pow(1 - k, CGFloat(30 / meterRate)) }
 
     private func stopLiveMeters() {
         meterTimer?.invalidate()
@@ -560,12 +579,12 @@ final class NowPlayingSides: NSView {
         CATransaction.setDisableActions(true)
         for (i, rms) in [s.left, s.right].enumerated() where i < needles.count {
             let target = CGFloat(Self.vuFraction(rms))
-            needleLevel[i] += (target - needleLevel[i]) * (target > needleLevel[i] ? 0.4 : 0.16)
+            needleLevel[i] += (target - needleLevel[i]) * perFrame(target > needleLevel[i] ? 0.4 : 0.16)
             needles[i].transform = CATransform3DMakeRotation(Hardware.needleAngle(Double(needleLevel[i])), 0, 0, 1)
         }
         for (i, mask) in columns.enumerated() where i < s.bands.count {
             let target = max(CGFloat(s.bands[i]), 0.07)
-            bandLevel[i] = target > bandLevel[i] ? target : max(target, bandLevel[i] - 0.04)
+            bandLevel[i] = target > bandLevel[i] ? target : max(target, bandLevel[i] - 0.04 * CGFloat(30 / meterRate))
             mask.transform = CATransform3DMakeScale(1, bandLevel[i], 1)
         }
         CATransaction.commit()
