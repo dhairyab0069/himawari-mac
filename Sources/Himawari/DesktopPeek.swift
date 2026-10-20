@@ -86,7 +86,10 @@ final class DesktopPeek {
                 if owner.hasPrefix("Himawari") { continue }
                 // Notification Center's desktop-widget canvas: one transparent window over the
                 // whole desktop. A click on empty desktop lands on it first; look past it.
-                if owner == "Notification Center", bounds.width >= screenSize.width * 0.95, bounds.height >= screenSize.height * 0.95 {
+                // The screenshot tool (screencaptureui) leaves one over the whole screen too, long
+                // after the screenshot: clicks go through it to the desktop.
+                if owner == "Notification Center" || owner == "Screenshot",
+                   bounds.width >= screenSize.width * 0.95, bounds.height >= screenSize.height * 0.95 {
                     continue
                 }
                 return (false, "\(owner) (layer \(level))")
