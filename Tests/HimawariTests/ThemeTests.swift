@@ -78,13 +78,14 @@ final class ThemeLayoutTests: XCTestCase {
         let gear = NowPlayingSides(frame: NSRect(x: 0, y: 0, width: 1470, height: 956))
         gear.place(around: CGRect(x: 453, y: 160, width: 563, height: 563))
         gear.show(SongInfo(title: "Golden Hour", artist: "Someone", album: "Sunsets", duration: 215, position: 83, playing: true))
-        let before = gear.currentPosition()
+        let before = gear.currentPosition(), started = CACurrentMediaTime()
         let rackRects = gear.controlRects
         for skin in Skin.builtIn {
             gear.style = skin
             XCTAssertEqual(gear.song?.title, "Golden Hour", skin.id)
             XCTAssertEqual(gear.song?.playing, true, skin.id)
-            XCTAssertEqual(gear.currentPosition(), before, accuracy: 1, skin.id)
+            // Still counting from where it was (rebuilding on a slow machine takes a while).
+            XCTAssertEqual(gear.currentPosition(), before + (CACurrentMediaTime() - started), accuracy: 0.25, skin.id)
             XCTAssertEqual(Set(gear.controlRects.keys).count, 12, skin.id)
         }
         gear.style = .standard
