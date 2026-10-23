@@ -73,35 +73,40 @@ header, like the one in step 4.
 
 ## 3. Materials and shape
 
-<img src="make-your-own/3-materials.png" width="720" alt="Darker, sharper panels with a glowing magenta edge, and the cover card glowing too">
+<img src="make-your-own/3-materials.png" width="720" alt="Near-black panels with cut corners, a glowing magenta edge, a faint grid, scan lines and circuit traces">
 
-Make the panels near-black and sharp-cornered, and give them a glowing edge
+Make the panels near-black and give them the heads-up-display material
 ([3-materials.json](make-your-own/3-materials.json)):
 
 ```json
-"material": "neon",
-"layout": { "corner": 4 },
+"material": "hud",
+"layout": { "corner": 16 },
 "colors": {
-  "plate": ["#0E0A1CE6", "#07050FE6", "#0B0817E6"],
+  "plate": ["#0E0A1CEE", "#07050FEE", "#0B0817EE"],
   "button": ["#1C1236", "#0A0618"],
   "knob": ["#2A1A48", "#0A0618"],
   ...
 }
 ```
 
-- `neon` draws a tube of light in the `accent` colour around each panel, and around the cover's card.
-  The other materials are `brushed`, `chrome`, `plastic` and `matte`.
-- `plate` is the faceplate's top, middle and bottom. The `E6` on the end lets a little of the
+- `hud` cuts the corners off (by `corner` points), draws a tube of light in the `accent` colour round
+  the edge, and fills the plate with a faint grid, scan lines and circuit traces, with bracket marks
+  in the corners. `neon` is the glowing edge alone; the others are `brushed`, `chrome`, `plastic` and
+  `matte`.
+- `plate` is the faceplate's top, middle and bottom. The `EE` on the end lets a little of the
   wallpaper's glow through.
+
+It still has the minimal era's layout, though: plain type, bare symbols, a thin ring. The next step
+changes that.
 - The layout can also set `columnWidth` (200 to 360), `gap` (4 to 16) between buttons, and
   `caseWidth` (0 to 30) for a wooden case.
 
 ## 4. Your own era
 
-<img src="make-your-own/4-your-own-era.png" width="720" alt="A new layout: a header and fluorescent display, bare neon buttons and a ring on the left; LED meters, a segment spectrum, switches and flat knobs on the right">
+<img src="make-your-own/4-your-own-era.png" width="720" alt="A new layout: a framed HUD display, outlined buttons and a turning reactor ring with readouts on the left; LED meters, a spectrum, readouts and segmented knobs on the right; in the middle the cover as a hologram over a glowing emitter">
 
 So far the skin has only changed how the minimal era looks. A **design** changes what's on the
-panels. Save [my-cyberpunk.json](make-your-own/my-cyberpunk.json) in
+panels and in the middle. Save [my-cyberpunk.json](make-your-own/my-cyberpunk.json) in
 `~/Library/Application Support/Himawari/Designs/`:
 
 ```json
@@ -109,23 +114,31 @@ panels. Save [my-cyberpunk.json](make-your-own/my-cyberpunk.json) in
   "format": 1,
   "id": "my-cyberpunk",
   "name": "My Cyberpunk",
-  "media": "card",
+  "media": "hologram",
   "left": [
     { "block": "header" },
-    { "block": "display", "style": "vfd", "height": 160 },
-    { "block": "buttons", "style": "bare", "height": 40 },
-    { "block": "wheel", "style": "ring", "label": "NEURAL SCRUB" },
-    { "block": "spacer", "height": 8 }
+    { "block": "display", "style": "hud", "height": 160 },
+    { "block": "buttons", "style": "hud", "height": 38 },
+    { "block": "wheel", "style": "reactor", "label": "NEURAL SCRUB" },
+    { "block": "readout", "height": 50 }
   ],
   "right": [
     { "block": "header" },
     { "block": "meters", "style": "leds", "height": 70 },
     { "block": "spectrum" },
-    { "block": "toggles" },
-    { "block": "knobs", "style": "flat" }
+    { "block": "readout", "height": 62 },
+    { "block": "knobs", "style": "hud", "height": 84 }
   ]
 }
 ```
+
+- `hologram` projects the cover up from a glowing emitter: turned a little away in space,
+  see-through, scan-lined, with an iridescent sheen, colour fringes at its edges, a band of light
+  sweeping down it and the odd flicker.
+- The `hud` display is framed with cut corners, scan lines and a tab; `hud` buttons are outlined;
+  the `reactor` wheel is a ring of dashes and arcs around a glowing core that turns slowly by
+  itself (and when you scrub); `hud` knobs are rings of lit segments; `readout` is lines of
+  made-up system data.
 
 Each panel is a list of blocks, stacked from the top. A block with a `height` gets that many points
 (fewer on a short screen). The ones without a height share what's left.
@@ -141,19 +154,19 @@ In **Style…** the skin now has a section of its own, **My Cyberpunk**.
 | Block | Styles | Notes |
 |---|---|---|
 | `header` | | The brand and the model name |
-| `display` | `vfd`, `lcd`, `glass`, `dial` | The song, the time and the progress. `dial` is a tuning dial whose pointer travels through the song |
-| `buttons` | `rounded`, `keys`, `round`, `flat`, `bare` | Previous, play/pause, next, stop, eject |
-| `wheel` | `knurled`, `ring`, `clickwheel` | Turn it to scrub. A `label` prints under it |
+| `display` | `vfd`, `lcd`, `glass`, `dial`, `hud` | The song, the time and the progress. `dial` is a tuning dial whose pointer travels through the song |
+| `buttons` | `rounded`, `keys`, `round`, `flat`, `bare`, `hud` | Previous, play/pause, next, stop, eject |
+| `wheel` | `knurled`, `ring`, `clickwheel`, `reactor` | Turn it to scrub. A `label` prints under it |
 | `meters` | `needles`, `leds`, `spectrum` | The left and right levels |
 | `spectrum` | | Ten bands |
-| `knobs` | `classic`, `flat`, `touch` | Bass, treble, volume |
-| `grille`, `toggles`, `sliders`, `gamepad`, `power`, `spacer` | | For looks: a speaker, switches, equalizer sliders, a D-pad and face buttons, the power switch, a gap |
+| `knobs` | `classic`, `flat`, `touch`, `hud` | Bass, treble, volume |
+| `grille`, `toggles`, `sliders`, `gamepad`, `readout`, `power`, `spacer` | | For looks: a speaker, switches, equalizer sliders, a D-pad and face buttons, system readouts, the power switch, a gap |
 
 A design needs exactly one `display`, one `buttons`, one `wheel` and one `knobs`, on either side.
 
 `media` is what plays in the middle: `cd`, `record`, `cassette`, `discman` (a CD under a portable
-player's lid), `player` (a pocket player), `card` (the cover floating) or `cartridge` (a handheld's
-game cartridge with the cover on its label).
+player's lid), `player` (a pocket player), `card` (the cover floating), `cartridge` (a handheld's
+game cartridge with the cover on its label) or `hologram`.
 
 ## 5. Share it
 

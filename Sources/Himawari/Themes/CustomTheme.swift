@@ -64,6 +64,8 @@ struct CustomTheme: GearTheme {
             let d = max(min(r.width - 40, r.height - labelRoom, 220), 30)
             let wheel = CGRect(x: r.midX - d / 2, y: r.minY + labelRoom + (r.height - labelRoom - d) / 2, width: d, height: d)
             switch block.style {
+            case "reactor":
+                face.rotors.append(RotorPart(frame: wheel, draw: { Paint.reactor(diameter: $0, skin) }, spin: 16, isJog: true))
             case "ring":
                 draws.append {
                     skin.colors.display.alpha(0.18).ns.setStroke()
@@ -112,6 +114,7 @@ struct CustomTheme: GearTheme {
                     switch style {
                     case "flat": MinimalTheme.flatKnob(k.rect, label: name, skin)
                     case "touch": PocketTheme.touchKnob(k.rect, label: name, skin)
+                    case "hud": Paint.hudKnob(k.rect, label: name, skin)
                     default: Paint.knob(k.rect, label: name, skin, pointer: false)
                     }
                 }
@@ -135,6 +138,9 @@ struct CustomTheme: GearTheme {
         case .gamepad:
             draws.append { Self.gamepad(r, skin) }
             face.fixtures.append(r)
+        case .readout:
+            draws.append { Paint.readout(r, skin) }
+            face.fixtures.append(r)
         }
     }
 
@@ -146,6 +152,9 @@ struct CustomTheme: GearTheme {
         let k = min(max(r.height / 164, 0.55), 1.2) // the type grows and shrinks with the display
         switch style {
         case "lcd": draws.append { PortableTheme.lcd(r, skin) }
+        case "hud":
+            draws.append { Paint.hudFrame(r, skin) }
+            face.glow = (0.8, 4)
         case "glass": break
         case "dial":
             draws.append {
@@ -251,6 +260,7 @@ struct CustomTheme: GearTheme {
                 case "round": PortableTheme.rubberButton(rect, symbol: name, skin)
                 case "flat": PocketTheme.flatButton(rect, symbol: name, skin)
                 case "bare": Paint.symbol(name, in: rect, color: skin.colors.display.alpha(0.8).ns, size: 16)
+                case "hud": Paint.hudButton(rect, symbol: name, skin)
                 default: Paint.button(rect, symbol: name, skin)
                 }
             }

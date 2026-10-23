@@ -5,11 +5,11 @@ import Foundation
 /// `~/Library/Application Support/Himawari/Designs/`. A skin wears it by naming it ("design").
 /// Where the parts go is worked out from the blocks; how they're drawn comes from the eras.
 public struct Design: Equatable, Sendable {
-    public enum Media: String, CaseIterable, Sendable { case cd, record, cassette, discman, player, card, cartridge }
+    public enum Media: String, CaseIterable, Sendable { case cd, record, cassette, discman, player, card, cartridge, hologram }
 
     public struct Block: Equatable, Sendable {
         public enum Kind: String, CaseIterable, Sendable {
-            case header, display, buttons, wheel, meters, spectrum, knobs, grille, toggles, sliders, power, spacer, gamepad
+            case header, display, buttons, wheel, meters, spectrum, knobs, grille, toggles, sliders, power, spacer, gamepad, readout
         }
         public var kind: Kind
         /// Points tall, or nil: share what's left with the other blocks that fill.
@@ -30,14 +30,14 @@ public struct Design: Equatable, Sendable {
 
     /// The styles each kind of block can take (the first is the default).
     public static let styles: [Block.Kind: [String]] = [
-        .display: ["vfd", "lcd", "glass", "dial"], .buttons: ["rounded", "keys", "round", "flat", "bare"],
-        .wheel: ["knurled", "ring", "clickwheel"], .knobs: ["classic", "flat", "touch"], .meters: ["needles", "leds", "spectrum"],
+        .display: ["vfd", "lcd", "glass", "dial", "hud"], .buttons: ["rounded", "keys", "round", "flat", "bare", "hud"],
+        .wheel: ["knurled", "ring", "clickwheel", "reactor"], .knobs: ["classic", "flat", "touch", "hud"], .meters: ["needles", "leds", "spectrum"],
     ]
 
     /// Each block's height when the file doesn't say (nil: it fills).
     static let defaultHeights: [Block.Kind: Double?] = [
         .header: 40, .display: 150, .buttons: 36, .wheel: nil, .meters: 120, .spectrum: nil, .knobs: 80,
-        .grille: nil, .toggles: 64, .sliders: 90, .power: 44, .spacer: 12, .gamepad: 110,
+        .grille: nil, .toggles: 64, .sliders: 90, .power: 44, .spacer: 12, .gamepad: 110, .readout: nil,
     ]
 }
 
@@ -139,17 +139,17 @@ extension Design {
                        Block(kind: .grille, height: nil, style: "", label: nil),
                        Block(kind: .wheel, height: 96, style: "knurled", label: "TUNING"),
                        Block(kind: .knobs, height: 80, style: "classic", label: nil)]),
-        // The worked example in docs/make-your-own.md: neon on black glass, the cover as a hologram card.
-        Design(id: "cyberpunk", name: "Cyberpunk", media: .card,
+        // The worked example in docs/make-your-own.md: a heads-up display in neon, the cover a hologram.
+        Design(id: "cyberpunk", name: "Cyberpunk", media: .hologram,
                left: [Block(kind: .header, height: 40, style: "", label: nil),
-                      Block(kind: .display, height: 160, style: "vfd", label: nil),
-                      Block(kind: .buttons, height: 40, style: "bare", label: nil),
-                      Block(kind: .wheel, height: nil, style: "ring", label: "NEURAL SCRUB"),
-                      Block(kind: .spacer, height: 8, style: "", label: nil)],
+                      Block(kind: .display, height: 160, style: "hud", label: nil),
+                      Block(kind: .buttons, height: 38, style: "hud", label: nil),
+                      Block(kind: .wheel, height: nil, style: "reactor", label: "NEURAL SCRUB"),
+                      Block(kind: .readout, height: 50, style: "", label: nil)],
                right: [Block(kind: .header, height: 40, style: "", label: nil),
                        Block(kind: .meters, height: 70, style: "leds", label: nil),
                        Block(kind: .spectrum, height: nil, style: "", label: nil),
-                       Block(kind: .toggles, height: 64, style: "", label: nil),
-                       Block(kind: .knobs, height: 80, style: "flat", label: nil)]),
+                       Block(kind: .readout, height: 62, style: "", label: nil),
+                       Block(kind: .knobs, height: 84, style: "hud", label: nil)]),
     ]
 }

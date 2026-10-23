@@ -37,13 +37,13 @@ final class DesignFileTests: XCTestCase {
             XCTAssertThrowsError(try decode(json)) { XCTAssertEqual($0 as? SkinError, error, left) }
         }
         rejects(#"[{"block": "jukebox"}]"#, .badValue("left[0].block", "one of " + Design.Block.Kind.allCases.map(\.rawValue).joined(separator: ", ")))
-        rejects(#"[{"block": "display", "style": "neon"}]"#, .badValue("left[0].style", "one of vfd, lcd, glass, dial"))
+        rejects(#"[{"block": "display", "style": "neon"}]"#, .badValue("left[0].style", "one of vfd, lcd, glass, dial, hud"))
         rejects(#"[{"block": "grille", "style": "big"}]"#, .badValue("left[0].style", "this block has no styles"))
         rejects(#"[{"block": "display", "height": 900}]"#, .badValue("left[0].height", "a number from 8 to 400, or \"fill\""))
         rejects(#"[{"block": "display", "colour": "red"}]"#, .unknownKey("left[0].colour"))
         rejects(#"[]"#, .badValue("left", "between 1 and 12 blocks"))
         XCTAssertThrowsError(try decode(#"{"format": 1, "id": "x", "name": "X", "media": "8-track", "# + minimal + "}")) {
-            XCTAssertEqual($0 as? SkinError, .badValue("media", "one of cd, record, cassette, discman, player, card, cartridge"))
+            XCTAssertEqual($0 as? SkinError, .badValue("media", "one of cd, record, cassette, discman, player, card, cartridge, hologram"))
         }
     }
 

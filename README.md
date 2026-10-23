@@ -220,7 +220,7 @@ Skin and design files reload by themselves when you save them: no need to press 
 era from a copy of a built-in one (the finished look ships as **Cyberpunk ▸ Neon**).
 
 A **design** file lays out a whole new era: each panel as a stack of blocks, top to bottom, and what
-plays in the middle. Himawari ships two as examples: **Cyberpunk** (neon on black glass, the cover as a glowing card) and
+plays in the middle. Himawari ships two as examples: **Cyberpunk** (a heads-up display in neon, the cover as a hologram) and
 a **1980s Boombox** (two speaker grilles, a
 fluorescent display, piano keys, LED meters and a tuning wheel, with a cassette in the middle). In
 Customise, **Make My Own Era…** copies it into `~/Library/Application Support/Himawari/Designs/` with a
@@ -240,8 +240,8 @@ skin that wears it, and opens it:
 
 | | |
 |---|---|
-| `media` | `cd`, `record`, `cassette`, `discman`, `player`, `card`, `cartridge` (a handheld console's game cartridge, made for each song: the cover and title on its label) |
-| Blocks | `header`, `display` (`vfd`, `lcd`, `glass`, `dial`), `buttons` (`rounded`, `keys`, `round`, `flat`, `bare`), `wheel` (`knurled`, `ring`, `clickwheel`; a `label`), `meters` (`needles`, `leds`, `spectrum`), `spectrum`, `knobs` (`classic`, `flat`, `touch`), `grille`, `toggles`, `sliders`, `power`, `spacer`, `gamepad` (a D-pad and two face buttons) |
+| `media` | `cd`, `record`, `cassette`, `discman`, `player`, `card`, `cartridge` (a handheld console's game cartridge, made for each song: the cover and title on its label), `hologram` (the cover projected from a glowing emitter) |
+| Blocks | `header`, `display` (`vfd`, `lcd`, `glass`, `dial`, `hud`), `buttons` (`rounded`, `keys`, `round`, `flat`, `bare`, `hud`), `wheel` (`knurled`, `ring`, `clickwheel`, `reactor`; a `label`), `meters` (`needles`, `leds`, `spectrum`), `spectrum`, `knobs` (`classic`, `flat`, `touch`, `hud`), `grille`, `toggles`, `sliders`, `power`, `spacer`, `gamepad` (a D-pad and two face buttons), `readout` (system data) |
 | `height` | Points, or `"fill"` to share what's left (a grille, a wheel and a spectrum fill unless told otherwise) |
 
 A design needs one display, one row of buttons, one wheel and one row of knobs, on either side. A skin

@@ -13,15 +13,15 @@
     "brand": "Futura-CondensedExtraBold",
     "display": "Menlo-Bold"
   },
-  "material": "neon",
+  "material": "hud",
   "layout": {
-    "corner": 4
+    "corner": 16
   },
   "colors": {
     "plate": [
-      "#0E0A1CE6",
-      "#07050FE6",
-      "#0B0817E6"
+      "#0E0A1CEE",
+      "#07050FEE",
+      "#0B0817EE"
     ],
     "button": [
       "#1C1236",
