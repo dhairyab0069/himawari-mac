@@ -216,8 +216,12 @@ Skin and design files reload by themselves when you save them: no need to press 
 
 ### Your own eras
 
+**[Make your own look, step by step](docs/make-your-own.md)** walks through a cyberpunk skin and
+era from a copy of a built-in one (the finished look ships as **Cyberpunk ▸ Neon**).
+
 A **design** file lays out a whole new era: each panel as a stack of blocks, top to bottom, and what
-plays in the middle. Himawari ships one as an example, a **1980s Boombox** (two speaker grilles, a
+plays in the middle. Himawari ships two as examples: **Cyberpunk** (neon on black glass, the cover as a glowing card) and
+a **1980s Boombox** (two speaker grilles, a
 fluorescent display, piano keys, LED meters and a tuning wheel, with a cassette in the middle). In
 Customise, **Make My Own Era…** copies it into `~/Library/Application Support/Himawari/Designs/` with a
 skin that wears it, and opens it:

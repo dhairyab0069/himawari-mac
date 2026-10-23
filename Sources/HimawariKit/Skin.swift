@@ -58,6 +58,7 @@ public enum SkinMaterial: String, CaseIterable, Sendable {
     case chrome   // brushing under a strong polished highlight
     case plastic  // a fine speckle
     case matte    // plain
+    case neon     // plain, with a glowing edge in the accent colour (the cover's card glows too)
 }
 
 /// How one look of the side gear is coloured and lettered: what a skin file in
@@ -419,6 +420,16 @@ extension Skin {
                            knob: [c("#FFFFFF60"), c("#FFFFFF30")], cabinet: c("#FFFFFF33"), media: c("#FFFFFF")),
              brandFont: "HelveticaNeue-Medium", displayFont: nil,
              layout: .init(columnWidth: 300, corner: 22, gap: 8, caseWidth: 0)),
+        // The worked example in docs/make-your-own.md, wearing the Cyberpunk design.
+        Skin(id: "cyberpunk-neon", name: "Neon", era: .minimal, brand: "NEO-TOKYO",
+             leftModel: "SOUND SYSTEM   NT-2099", rightModel: "SIGNAL ANALYZER   NT-2099",
+             material: .neon, grain: 0,
+             colors: .init(plate: [c("#0E0A1CE6"), c("#07050FE6"), c("#0B0817E6")], glass: [c("#0A0018"), c("#030008")],
+                           display: c("#00F0FF"), accent: c("#FF2BD6"), peak: c("#FFE600"), label: c("#FF2BD6"),
+                           ink: c("#2E1F14"), meter: [c("#FFE6A8"), c("#EDB866")], button: [c("#1C1236"), c("#0A0618")],
+                           knob: [c("#2A1A48"), c("#0A0618")], cabinet: c("#07050F"), media: c("#0B0B14")),
+             brandFont: "Futura-CondensedExtraBold", displayFont: "Menlo-Bold",
+             layout: .init(columnWidth: 300, corner: 4, gap: 8, caseWidth: 0), design: "cyberpunk"),
         // Wearing the example design (Design.builtIn): a boombox, in the black tape deck's colours.
         Skin(id: "boombox-black", name: "Boombox", era: .cassette, brand: "HIMAWARI",
              leftModel: "STEREO RADIO CASSETTE   RC-1986", rightModel: "4-BAND RECEIVER   SUPER WOOFER",
@@ -485,6 +496,11 @@ public struct SkinLibrary: Sendable {
 
     public func skin(id: String?) -> Skin? { skins.first { $0.id == id } }
     public func design(id: String?) -> Design? { designs.first { $0.id == id } }
+
+    /// Adds (or replaces) a design, as if its file were in the folder.
+    public mutating func add(_ design: Design) {
+        if let i = designs.firstIndex(where: { $0.id == design.id }) { designs[i] = design } else { designs.append(design) }
+    }
 
     /// The skins of one era, in menu order (built-ins first, then yours by name).
     public func skins(of era: GearEra) -> [Skin] {
@@ -566,7 +582,7 @@ public struct SkinLibrary: Sendable {
 
     era:      hifi (1970s), cassette (1980s), portable (1990s), rack (2000s),
               pocket (2000s), minimal (today)
-    material: brushed, chrome, plastic, matte;  grain: 0 to 0.2
+    material: brushed, chrome, plastic, matte, neon;  grain: 0 to 0.2
     colours:  "#RRGGBB" or "#RRGGBBAA"; plate is 3 colours (top, middle, bottom), glass, meter,
               button and knob are 2, the rest are 1
     fonts:    PostScript names (as Font Book shows them), or null for the system font

@@ -69,7 +69,7 @@ final class SkinFileTests: XCTestCase {
                          .badValue("base", "\"hifi-walnut\" is a hifi skin"))
         XCTAssertRejects(##"{"format": 1, "id": "a", "name": "A", "era": "rack", "base": "nope"}"##, .badValue("base", "no built-in skin \"nope\""))
         XCTAssertRejects(##"{"format": 1, "id": "a", "name": "A", "era": "rack", "material": "velvet"}"##,
-                         .badValue("material", "one of brushed, chrome, plastic, matte"))
+                         .badValue("material", "one of brushed, chrome, plastic, matte, neon"))
         XCTAssertRejects(##"{"format": 1, "id": "a", "name": "A", "era": "rack", "brand": "AN EXTREMELY LONG BRAND NAME"}"##,
                          .badValue("brand", "longer than 20 characters"))
     }

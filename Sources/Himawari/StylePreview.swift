@@ -20,6 +20,23 @@ enum StylePreview {
         }
         let folder = URL(fileURLWithPath: i + 1 < arguments.count ? arguments[i + 1] : ".")
         try? FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
+        // A skin (and a design) straight from files, not the folders: for the docs' step-by-step pictures.
+        if let f = arguments.firstIndex(of: "--skin-file"), f + 1 < arguments.count {
+            var library = Styles.shared.library
+            if let d = arguments.firstIndex(of: "--design-file"), d + 1 < arguments.count,
+               let data = try? Data(contentsOf: URL(fileURLWithPath: arguments[d + 1])) {
+                do { library.add(try Design.decode(data)) } catch { print("design: \(error)"); return true }
+            }
+            Styles.shared.use(library)
+            guard let data = try? Data(contentsOf: URL(fileURLWithPath: arguments[f + 1])) else { print("can't read the skin"); return true }
+            do {
+                let skin = try Skin.decode(data)
+                let url = folder.appending(path: "\(skin.id).png")
+                render(skin, to: url)
+                print(url.path)
+            } catch { print("skin: \(error)") }
+            return true
+        }
         let only = i + 2 < arguments.count ? arguments[i + 2] : nil // one skin's id ("all": every one)…
         let meters = (i + 3 < arguments.count ? StyleOptions.Meters(rawValue: arguments[i + 3]) : nil) ?? .era // …with these meters
         for skin in Styles.shared.library.skins where only == nil || only == "all" || skin.id == only {

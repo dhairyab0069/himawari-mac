@@ -51,6 +51,9 @@ final class Styles {
         return skin
     }
 
+    /// Uses this library instead of the folders' (previews of files elsewhere).
+    func use(_ library: SkinLibrary) { self.library = library }
+
     func select(_ id: String) {
         guard library.skin(id: id) != nil else { return }
         defaults.set(id, forKey: "gearSkin")

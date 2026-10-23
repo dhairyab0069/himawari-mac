@@ -139,5 +139,17 @@ extension Design {
                        Block(kind: .grille, height: nil, style: "", label: nil),
                        Block(kind: .wheel, height: 96, style: "knurled", label: "TUNING"),
                        Block(kind: .knobs, height: 80, style: "classic", label: nil)]),
+        // The worked example in docs/make-your-own.md: neon on black glass, the cover as a hologram card.
+        Design(id: "cyberpunk", name: "Cyberpunk", media: .card,
+               left: [Block(kind: .header, height: 40, style: "", label: nil),
+                      Block(kind: .display, height: 160, style: "vfd", label: nil),
+                      Block(kind: .buttons, height: 40, style: "bare", label: nil),
+                      Block(kind: .wheel, height: nil, style: "ring", label: "NEURAL SCRUB"),
+                      Block(kind: .spacer, height: 8, style: "", label: nil)],
+               right: [Block(kind: .header, height: 40, style: "", label: nil),
+                       Block(kind: .meters, height: 70, style: "leds", label: nil),
+                       Block(kind: .spectrum, height: nil, style: "", label: nil),
+                       Block(kind: .toggles, height: 64, style: "", label: nil),
+                       Block(kind: .knobs, height: 80, style: "flat", label: nil)]),
     ]
 }

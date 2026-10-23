@@ -849,10 +849,25 @@ final class MusicScene: NSView {
         card.cornerRadius = corner
         card.borderColor = NSColor(white: 1, alpha: 0.12).cgColor
         card.borderWidth = 1
+        if style.material == .neon { // the card glows in the accent colour, like a hologram's edge
+            let glow = CALayer()
+            glow.frame = rect
+            glow.cornerRadius = corner
+            glow.borderColor = style.colors.accent.cg
+            glow.borderWidth = 2
+            glow.shadowColor = style.colors.accent.cg
+            glow.shadowOpacity = 0.9
+            glow.shadowRadius = 18
+            glow.shadowOffset = .zero
+            holder.addSublayer(glow)
+            card.borderColor = style.colors.accent.cg
+            card.borderWidth = 1.5
+        }
         holder.addSublayer(card)
         label = card
         let line = CGRect(x: rect.minX, y: Card.bar.midY * side - 2, width: rect.width, height: 4)
-        addProgress(line, in: holder, track: NSColor(white: 1, alpha: 0.18).cgColor, fill: NSColor(white: 1, alpha: 0.85).cgColor)
+        addProgress(line, in: holder, track: NSColor(white: 1, alpha: 0.18).cgColor,
+                    fill: style.material == .neon ? style.colors.accent.cg : NSColor(white: 1, alpha: 0.85).cgColor)
         if motion == .full { // drifting gently up and down
             let float = CABasicAnimation(keyPath: "transform.translation.y")
             float.fromValue = -side * 0.008

@@ -354,6 +354,19 @@ enum Paint {
         NSColor(white: 1, alpha: 0.18).setStroke()
         plate.lineWidth = 1
         plate.stroke()
+        if skin.material == .neon { // a tube of light round the edge, glowing inward
+            NSGraphicsContext.saveGraphicsState()
+            plate.addClip()
+            for (width, alpha) in [(16.0, 0.06), (9.0, 0.12), (4.0, 0.3)] {
+                skin.colors.accent.alpha(alpha).ns.setStroke()
+                plate.lineWidth = width
+                plate.stroke()
+            }
+            NSGraphicsContext.restoreGraphicsState()
+            skin.colors.accent.alpha(0.95).ns.setStroke()
+            plate.lineWidth = 1.5
+            plate.stroke()
+        }
         for p in [CGPoint(x: r.minX + 12, y: r.minY + 12), CGPoint(x: r.maxX - 12, y: r.minY + 12),
                   CGPoint(x: r.minX + 12, y: r.maxY - 12), CGPoint(x: r.maxX - 12, y: r.maxY - 12)] where screws {
             screw(p)
@@ -380,7 +393,7 @@ enum Paint {
                 NSRect(x: r.minX + .random(in: 0..<r.width, using: &rng), y: r.minY + .random(in: 0..<r.height, using: &rng), width: 1, height: 1).fill()
             }
             NSGradient(colors: [NSColor(white: 1, alpha: 0.06), NSColor(white: 1, alpha: 0)])?.draw(in: r, angle: -90)
-        case .matte:
+        case .matte, .neon:
             break
         }
     }

@@ -1,0 +1,13 @@
+{
+  "format": 1,
+  "id": "my-neon",
+  "name": "My Neon",
+  "era": "minimal",
+  "base": "minimal-dark",
+  "colors": {
+    "display": "#00F0FF",
+    "accent": "#FF2BD6",
+    "peak": "#FFE600",
+    "label": "#FF2BD6"
+  }
+}
