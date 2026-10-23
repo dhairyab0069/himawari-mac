@@ -5,11 +5,11 @@ import Foundation
 /// `~/Library/Application Support/Himawari/Designs/`. A skin wears it by naming it ("design").
 /// Where the parts go is worked out from the blocks; how they're drawn comes from the eras.
 public struct Design: Equatable, Sendable {
-    public enum Media: String, CaseIterable, Sendable { case cd, record, cassette, discman, player, card }
+    public enum Media: String, CaseIterable, Sendable { case cd, record, cassette, discman, player, card, cartridge }
 
     public struct Block: Equatable, Sendable {
         public enum Kind: String, CaseIterable, Sendable {
-            case header, display, buttons, wheel, meters, spectrum, knobs, grille, toggles, sliders, power, spacer
+            case header, display, buttons, wheel, meters, spectrum, knobs, grille, toggles, sliders, power, spacer, gamepad
         }
         public var kind: Kind
         /// Points tall, or nil: share what's left with the other blocks that fill.
@@ -37,7 +37,7 @@ public struct Design: Equatable, Sendable {
     /// Each block's height when the file doesn't say (nil: it fills).
     static let defaultHeights: [Block.Kind: Double?] = [
         .header: 40, .display: 150, .buttons: 36, .wheel: nil, .meters: 120, .spectrum: nil, .knobs: 80,
-        .grille: nil, .toggles: 64, .sliders: 90, .power: 44, .spacer: 12,
+        .grille: nil, .toggles: 64, .sliders: 90, .power: 44, .spacer: 12, .gamepad: 110,
     ]
 }
 

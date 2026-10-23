@@ -23,6 +23,7 @@ enum MediaKind {
     case discman   // a CD in a portable player, under its clear lid
     case player    // a pocket player: the cover on its screen, a click wheel that scrubs
     case card      // the cover on a floating card
+    case cartridge // a handheld console's game cartridge, the cover on its label
 }
 
 @MainActor
@@ -52,6 +53,7 @@ enum Themes {
             case .discman: return .discman
             case .player: return .player
             case .card: return .card
+            case .cartridge: return .cartridge
             }
         }
         return media(skin.era)

@@ -43,7 +43,7 @@ final class DesignFileTests: XCTestCase {
         rejects(#"[{"block": "display", "colour": "red"}]"#, .unknownKey("left[0].colour"))
         rejects(#"[]"#, .badValue("left", "between 1 and 12 blocks"))
         XCTAssertThrowsError(try decode(#"{"format": 1, "id": "x", "name": "X", "media": "8-track", "# + minimal + "}")) {
-            XCTAssertEqual($0 as? SkinError, .badValue("media", "one of cd, record, cassette, discman, player, card"))
+            XCTAssertEqual($0 as? SkinError, .badValue("media", "one of cd, record, cassette, discman, player, card, cartridge"))
         }
     }
 

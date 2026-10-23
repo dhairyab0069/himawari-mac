@@ -132,6 +132,9 @@ struct CustomTheme: GearTheme {
             draws.append { Paint.powerRow(CGRect(x: column.minX, y: r.minY - 4, width: column.width, height: r.height), skin) }
         case .spacer:
             break
+        case .gamepad:
+            draws.append { Self.gamepad(r, skin) }
+            face.fixtures.append(r)
         }
     }
 
@@ -200,6 +203,31 @@ struct CustomTheme: GearTheme {
             y -= 1
         }
         face.uppercaseSong = style != "glass"
+    }
+
+    /// A handheld's D-pad on the left and its two face buttons on the right (they're for show).
+    static func gamepad(_ r: CGRect, _ skin: Skin) {
+        let s = min(r.height - 8, r.width * 0.36)
+        let pad = CGRect(x: r.minX + r.width * 0.06, y: r.midY - s / 2, width: s, height: s)
+        let arm = s * 0.34
+        let cross = NSBezierPath()
+        cross.append(NSBezierPath(roundedRect: CGRect(x: pad.midX - arm / 2, y: pad.minY, width: arm, height: s), xRadius: 3, yRadius: 3))
+        cross.append(NSBezierPath(roundedRect: CGRect(x: pad.minX, y: pad.midY - arm / 2, width: s, height: arm), xRadius: 3, yRadius: 3))
+        NSColor(white: 0, alpha: 0.35).setFill()
+        let shadow = cross.copy() as! NSBezierPath
+        shadow.transform(using: AffineTransform(translationByX: 0, byY: -2)); shadow.fill()
+        NSGradient(colors: skin.colors.button.map(\.ns))?.draw(in: cross, angle: -90)
+        NSColor(white: 0, alpha: 0.25).setFill()
+        NSBezierPath(ovalIn: CGRect(x: pad.midX - arm * 0.3, y: pad.midY - arm * 0.3, width: arm * 0.6, height: arm * 0.6)).fill()
+        let d = min(s * 0.42, r.width * 0.16)
+        for (i, name) in ["B", "A"].enumerated() { // A up and to the right of B, as on the real thing
+            let c = CGPoint(x: r.maxX - r.width * 0.3 + CGFloat(i) * d * 1.25, y: r.midY - d * 0.35 + CGFloat(i) * d * 0.7)
+            let b = CGRect(x: c.x - d / 2, y: c.y - d / 2, width: d, height: d)
+            NSColor(white: 0, alpha: 0.35).setFill()
+            NSBezierPath(ovalIn: b.offsetBy(dx: 0, dy: -2)).fill()
+            NSGradient(colors: skin.colors.button.map(\.ns))?.draw(in: NSBezierPath(ovalIn: b), relativeCenterPosition: NSPoint(x: -0.3, y: 0.4))
+            Paint.label(name, centeredAt: CGPoint(x: c.x + d * 0.62, y: c.y - d * 0.62), skin, size: 8)
+        }
     }
 
     /// The five transport buttons, in one of the eras' styles, with the play lamp above.

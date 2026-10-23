@@ -528,9 +528,9 @@ public struct SkinLibrary: Sendable {
                      { "block": "knobs" } ]
         }
 
-    media:   cd, record, cassette, discman, player, card
+    media:   cd, record, cassette, discman, player, card, cartridge
     blocks:  header, display, buttons, wheel, meters, spectrum, knobs, grille, toggles, sliders,
-             power, spacer
+             power, spacer, gamepad (a D-pad and two face buttons, for show)
     styles:  display vfd | lcd | glass | dial;  buttons rounded | keys | round | flat | bare;
              wheel knurled | ring | clickwheel;  knobs classic | flat | touch;
              meters needles | leds | spectrum

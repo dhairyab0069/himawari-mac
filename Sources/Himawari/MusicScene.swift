@@ -35,9 +35,9 @@ final class MusicScene: NSView {
     private(set) var discRect = CGRect.zero
     /// The media itself: the disc's square, or the cassette inside it.
     private(set) var mediaRect = CGRect.zero
-    var mediaIsRound: Bool { media != .cassette && media != .card }
+    var mediaIsRound: Bool { media != .cassette && media != .card && media != .cartridge }
     /// Today's look isn't turned: its progress line under the card is dragged instead (`mediaRect` is the line).
-    var mediaIsBar: Bool { media == .card }
+    var mediaIsBar: Bool { media == .card || media == .cartridge }
     /// The cover wrapped round a disc (DiscPrint): on a CD, in or out of a portable player.
     private var printed: Bool { media == .cd || media == .discman }
     /// How big the printed disc is.
@@ -156,7 +156,11 @@ final class MusicScene: NSView {
         sides.isHidden = info == nil
         sides.animating = animating
         if let info { sides.show(info) }
-        if info?.title != song?.title || info?.artist != song?.artist { song = info; writeTapeLabel() }
+        if info?.title != song?.title || info?.artist != song?.artist {
+            song = info
+            writeTapeLabel()
+            cartridgeTitle?.string = info?.title ?? ""
+        }
         song = info
         followSong(force: false)
     }
@@ -388,7 +392,7 @@ final class MusicScene: NSView {
         newHolder.add(enter, forKey: "in")
 
         // …and it arrives spinning a little faster, slowing to the normal speed (what turns, that is).
-        for spinner in spinners where media != .player && media != .card {
+        for spinner in spinners where media != .player && media != .card && media != .cartridge {
             let spinUp = CABasicAnimation(keyPath: "transform.rotation.z")
             // Additive and ending at 0, so removing it when it finishes changes nothing: an extra turn
             // that winds down (it used to end 2.6 rad off, and the print jumped ~150° at the end).
@@ -464,6 +468,7 @@ final class MusicScene: NSView {
         fills = []
         label = nil
         tapeText = nil
+        cartridgeTitle = nil
         switch media {
         case .cd:
             let (holder, disc) = makeDisc(side: discRect.width)
@@ -474,6 +479,7 @@ final class MusicScene: NSView {
         case .discman: return makeDiscman()
         case .player: return makePlayer()
         case .card: return makeCard()
+        case .cartridge: return makeCartridge()
         }
     }
 
@@ -862,6 +868,90 @@ final class MusicScene: NSView {
         return holder
     }
 
+    /// A handheld console's game cartridge, made for this song: grey plastic with its grip ridges,
+    /// and a label with the cover, the song's name and the skin's brand. It goes in from the right
+    /// as the song changes; the line under it scrubs.
+    private func makeCartridge() -> CALayer {
+        let side = discRect.width, scale = window?.backingScaleFactor ?? 2
+        let bounds = CGRect(x: 0, y: 0, width: side, height: side)
+        let w = side * 0.8, h = w * 35 / 57 // the real thing's shape
+        let body = CGRect(x: (side - w) / 2, y: side * 0.55 - h / 2, width: w, height: h)
+        let corner = h * 0.05
+        let holder = makeHolder(bounds, shadow: CGPath(roundedRect: body, cornerWidth: corner, cornerHeight: corner, transform: nil))
+        let label = CGRect(x: body.minX + w * 0.08, y: body.minY + h * 0.24, width: w * 0.84, height: h * 0.66)
+        let skin = style
+        let title = song?.title ?? ""
+        let shell = CALayer()
+        shell.frame = bounds
+        shell.contents = Paint.image(size: bounds.size, scale: scale) { _ in
+            Self.cartridgeShell(body, label: label, corner: corner, skin)
+        }
+        shell.contentsScale = scale
+        holder.addSublayer(shell)
+        // The label: a printed band at the top, the cover, the title along the bottom.
+        let band = h * 0.1
+        let art = CALayer()
+        art.frame = CGRect(x: label.minX, y: label.minY + band * 1.1, width: label.width, height: label.height - band * 2.1)
+        art.contents = cover
+        art.contentsGravity = .resizeAspectFill
+        art.masksToBounds = true
+        holder.addSublayer(art)
+        self.label = art
+        let name = CATextLayer()
+        name.frame = CGRect(x: label.minX + 6, y: label.minY + band * 0.1, width: label.width - 12, height: band)
+        name.string = title
+        name.font = NSFont.systemFont(ofSize: band * 0.62, weight: .heavy)
+        name.fontSize = band * 0.62
+        name.foregroundColor = NSColor(white: 0.12, alpha: 1).cgColor
+        name.alignmentMode = .center
+        name.truncationMode = .end
+        name.contentsScale = scale
+        holder.addSublayer(name)
+        cartridgeTitle = name
+        addProgress(CGRect(x: body.minX, y: Card.bar.midY * side - 2, width: w, height: 4), in: holder,
+                    track: NSColor(white: 1, alpha: 0.18).cgColor, fill: skin.colors.accent.cg)
+        spinners = []
+        return holder
+    }
+    /// The song's name on the cartridge's label (kept up to date by `setSong`).
+    private var cartridgeTitle: CATextLayer?
+
+    private static func cartridgeShell(_ body: CGRect, label: CGRect, corner: CGFloat, _ skin: Skin) {
+        let plastic = SkinColor(0.44, 0.44, 0.47)
+        // The outline: square shoulders at the top, a notch on the right where it clicks in.
+        let shape = NSBezierPath(roundedRect: body, xRadius: corner, yRadius: corner)
+        NSGradient(colors: [plastic.mixed(SkinColor(1, 1, 1), 0.18).ns, plastic.ns, plastic.mixed(SkinColor(0, 0, 0), 0.25).ns],
+                   atLocations: [0, 0.6, 1], colorSpace: .sRGB)?.draw(in: shape, angle: -90)
+        NSColor(white: 1, alpha: 0.25).setStroke(); shape.lineWidth = 1; shape.stroke()
+        let notch = CGRect(x: body.maxX - body.width * 0.07, y: body.minY, width: body.width * 0.07, height: body.height * 0.14)
+        NSColor(white: 0, alpha: 0.55).setFill()
+        NSBezierPath(roundedRect: notch, xRadius: 2, yRadius: 2).fill()
+        // The label's recess, and the label.
+        NSColor(white: 0, alpha: 0.35).setFill()
+        NSBezierPath(roundedRect: label.insetBy(dx: -3, dy: -3), xRadius: corner, yRadius: corner).fill()
+        NSColor(white: 0.96, alpha: 1).setFill()
+        NSBezierPath(roundedRect: label, xRadius: corner * 0.4, yRadius: corner * 0.4).fill()
+        let band = body.height * 0.1
+        let top = CGRect(x: label.minX, y: label.maxY - band, width: label.width, height: band)
+        skin.colors.accent.ns.setFill()
+        NSRect(x: top.minX, y: top.minY, width: top.width, height: top.height).fill()
+        let brand = NSAttributedString(string: (skin.brand + " ADVANCE").uppercased(), attributes: [
+            .font: NSFont.systemFont(ofSize: band * 0.55, weight: .heavy), .kern: 2, .foregroundColor: NSColor(white: 0.1, alpha: 0.85)])
+        brand.draw(at: NSPoint(x: top.midX - brand.size().width / 2, y: top.midY - brand.size().height / 2))
+        // The grip: ridges across the bottom, and the arrow showing which way it goes in.
+        for i in 0..<5 {
+            let y = body.minY + body.height * (0.04 + CGFloat(i) * 0.035)
+            NSColor(white: 0, alpha: 0.25).setFill()
+            NSRect(x: body.minX + body.width * 0.25, y: y, width: body.width * 0.5, height: 1.2).fill()
+            NSColor(white: 1, alpha: 0.15).setFill()
+            NSRect(x: body.minX + body.width * 0.25, y: y + 1.2, width: body.width * 0.5, height: 0.8).fill()
+        }
+        let arrow = NSBezierPath()
+        let a = CGPoint(x: body.minX + body.width * 0.15, y: body.minY + body.height * 0.1)
+        arrow.move(to: CGPoint(x: a.x - 6, y: a.y + 4)); arrow.line(to: CGPoint(x: a.x + 6, y: a.y + 4)); arrow.line(to: CGPoint(x: a.x, y: a.y - 5)); arrow.close()
+        NSColor(white: 0, alpha: 0.35).setFill(); arrow.fill()
+    }
+
     /// A rounded progress line in `holder`: its groove, and the fill that `followSong` moves.
     private func addProgress(_ r: CGRect, in holder: CALayer, track: CGColor, fill: CGColor) {
         let groove = CALayer()
@@ -1017,13 +1107,13 @@ final class MusicScene: NSView {
         spin.byValue = -2 * Double.pi // clockwise, like a record
         // A record turns at its own steady pace (33⅓ would blur); a cassette's hubs turn quickly.
         // A pocket player's wheel and a cover card don't turn by themselves; nothing does when still.
-        guard motion != .still, media != .player, media != .card else { return }
+        guard motion != .still, media != .player, media != .card, media != .cartridge else { return }
         let full = motion == .full
         spin.duration = switch media {
         case .cd, .discman: full ? 14 : 30
         case .record: full ? 9 : 20
         case .cassette: full ? 3 : 6
-        case .player, .card: 0
+        case .player, .card, .cartridge: 0
         }
         spin.repeatCount = .infinity
         spin.isRemovedOnCompletion = false
@@ -1075,7 +1165,7 @@ final class MusicScene: NSView {
                 wind.preferredFrameRateRange = CAFrameRateRange(minimum: 1, maximum: 4, preferred: 2)
                 pack.add(wind, forKey: "wind")
             }
-        case .player, .card:
+        case .player, .card, .cartridge:
             // The progress line fills to where the song is, then on to the end with it.
             for fill in fills {
                 CATransaction.begin()
@@ -1157,7 +1247,7 @@ final class MusicScene: NSView {
         mediaRect = switch media {
         case .cassette: inSquare(Tape.tapeRect)
         case .player: inSquare(Player.wheel)
-        case .card: inSquare(Card.bar)
+        case .card, .cartridge: inSquare(Card.bar)
         default: discRect
         }
         ambient.arrange(in: bounds, around: discRect)

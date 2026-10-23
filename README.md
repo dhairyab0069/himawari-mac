@@ -167,8 +167,8 @@ changer: your playlists as discs to flip through and play.
 
 <p align="center"><img src="docs/styles.png" width="760" alt="The six eras: a walnut receiver with a record and tonearm; a tape deck with a cassette in front of its case; a portable CD player under its clear lid; the black CD rack; a white pocket player with a click wheel, on its speaker dock; today's dark glass panels with the cover on a floating card"></p>
 
-**Himawari menu ▸ Style** picks what the side gear and the middle of the music scene look like.
-**Style ▸ Customise…** shows them all as live previews.
+**Himawari menu ▸ Style…** opens the Customise window: every style as a live preview, grouped by era
+(and by your own eras), to pick from.
 
 | Era | The player | In the middle | Skins |
 |---|---|---|---|
@@ -236,8 +236,8 @@ skin that wears it, and opens it:
 
 | | |
 |---|---|
-| `media` | `cd`, `record`, `cassette`, `discman`, `player`, `card` |
-| Blocks | `header`, `display` (`vfd`, `lcd`, `glass`, `dial`), `buttons` (`rounded`, `keys`, `round`, `flat`, `bare`), `wheel` (`knurled`, `ring`, `clickwheel`; a `label`), `meters` (`needles`, `leds`, `spectrum`), `spectrum`, `knobs` (`classic`, `flat`, `touch`), `grille`, `toggles`, `sliders`, `power`, `spacer` |
+| `media` | `cd`, `record`, `cassette`, `discman`, `player`, `card`, `cartridge` (a handheld console's game cartridge, made for each song: the cover and title on its label) |
+| Blocks | `header`, `display` (`vfd`, `lcd`, `glass`, `dial`), `buttons` (`rounded`, `keys`, `round`, `flat`, `bare`), `wheel` (`knurled`, `ring`, `clickwheel`; a `label`), `meters` (`needles`, `leds`, `spectrum`), `spectrum`, `knobs` (`classic`, `flat`, `touch`), `grille`, `toggles`, `sliders`, `power`, `spacer`, `gamepad` (a D-pad and two face buttons) |
 | `height` | Points, or `"fill"` to share what's left (a grille, a wheel and a spectrum fill unless told otherwise) |
 
 A design needs one display, one row of buttons, one wheel and one row of knobs, on either side. A skin

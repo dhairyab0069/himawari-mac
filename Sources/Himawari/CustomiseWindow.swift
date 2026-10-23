@@ -54,7 +54,8 @@ final class StyleCustomiser {
 final class CustomiseModel: ObservableObject {
     @Published var chosen: String = Styles.shared.chosen.id
     @Published var options = Styles.shared.options
-    @Published private(set) var skins: [GearEra: [Skin]] = [:]
+    /// The styles to pick from: each era's skins, then each design's (your own eras).
+    @Published private(set) var sections: [(title: String, skins: [Skin])] = []
     @Published private(set) var problems: [String] = []
     @Published private(set) var thumbnails: [String: NSImage] = [:]
     @Published private(set) var preview: NSImage?
@@ -70,14 +71,16 @@ final class CustomiseModel: ObservableObject {
         chosen = Styles.shared.chosen.id
         options = Styles.shared.options
         let library = Styles.shared.library
-        skins = Dictionary(uniqueKeysWithValues: GearEra.allCases.map { ($0, library.skins(of: $0)) })
+        let worn = { (s: Skin) in s.design.flatMap { library.design(id: $0) } }
+        sections = GearEra.allCases.map { era in (era.title, library.skins(of: era).filter { worn($0) == nil }) }.filter { !$0.skins.isEmpty }
+            + library.designs.map { d in (d.name, library.skins.filter { worn($0)?.id == d.id }) }.filter { !$0.skins.isEmpty }
         problems = library.problems
         thumbnails = thumbnails.filter { id, _ in library.skin(id: id) != nil }
         renderThumbnails()
         refreshPreview()
     }
 
-    var allSkins: [Skin] { GearEra.allCases.flatMap { skins[$0] ?? [] } }
+    var allSkins: [Skin] { sections.flatMap(\.skins) }
 
     func choose(_ id: String) {
         chosen = id
@@ -250,13 +253,11 @@ private struct CustomiseView: View {
     private var styles: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 12) {
-                ForEach(GearEra.allCases, id: \.self) { era in
-                    if let skins = model.skins[era], !skins.isEmpty {
-                        Text(era.title).font(.headline)
-                        ScrollView(.horizontal, showsIndicators: false) {
-                            HStack(spacing: 10) {
-                                ForEach(skins, id: \.id) { skin in tile(skin) }
-                            }
+                ForEach(model.sections, id: \.title) { section in
+                    Text(section.title).font(.headline)
+                    ScrollView(.horizontal, showsIndicators: false) {
+                        HStack(spacing: 10) {
+                            ForEach(section.skins, id: \.id) { skin in tile(skin) }
                         }
                     }
                 }
@@ -265,7 +266,6 @@ private struct CustomiseView: View {
     }
 
     private func tile(_ skin: Skin) -> some View {
-        let design = skin.design.flatMap { Styles.shared.library.design(id: $0) }
         let selected = skin.id == model.chosen
         return Button { model.choose(skin.id) } label: {
             VStack(alignment: .leading, spacing: 4) {
@@ -280,7 +280,7 @@ private struct CustomiseView: View {
                 .frame(width: 150)
                 .clipShape(RoundedRectangle(cornerRadius: 6))
                 .overlay(RoundedRectangle(cornerRadius: 6).stroke(selected ? Color.accentColor : .clear, lineWidth: 3))
-                Text(design.map { "\(skin.name) · \($0.name)" } ?? skin.name).font(.caption).foregroundStyle(selected ? .primary : .secondary)
+                Text(skin.name).font(.caption).foregroundStyle(selected ? .primary : .secondary)
             }
         }
         .buttonStyle(.plain)

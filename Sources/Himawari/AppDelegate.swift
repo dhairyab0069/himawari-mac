@@ -598,45 +598,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
 
     // MARK: - Style: the side gear's era and skin
 
+    /// Style…: everything about the look is in the Customise window, with previews to pick from.
     private func styleItem() -> NSMenuItem {
-        let entry = NSMenuItem(title: "Style", action: nil, keyEquivalent: "")
-        let sub = NSMenu()
-        let styles = Styles.shared
-        let current = styles.chosen.id
-        sub.addItem(item("Customise…", #selector(showCustomiser)))
-        let following = styles.options.mode
-        if following != .pinned {
-            let note = NSMenuItem(title: following == .genre ? "Following the genre: \(styles.current.name)" : "In the cover's colours",
-                                  action: nil, keyEquivalent: "")
-            note.isEnabled = false
-            sub.addItem(note)
-        }
-        sub.addItem(.separator())
-        for era in GearEra.allCases {
-            let skins = styles.library.skins(of: era)
-            guard !skins.isEmpty else { continue }
-            if sub.numberOfItems > 0 { sub.addItem(.separator()) }
-            let heading = NSMenuItem(title: era.title, action: nil, keyEquivalent: "")
-            heading.isEnabled = false
-            sub.addItem(heading)
-            for skin in skins {
-                let design = skin.design.flatMap { styles.library.design(id: $0) }
-                let choice = item(design.map { "\(skin.name) (\($0.name))" } ?? skin.name, #selector(chooseSkin(_:)), checked: skin.id == current)
-                choice.representedObject = skin.id
-                choice.indentationLevel = 1
-                sub.addItem(choice)
-            }
-        }
-        sub.addItem(.separator())
-        sub.addItem(item("Open Skins Folder", #selector(openSkinsFolder)))
-        sub.addItem(item("Reload Skins", #selector(reloadSkins)))
-        for problem in styles.library.problems { // a skin file with a mistake: say which, and what
-            let note = NSMenuItem(title: "⚠︎ " + problem, action: nil, keyEquivalent: "")
-            note.isEnabled = false
-            sub.addItem(note)
-        }
-        entry.submenu = sub
-        return entry
+        let mode = Styles.shared.options.mode
+        let now = mode == .genre ? "following the genre" : mode == .coverColours ? "in the cover's colours" : Styles.shared.chosen.name
+        return item("Style… (\(now))", #selector(showCustomiser))
     }
 
     @objc private func chooseSkin(_ sender: NSMenuItem) {
