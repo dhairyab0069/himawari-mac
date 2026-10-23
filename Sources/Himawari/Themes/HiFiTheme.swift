@@ -150,12 +150,16 @@ struct HiFiTheme: GearTheme {
                 .draw(in: NSBezierPath(ovalIn: NSRect(x: c.x - 8, y: c.y - 8, width: 16, height: 16)), angle: -60) // the nut
             NSColor(white: 0, alpha: 0.6).setFill()
             NSBezierPath(ovalIn: NSRect(x: c.x - 3.5, y: c.y - 3.5, width: 7, height: 7)).fill()
-            let tip = CGPoint(x: c.x, y: c.y + (up[i] ? 17 : -17))
+            // Seen from the front, the lever is foreshortened: short, tapering to its ball.
+            let tip = CGPoint(x: c.x, y: c.y + (up[i] ? 12 : -12))
+            let dir: CGFloat = up[i] ? 1 : -1
             let lever = NSBezierPath()
-            lever.move(to: c); lever.line(to: tip)
-            lever.lineWidth = 3.5
-            lever.lineCapStyle = .round
-            NSColor(white: 0.9, alpha: 1).setStroke(); lever.stroke()
+            lever.move(to: CGPoint(x: c.x - 2.2, y: c.y)); lever.line(to: CGPoint(x: c.x - 1.2, y: tip.y - dir * 2))
+            lever.line(to: CGPoint(x: c.x + 1.2, y: tip.y - dir * 2)); lever.line(to: CGPoint(x: c.x + 2.2, y: c.y)); lever.close()
+            NSColor(white: 0, alpha: 0.35).setFill()
+            lever.transform(using: AffineTransform(translationByX: 1, byY: -1.5)); lever.fill() // its shadow
+            lever.transform(using: AffineTransform(translationByX: -1, byY: 1.5))
+            NSGradient(colors: [NSColor(white: 0.95, alpha: 1), NSColor(white: 0.62, alpha: 1)])?.draw(in: lever, angle: 0)
             NSGradient(colors: [NSColor(white: 1, alpha: 1), NSColor(white: 0.6, alpha: 1)])?
                 .draw(in: NSBezierPath(ovalIn: NSRect(x: tip.x - 3.5, y: tip.y - 3.5, width: 7, height: 7)), angle: -60)
             Paint.label(name, centeredAt: CGPoint(x: c.x, y: r.minY + 4), skin, size: 7)
