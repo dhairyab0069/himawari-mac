@@ -343,6 +343,19 @@ final class WallpaperManager {
         refreshControls()
     }
 
+    /// The song's lyrics (nil: none, or off), its timing correction, and where they show.
+    func showLyrics(_ lyrics: Lyrics?, offset: Double, mode: LyricsMode) {
+        NowPlayingSides.words = (lyrics, offset, mode)
+        for canvas in canvases { canvas.gear?.lyricsMode = mode; canvas.gear?.lyricsOffset = offset; canvas.gear?.lyrics = lyrics }
+        scenes.forEach { $0.showLyrics(lyrics, offset: offset, mode: mode) }
+    }
+
+    /// A new timing correction for this song's lyrics.
+    func nudgeLyrics(_ offset: Double) {
+        let w = NowPlayingSides.words
+        showLyrics(w.lyrics, offset: offset, mode: w.mode)
+    }
+
     /// Puts the click catchers over whatever gear and disc are on screen now.
     func refreshControls() {
         for g in gear { g.capabilities = playerCapabilities }

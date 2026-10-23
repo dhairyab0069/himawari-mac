@@ -28,7 +28,11 @@ enum MediaKind {
 @MainActor
 enum Themes {
     static func make(_ skin: Skin, meters: StyleOptions.Meters = .era) -> GearTheme {
-        switch skin.era {
+        // Your own era, when the skin wears one that's there (otherwise its era's own layout).
+        if let id = skin.design, let design = Styles.shared.library.design(id: id) {
+            return CustomTheme(skin: skin, design: design, meters: meters)
+        }
+        return switch skin.era {
         case .rack: RackTheme(skin: skin, meters: meters)
         case .hifi: HiFiTheme(skin: skin, meters: meters)
         case .cassette: CassetteTheme(skin: skin, meters: meters)
@@ -36,6 +40,21 @@ enum Themes {
         case .pocket: PocketTheme(skin: skin, meters: meters)
         case .minimal: MinimalTheme(skin: skin, meters: meters)
         }
+    }
+
+    /// What plays in the middle for this skin: its design's media, or its era's.
+    static func media(_ skin: Skin) -> MediaKind {
+        if let id = skin.design, let design = Styles.shared.library.design(id: id) {
+            switch design.media {
+            case .cd: return .cd
+            case .record: return .record
+            case .cassette: return .cassette
+            case .discman: return .discman
+            case .player: return .player
+            case .card: return .card
+            }
+        }
+        return media(skin.era)
     }
 
     static func media(_ era: GearEra) -> MediaKind {

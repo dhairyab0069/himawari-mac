@@ -17,7 +17,7 @@
 
 | Suite | Covers |
 |---|---|
-| `HimawariKitTests` | album matching for animated covers, name normalising, HLS stream choice, EQ tone bands, wallpaper brightness readings, playlists, skin files (loading, defaults from a base, rejecting bad values, the skins folder), genre → style rules, the Customise choices round-tripping through settings, cover tints |
+| `HimawariKitTests` | album matching for animated covers, name normalising, HLS stream choice, EQ tone bands, wallpaper brightness readings, playlists, skin files (loading, defaults from a base, rejecting bad values, the skins folder), genre → style rules, the Customise choices round-tripping through settings, cover tints, LRC lyrics (stamps, offsets, word timing, the line for a position, pages) and choosing LRCLIB results, design files |
 | `HimawariTests` | jog-wheel / CD turn maths, scrub clamping, the VU scale, where a cover goes on the CD, each era's layout (controls on the panel and apart at every size), switching styles keeps the song, the tonearm and tape maths |
 | `HimawariClockTests` | 12/24-hour, Swatch .beats, decimal time, time in words, tick intervals |
 

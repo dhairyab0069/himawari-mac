@@ -69,18 +69,18 @@ final class MusicScene: NSView {
             var lit = oldValue
             lit.colors.display = style.colors.display
             lit.colors.accent = style.colors.accent
-            if lit == style, media != .player { return }
+            if lit == style, media != .player, style.design == nil { return } // (a design's media may take the colours)
             // A change of discs under way: let it finish, then change the media (a new record
             // mustn't be swapped out from under its own slide).
             guard !changing else { restyleAfterChange = true; return }
             restyle()
         }
     }
-    private(set) var media: MediaKind = Themes.media(Styles.shared.current.era)
+    private(set) var media: MediaKind = Themes.media(Styles.shared.current)
     private var restyleAfterChange = false
 
     private func restyle() {
-        media = Themes.media(style.era)
+        media = Themes.media(style)
         print = nil // a CD's print is made again for it (the cover may have changed meanwhile)
         layoutScene(force: true)
     }
@@ -95,6 +95,12 @@ final class MusicScene: NSView {
     private let sides = NowPlayingSides(frame: .zero)
     var meterSource: AudioLevels? { didSet { sides.meterSource = meterSource } }
     func levelsChanged() { sides.levelsChanged() }
+    /// The song's words for the side gear (shown even before the gear is, once it is).
+    func showLyrics(_ lyrics: Lyrics?, offset: Double, mode: LyricsMode) {
+        sides.lyricsMode = mode
+        sides.lyricsOffset = offset
+        sides.lyrics = lyrics
+    }
     /// The meters held at a typical level (for still pictures).
     func showSampleLevels() { sides.showSampleLevels() }
     /// The side gear beside the disc (for the click catchers).

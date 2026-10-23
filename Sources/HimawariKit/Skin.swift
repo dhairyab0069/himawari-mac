@@ -78,6 +78,9 @@ public struct Skin: Equatable, Sendable {
     public var brandFont: String?
     public var displayFont: String?
     public var layout: Layout
+    /// Your own era to wear (a design file's id), instead of the era's own layout. The era still
+    /// says which built-in skin is the base and where the skin shows in the menus.
+    public var design: String? = nil
 
     public struct Colors: Equatable, Sendable {
         public var plate: [SkinColor]   // 3: the faceplate's top, middle and bottom
@@ -125,7 +128,7 @@ public enum SkinError: Error, Equatable, CustomStringConvertible {
 
 extension Skin {
     private static let topKeys: Set<String> = ["format", "id", "name", "era", "base", "brand", "models", "material",
-                                               "grain", "colors", "fonts", "layout"]
+                                               "grain", "colors", "fonts", "layout", "design"]
     private static let colorCounts: [String: Int] = ["plate": 3, "glass": 2, "display": 1, "accent": 1, "peak": 1,
                                                      "label": 1, "ink": 1, "meter": 2, "button": 2, "knob": 2,
                                                      "case": 1, "media": 1]
@@ -158,6 +161,12 @@ extension Skin {
         skin.name = name
         skin.era = era
         if let brand = try text(d, "brand", required: false, limit: 20) { skin.brand = brand }
+        if d.keys.contains("design") {
+            skin.design = try text(d, "design", required: false, limit: 40)
+            if let design = skin.design, design.range(of: "^[a-z0-9][a-z0-9-]*$", options: .regularExpression) == nil {
+                throw SkinError.badValue("design", "a design file's id: lowercase letters, digits and dashes")
+            }
+        }
 
         if let models = d["models"] {
             guard let m = models as? [String: Any] else { throw SkinError.badValue("models", "expected {\"left\": …, \"right\": …}") }
@@ -227,7 +236,7 @@ extension Skin {
         func one(_ c: SkinColor) -> String { c.hex }
         func n(_ v: Double) -> NSDecimalNumber { NSDecimalNumber(string: String(v)) } // 0.035, not 0.03500000000000002
         func list(_ c: [SkinColor]) -> [String] { c.map(\.hex) }
-        let d: [String: Any] = [
+        var d: [String: Any] = [
             "format": 1, "id": id, "name": name, "era": era.rawValue, "brand": brand,
             "models": ["left": leftModel, "right": rightModel],
             "material": material.rawValue, "grain": n(grain),
@@ -239,6 +248,7 @@ extension Skin {
             "layout": ["columnWidth": n(layout.columnWidth), "corner": n(layout.corner), "gap": n(layout.gap),
                        "caseWidth": n(layout.caseWidth)],
         ]
+        if let design { d["design"] = design }
         return (try? JSONSerialization.data(withJSONObject: d, options: [.prettyPrinted, .sortedKeys])) ?? Data()
     }
 
@@ -409,6 +419,16 @@ extension Skin {
                            knob: [c("#FFFFFF60"), c("#FFFFFF30")], cabinet: c("#FFFFFF33"), media: c("#FFFFFF")),
              brandFont: "HelveticaNeue-Medium", displayFont: nil,
              layout: .init(columnWidth: 300, corner: 22, gap: 8, caseWidth: 0)),
+        // Wearing the example design (Design.builtIn): a boombox, in the black tape deck's colours.
+        Skin(id: "boombox-black", name: "Boombox", era: .cassette, brand: "HIMAWARI",
+             leftModel: "STEREO RADIO CASSETTE   RC-1986", rightModel: "4-BAND RECEIVER   SUPER WOOFER",
+             material: .chrome, grain: 0.03,
+             colors: .init(plate: [c("#D8DBDE"), c("#9DA2A7"), c("#C4C8CC")], glass: [c("#061210"), c("#020806")],
+                           display: c("#5CF2C4"), accent: c("#FFC23D"), peak: c("#FF3B30"), label: c("#1D2023"),
+                           ink: c("#2E1F14"), meter: [c("#FFE6A8"), c("#EDB866")], button: [c("#4C4C50"), c("#1E1E21")],
+                           knob: [c("#5A5A5E"), c("#141416")], cabinet: c("#1C1C1E"), media: c("#1D1D20")),
+             brandFont: "AvenirNext-HeavyItalic", displayFont: nil,
+             layout: .init(columnWidth: 300, corner: 10, gap: 6, caseWidth: 0), design: "boombox"),
     ]
 
     /// Today's look: what Himawari shows until you pick another.
@@ -422,13 +442,31 @@ extension Skin {
 public struct SkinLibrary: Sendable {
     public private(set) var skins: [Skin]
     public private(set) var problems: [String]
+    /// Your own eras (and the built-in example).
+    public private(set) var designs: [Design]
 
     public static let folder = FileManager.default.homeDirectoryForCurrentUser
         .appending(path: "Library/Application Support/Himawari/Skins")
+    public static let designsFolder = FileManager.default.homeDirectoryForCurrentUser
+        .appending(path: "Library/Application Support/Himawari/Designs")
 
-    public init(folder: URL? = SkinLibrary.folder) {
+    public init(folder: URL? = SkinLibrary.folder, designsFolder: URL? = SkinLibrary.designsFolder) {
         skins = Skin.builtIn
         problems = []
+        designs = Design.builtIn
+        if let designsFolder, let names = try? FileManager.default.contentsOfDirectory(atPath: designsFolder.path) {
+            for name in names.sorted() where name.lowercased().hasSuffix(".json") {
+                do {
+                    guard let data = try? Data(contentsOf: designsFolder.appending(path: name)), data.count < 64 * 1024 else {
+                        throw SkinError.badValue(name, "can't be read")
+                    }
+                    let design = try Design.decode(data)
+                    if let i = designs.firstIndex(where: { $0.id == design.id }) { designs[i] = design } else { designs.append(design) }
+                } catch {
+                    problems.append("Designs/\(name): \(error)")
+                }
+            }
+        }
         guard let folder, let names = try? FileManager.default.contentsOfDirectory(atPath: folder.path) else { return }
         var seen: Set<String> = []
         for name in names.sorted() where name.lowercased().hasSuffix(".json") {
@@ -446,6 +484,7 @@ public struct SkinLibrary: Sendable {
     }
 
     public func skin(id: String?) -> Skin? { skins.first { $0.id == id } }
+    public func design(id: String?) -> Design? { designs.first { $0.id == id } }
 
     /// The skins of one era, in menu order (built-ins first, then yours by name).
     public func skins(of era: GearEra) -> [Skin] {
@@ -465,7 +504,44 @@ public struct SkinLibrary: Sendable {
             try skin.encoded().write(to: examples.appending(path: "\(skin.id).json"), options: .atomic)
         }
         try readMe.write(to: folder.appending(path: "README.txt"), atomically: true, encoding: .utf8)
+        let designs = designsFolder.appending(path: "Examples")
+        try FileManager.default.createDirectory(at: designs, withIntermediateDirectories: true)
+        for design in Design.builtIn { try design.encoded().write(to: designs.appending(path: "\(design.id).json"), options: .atomic) }
+        try designReadMe.write(to: designsFolder.appending(path: "README.txt"), atomically: true, encoding: .utf8)
     }
+
+    static let designReadMe = """
+    Himawari designs: your own eras
+    ===============================
+
+    A design is the side gear's layout: each panel as a stack of blocks, top to bottom, and what
+    plays in the middle. A skin wears it with "design": "<the design's id>" (and still sets the
+    colours, fonts and so on; its "era" picks the built-in skin it starts from).
+
+        {
+          "format": 1, "id": "boombox", "name": "1980s Boombox", "media": "cassette",
+          "left":  [ { "block": "header" }, { "block": "grille" },
+                     { "block": "display", "style": "vfd", "height": 140 },
+                     { "block": "buttons", "style": "keys" }, { "block": "power" } ],
+          "right": [ { "block": "header" }, { "block": "meters", "style": "leds", "height": 70 },
+                     { "block": "grille" }, { "block": "wheel", "label": "TUNING", "height": 96 },
+                     { "block": "knobs" } ]
+        }
+
+    media:   cd, record, cassette, discman, player, card
+    blocks:  header, display, buttons, wheel, meters, spectrum, knobs, grille, toggles, sliders,
+             power, spacer
+    styles:  display vfd | lcd | glass | dial;  buttons rounded | keys | round | flat | bare;
+             wheel knurled | ring | clickwheel;  knobs classic | flat | touch;
+             meters needles | leds | spectrum
+    height:  points (8-400), or "fill" to share what's left (grille, wheel and spectrum fill
+             unless told otherwise)
+    label:   text under a wheel
+
+    A design needs exactly one display, one row of buttons, one wheel and one row of knobs, on
+    either side. The built-in example is in Examples/ (rewritten each launch). Save a design
+    here, then a skin with its id in ../Skins/, and pick the skin in Style; both reload as you save.
+    """
 
     static let readMe = """
     Himawari skins

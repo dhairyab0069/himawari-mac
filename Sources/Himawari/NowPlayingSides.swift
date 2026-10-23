@@ -74,8 +74,31 @@ final class NowPlayingSides: NSView {
     private var shownTime = ""
     /// "DHH · 7 / 41": the playlist and the song's place in it, shown instead of the album.
     var playlistLabel: String? {
-        didSet { if playlistLabel != oldValue, let info { texts[.album]?.string = playlistLabel ?? info.album } }
+        didSet { if playlistLabel != oldValue { showAlbumLine() } }
     }
+
+    // Lyrics
+    /// The song's words (nil: none found, or lyrics off), shown per `lyricsMode`.
+    var lyrics: Lyrics? = NowPlayingSides.words.lyrics { didSet { if lyrics != oldValue { showLyric(force: true) } } }
+    /// Seconds to shift them by (positive: later), for a file that runs early or late.
+    var lyricsOffset: Double = NowPlayingSides.words.offset { didSet { if lyricsOffset != oldValue { showLyric(force: true) } } }
+    var lyricsMode: LyricsMode = NowPlayingSides.words.mode {
+        didSet {
+            guard lyricsMode != oldValue else { return }
+            layoutLyrics()
+            showLyric(force: true)
+        }
+    }
+    /// The line being sung, on the display in place of the album (nil: show the album).
+    /// The lyrics everywhere right now: a gear made later (a new screen, a new scene) starts with them.
+    static var words: (lyrics: Lyrics?, offset: Double, mode: LyricsMode) = (nil, 0, .off)
+    private var displayLyric: String?
+    private var albumAlpha: CGFloat = 0.5 // how dim the era draws the album line
+    private let lyricsLayer = CALayer()                     // the big lines on the desktop, under the media
+    private let bigLine = CATextLayer(), nextLine = CATextLayer()
+    private let sungLine = CATextLayer(), sungMask = CALayer() // the same line, bright, revealed word by word
+    private var shownLyric: (index: Int?, playing: Bool, preview: Bool) = (nil, false, false)
+    private var lyricTimer: Timer?
     /// Music's volume, 0…1: where the VOLUME knob points.
     var volume: Double = 0.5 { didSet { pointKnobs() } }
     /// BASS and TREBLE in dB, −12…12 (Himawari's equalizer preset in Music).
@@ -115,6 +138,25 @@ final class NowPlayingSides: NSView {
         wantsLayer = true
         layer?.addSublayer(deck)
         layer?.addSublayer(analyzer)
+        layer?.addSublayer(lyricsLayer)
+        for (t, size, weight, alpha) in [(bigLine, 26.0, NSFont.Weight.semibold, 1.0), (sungLine, 26.0, .semibold, 1.0), (nextLine, 17.0, .medium, 0.5)] {
+            t.font = NSFont.systemFont(ofSize: size, weight: weight)
+            t.fontSize = size
+            t.foregroundColor = NSColor(white: 1, alpha: alpha).cgColor
+            t.alignmentMode = .center
+            t.truncationMode = .end
+            t.isWrapped = false
+            t.contentsScale = 2
+            t.shadowColor = NSColor.black.cgColor
+            t.shadowOpacity = 0.65
+            t.shadowRadius = 6
+            t.shadowOffset = .zero
+            lyricsLayer.addSublayer(t)
+        }
+        sungMask.backgroundColor = NSColor.white.cgColor
+        sungMask.anchorPoint = CGPoint(x: 0, y: 0.5)
+        sungLine.mask = sungMask
+        lyricsLayer.isHidden = true
         scheduleTick()
     }
 
@@ -166,8 +208,19 @@ final class NowPlayingSides: NSView {
         let caps = faces?.left.uppercaseSong ?? true
         texts[.title]?.string = caps ? info.title.uppercased() : info.title
         texts[.artist]?.string = caps ? info.artist.uppercased() : info.artist
-        texts[.album]?.string = playlistLabel ?? info.album
+        showAlbumLine()
         layoutTitle()
+    }
+
+    /// The display's last line: the lyric being sung, or the playlist, or the album.
+    private func showAlbumLine() {
+        guard let info else { return }
+        CATransaction.begin()
+        CATransaction.setDisableActions(true)
+        texts[.album]?.string = displayLyric ?? playlistLabel ?? info.album
+        // A lyric reads at full strength; the album line is dimmed.
+        texts[.album]?.foregroundColor = style.colors.display.alpha(displayLyric != nil ? 1 : Double(albumAlpha)).cg
+        CATransaction.commit()
     }
 
     private func lightLamp() {
@@ -186,6 +239,7 @@ final class NowPlayingSides: NSView {
 
     private func rebuild() {
         build()
+        layoutLyrics()
         if info != nil {
             showSongText()
             lightIndicators()
@@ -258,6 +312,7 @@ final class NowPlayingSides: NSView {
             t.shadowRadius = face.glow.radius
             t.shadowOffset = .zero
             if let s = part.string { t.string = s }
+            if part.role == .album { albumAlpha = part.alpha }
             if part.role == .title {
                 titleClip.frame = part.frame
                 titleClip.masksToBounds = true
@@ -720,6 +775,7 @@ final class NowPlayingSides: NSView {
 
     private func updateTime() {
         guard let info else { return }
+        showLyric(force: false)
         func mmss(_ t: Double) -> String { String(format: "%02d:%02d", Int(t) / 60, Int(t) % 60) }
         let p = min(max(currentPosition() + (previewOffset ?? 0), 0), max(info.duration, 0))
         let fraction = info.duration > 0 ? p / info.duration : 0
@@ -749,6 +805,101 @@ final class NowPlayingSides: NSView {
             }
         }
         CATransaction.commit()
+    }
+
+    // MARK: Lyrics
+
+    /// Where the big lines go: just under the media, or over the bottom of a video that fills the height.
+    private func layoutLyrics() {
+        CATransaction.begin()
+        CATransaction.setDisableActions(true)
+        defer { CATransaction.commit() }
+        lyricsLayer.frame = bounds
+        let width = min(max(video.width + 120, 520), bounds.width - 80)
+        let below = video.minY - bounds.minY >= 110
+        let y = below ? video.minY - 52 : video.minY + 58
+        bigLine.frame = CGRect(x: bounds.midX - width / 2, y: y, width: width, height: 34)
+        sungLine.frame = bigLine.frame
+        nextLine.frame = CGRect(x: bounds.midX - width / 2, y: y - 26, width: width, height: 24)
+        lyricsLayer.isHidden = lyricsMode != .desktop || info == nil
+    }
+
+    /// Shows the line being sung (on the display, and big on the desktop), and wakes up for the
+    /// next one. `force`: draw again even if it's the same line.
+    private func showLyric(force: Bool) {
+        lyricTimer?.invalidate()
+        lyricTimer = nil
+        guard let info, let lyrics, lyricsMode != .off else {
+            if displayLyric != nil { displayLyric = nil; showAlbumLine() }
+            lyricsLayer.isHidden = true
+            shownLyric = (nil, false, false)
+            return
+        }
+        let p = currentPosition() + (previewOffset ?? 0) - lyricsOffset
+        let index = lyrics.lineIndex(at: p)
+        let state = (index: index, playing: info.playing, preview: previewOffset != nil)
+        if force || state != shownLyric {
+            shownLyric = state
+            let line = index.map { lyrics.lines[$0] }
+            let text = line?.text.isEmpty == false ? line!.text : nil
+            if displayLyric != text { displayLyric = text; showAlbumLine() }
+            drawBigLyric(lyrics, index: index, at: p, playing: info.playing && previewOffset == nil)
+        }
+        // Wake for the next line (the seconds tick catches seeks and pauses).
+        if info.playing, let next = lyrics.nextChange(after: p) {
+            lyricTimer = Timer.scheduledTimer(withTimeInterval: max(next - p + 0.02, 0.05), repeats: false) { [weak self] _ in
+                onMainActor { self?.showLyric(force: false) }
+            }
+            lyricTimer?.tolerance = 0.01
+        }
+    }
+
+    private func drawBigLyric(_ lyrics: Lyrics, index: Int?, at p: Double, playing: Bool) {
+        CATransaction.begin()
+        CATransaction.setDisableActions(true)
+        defer { CATransaction.commit() }
+        lyricsLayer.isHidden = lyricsMode != .desktop
+        sungMask.removeAllAnimations()
+        guard lyricsMode == .desktop else { return }
+        guard lyrics.synced else {
+            // Plain words: a page at a time, two lines bright, the rest of the page under them.
+            let page = lyrics.page(at: p, size: 4).map(\.text)
+            bigLine.string = page.prefix(2).joined(separator: "   ")
+            nextLine.string = page.dropFirst(2).joined(separator: "   ")
+            sungLine.isHidden = true
+            bigLine.opacity = 1
+            return
+        }
+        let line = index.map { lyrics.lines[$0] }
+        bigLine.string = line?.text ?? ""
+        sungLine.string = line?.text ?? ""
+        let next = lyrics.lines[((index ?? -1) + 1)...].first { !$0.text.isEmpty }
+        nextLine.string = next?.text ?? ""
+        // Word timing: the line sits dimmed, and the sung part brightens across it.
+        guard let line, let first = line.words.first, let font = bigLine.font as? NSFont else {
+            sungLine.isHidden = true
+            bigLine.opacity = 1
+            return
+        }
+        sungLine.isHidden = false
+        bigLine.opacity = 0.45
+        let textWidth = min(NSAttributedString(string: line.text, attributes: [.font: font]).size().width + 4, bigLine.bounds.width)
+        let start = first.time
+        let end = max(lyrics.nextChange(after: line.time) ?? ((line.words.last?.time ?? start) + 1), start + 0.1)
+        let done = CGFloat(min(max((p - start) / (end - start), 0), 1))
+        let left = (bigLine.bounds.width - textWidth) / 2
+        sungMask.position = CGPoint(x: left, y: bigLine.bounds.midY)
+        sungMask.bounds = CGRect(x: 0, y: 0, width: textWidth * done, height: bigLine.bounds.height)
+        guard playing, done < 1, animating else { return }
+        let sweep = CABasicAnimation(keyPath: "bounds.size.width")
+        sweep.fromValue = textWidth * done
+        sweep.toValue = textWidth
+        sweep.duration = end - max(p, start)
+        sweep.beginTime = p < start ? CACurrentMediaTime() + (start - p) : 0
+        sweep.fillMode = .both
+        sweep.isRemovedOnCompletion = false
+        sweep.preferredFrameRateRange = CAFrameRateRange(minimum: 15, maximum: 30, preferred: 24)
+        sungMask.add(sweep, forKey: "sweep")
     }
 
     /// How big a reel's pack of tape is when it holds `amount` (0…1) of the tape: the tape's

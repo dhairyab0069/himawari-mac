@@ -24,6 +24,12 @@ final class StyleCustomiser {
         try? rep.representation(using: .png, properties: [:])?.write(to: url)
     }
 
+    /// The skins folder changed: redraw the previews (the window stays as it is otherwise).
+    func skinsChanged() {
+        guard window?.isVisible == true else { return }
+        model.skinsChanged()
+    }
+
     func show() {
         model.reload()
         if window == nil {
@@ -162,6 +168,19 @@ final class CustomiseModel: ObservableObject {
         }
     }
 
+    func makeDesign() {
+        guard let skin = Styles.shared.library.skin(id: chosen) else { return }
+        do {
+            let made = try Styles.shared.makeDesign(from: skin)
+            reload()
+            choose(made.skin)
+            NSWorkspace.shared.open(made.design)
+            notice = "Saved \(made.design.lastPathComponent) in the Designs folder, and a skin wearing it. Move the blocks about and save: the desktop follows."
+        } catch {
+            notice = "Couldn't save the design: \(error.localizedDescription)"
+        }
+    }
+
     func importSkin() {
         let panel = NSOpenPanel()
         panel.allowedContentTypes = [.json]
@@ -175,6 +194,12 @@ final class CustomiseModel: ObservableObject {
         reload()
         notice = ([added.isEmpty ? nil : "Added " + added.joined(separator: ", ") + "."] + failed.map { Optional($0) })
             .compactMap { $0 }.joined(separator: "  ")
+    }
+
+    /// Someone saved a skin file: draw the previews again from the new files.
+    func skinsChanged() {
+        thumbnails = [:]
+        reload()
     }
 
     func reloadSkins() {
@@ -240,6 +265,7 @@ private struct CustomiseView: View {
     }
 
     private func tile(_ skin: Skin) -> some View {
+        let design = skin.design.flatMap { Styles.shared.library.design(id: $0) }
         let selected = skin.id == model.chosen
         return Button { model.choose(skin.id) } label: {
             VStack(alignment: .leading, spacing: 4) {
@@ -254,7 +280,7 @@ private struct CustomiseView: View {
                 .frame(width: 150)
                 .clipShape(RoundedRectangle(cornerRadius: 6))
                 .overlay(RoundedRectangle(cornerRadius: 6).stroke(selected ? Color.accentColor : .clear, lineWidth: 3))
-                Text(skin.name).font(.caption).foregroundStyle(selected ? .primary : .secondary)
+                Text(design.map { "\(skin.name) · \($0.name)" } ?? skin.name).font(.caption).foregroundStyle(selected ? .primary : .secondary)
             }
         }
         .buttonStyle(.plain)
@@ -347,11 +373,17 @@ private struct CustomiseView: View {
     private var yourOwn: some View {
         VStack(alignment: .leading, spacing: 8) {
             Text("Your own skins").font(.headline)
-            Text("A skin is a small JSON file of colours, materials, fonts and a few sizes. Start from the one selected, or add one someone shared.")
+            Text("A skin is a small JSON file of colours, materials, fonts and a few sizes. Start from the one selected, or add one someone shared. Files reload as you save them.")
                 .font(.caption).foregroundStyle(.secondary)
             HStack {
                 Button("Make My Own…") { model.makeCopy() }
                 Button("Import…") { model.importSkin() }
+            }
+            Text("Your own era: a design file lays out the panels as blocks (display, buttons, wheel, meters, knobs, grille…) and picks what plays in the middle.")
+                .font(.caption).foregroundStyle(.secondary)
+            HStack {
+                Button("Make My Own Era…") { model.makeDesign() }
+                Button("Open Designs Folder") { Styles.shared.reload(); NSWorkspace.shared.open(SkinLibrary.designsFolder) }
             }
             HStack {
                 Button("Open Skins Folder") { Styles.shared.reload(); NSWorkspace.shared.open(SkinLibrary.folder) }

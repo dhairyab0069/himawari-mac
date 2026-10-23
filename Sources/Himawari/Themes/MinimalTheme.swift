@@ -120,14 +120,14 @@ struct MinimalTheme: GearTheme {
     // MARK: Drawing
 
     /// The ring you turn: a dot on it shows where it's been turned to.
-    private static func ringDot(diameter d: CGFloat, _ skin: Skin) {
+    static func ringDot(diameter d: CGFloat, _ skin: Skin) {
         let p = CGPoint(x: d / 2, y: d - 2 - d * 0.04)
         skin.colors.accent.ns.setFill()
         NSBezierPath(ovalIn: NSRect(x: p.x - d * 0.04, y: p.y - d * 0.04, width: d * 0.08, height: d * 0.08)).fill()
     }
 
     /// A flat knob: a filled circle with a hairline rim.
-    private static func flatKnob(_ r: CGRect, label name: String, _ skin: Skin) {
+    static func flatKnob(_ r: CGRect, label name: String, _ skin: Skin) {
         NSColor(white: 0, alpha: 0.18).setFill()
         NSBezierPath(ovalIn: r.offsetBy(dx: 0, dy: -1.5)).fill()
         skin.colors.knob[0].ns.setFill()

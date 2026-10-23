@@ -15,6 +15,9 @@ enum StylePreview {
             return true
         }
         guard let i = arguments.firstIndex(of: "--render-styles") else { return false }
+        if arguments.contains("--with-lyrics") { // the sample song's words, big on the desktop too
+            NowPlayingSides.words = (Lyrics.parseLRC("[01:20.00]<01:20.00> Golden <01:21.50> hour, <01:23.00> slow <01:24.00> and <01:25.00> warm\n[01:27.00]The sky is ours tonight"), 0, .desktop)
+        }
         let folder = URL(fileURLWithPath: i + 1 < arguments.count ? arguments[i + 1] : ".")
         try? FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
         let only = i + 2 < arguments.count ? arguments[i + 2] : nil // one skin's id ("all": every one)…

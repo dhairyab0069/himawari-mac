@@ -79,6 +79,18 @@ final class ThemeLayoutTests: XCTestCase {
         _ = styles.follow(genre: nil, cover: nil)
     }
 
+    func testDesignBlocksStackWithoutOverlapping() {
+        let blocks = Design.builtIn[0].left + Design.builtIn[0].right
+        for height in [300.0, 448, 700, 1200] {
+            let column = CGRect(x: 0, y: 0, width: 260, height: height)
+            let frames = CustomTheme.frames(blocks, in: column)
+            for (i, f) in frames.enumerated() {
+                XCTAssertGreaterThanOrEqual(f.minY, column.minY - 0.01, "block \(i) at \(height)")
+                for g in frames[(i + 1)...] { XCTAssertFalse(f.intersects(g), "blocks overlap at \(height)") }
+            }
+        }
+    }
+
     func testAnImportedSkinNeverTakesAnIDInUse() {
         let taken: Set<String> = ["red-rack", "red-rack-2", String(repeating: "a", count: 40)]
         XCTAssertEqual(Styles.freeID("red-rack", taken: taken.contains), "red-rack-3")
@@ -93,9 +105,15 @@ final class ThemeLayoutTests: XCTestCase {
         let amp: Set<GearControl> = [.volume, .bass, .treble]
         for skin in Skin.builtIn {
             let theme = Themes.make(skin)
-            XCTAssertEqual(Set(theme.left(size: sizes[2]).controls.keys), player, skin.id)
-            XCTAssertEqual(Set(theme.right(size: sizes[2]).controls.keys), amp, skin.id)
-            XCTAssertEqual(theme.left(size: sizes[2]).rotors.filter(\.isJog).count, 1, "\(skin.id): one wheel to scrub with")
+            let left = theme.left(size: sizes[2]), right = theme.right(size: sizes[2])
+            if skin.design == nil { // the eras: the player on the left, the amplifier on the right
+                XCTAssertEqual(Set(left.controls.keys), player, skin.id)
+                XCTAssertEqual(Set(right.controls.keys), amp, skin.id)
+            } else { // a design puts them where it likes, but all of them, once
+                XCTAssertTrue(Set(left.controls.keys).isDisjoint(with: right.controls.keys), skin.id)
+                XCTAssertEqual(Set(left.controls.keys).union(right.controls.keys), player.union(amp), skin.id)
+            }
+            XCTAssertEqual((left.rotors + right.rotors).filter(\.isJog).count, 1, "\(skin.id): one wheel to scrub with")
         }
     }
 

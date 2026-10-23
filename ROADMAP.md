@@ -214,7 +214,7 @@ lookup Himawari already makes for animated covers), so the desktop matches the m
 
 ---
 
-## Synced lyrics (Beta 1.5, the end of Beta 1)
+## Synced lyrics (Beta 1.5, the end of Beta 1) (built)
 
 The words of the song, in time with it, as part of the gear rather than a separate window.
 
@@ -239,6 +239,9 @@ The words of the song, in time with it, as part of the gear rather than a separa
 - **Tests:** parsing LRC files (timestamps, several stamps on one line, offsets, word timing),
   choosing the right result (length and album matching), the line for a given position, and
   plain lyrics split into pages.
+- **Also in 1.5: your own eras.** Design files lay out the panels as blocks and pick the media; a
+  skin wears one by its id. A 1980s Boombox ships as the example. Skin and design files reload as
+  they're saved.
 
 ---
 

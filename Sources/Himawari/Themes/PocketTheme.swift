@@ -114,7 +114,7 @@ struct PocketTheme: GearTheme {
 
     // MARK: Drawing (shared with the player in the music scene)
 
-    private static func header(_ r: CGRect, _ skin: Skin, model: String) {
+    static func header(_ r: CGRect, _ skin: Skin, model: String) {
         let brand = NSAttributedString(string: skin.brand, attributes: [.font: Paint.brandFont(skin, 12), .kern: 3,
                                                                         .foregroundColor: skin.colors.label.ns])
         brand.draw(at: NSPoint(x: r.midX - brand.size().width / 2, y: r.maxY - 16))
@@ -139,7 +139,7 @@ struct PocketTheme: GearTheme {
     }
 
     /// A flat, glossy button.
-    private static func flatButton(_ r: CGRect, symbol: String, _ skin: Skin) {
+    static func flatButton(_ r: CGRect, symbol: String, _ skin: Skin) {
         let b = NSBezierPath(roundedRect: r, xRadius: r.height / 2, yRadius: r.height / 2)
         NSGradient(colors: skin.colors.button.map(\.ns))?.draw(in: b, angle: -90)
         NSColor(white: 0, alpha: 0.18).setStroke(); b.lineWidth = 0.8; b.stroke()
@@ -175,7 +175,7 @@ struct PocketTheme: GearTheme {
     }
 
     /// The speaker: a perforated grille over a dark cone.
-    private static func grille(_ r: CGRect, _ skin: Skin) {
+    static func grille(_ r: CGRect, _ skin: Skin) {
         NSColor(white: 0, alpha: 0.2).setFill()
         NSBezierPath(ovalIn: r.insetBy(dx: -3, dy: -3)).fill()
         NSGradient(colors: [NSColor(white: 0.22, alpha: 1), NSColor(white: 0.06, alpha: 1)])?

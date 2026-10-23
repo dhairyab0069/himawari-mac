@@ -33,6 +33,8 @@
   - [Your wallpaper](#your-wallpaper)
   - [The music wallpaper](#the-music-wallpaper)
   - [Styles and skins](#styles-and-skins)
+  - [Your own eras](#your-own-eras)
+  - [Lyrics](#lyrics)
   - [Hide the desktop's files](#hide-the-desktops-files)
   - [The desktop clock](#the-desktop-clock)
 - [Permissions](#permissions)
@@ -57,6 +59,7 @@
 | **Retro hi-fi side gear** | Beside the artwork: a CD deck (fluorescent display, time, progress, transport, jog wheel) and a stereo analyzer whose VU needles and spectrum follow the actual music. |
 | **Spinning CD** | Songs without an animation get their cover wrapped onto a spinning CD, with a disc-changer transition between songs and little characters running along the bottom. |
 | **Styles** | Six eras of gear, from a 1970s receiver with a record on a turntable to today's glass panes, in 14 skins; looks that follow the genre or the cover's colours; your own skins as small JSON files. |
+| **Synced lyrics** | The words in time with the song: on the gear's display, and big under the cover with a karaoke sweep. From LRCLIB, or Apple Music's own. |
 | **Click to hide files** | Click an empty spot on the desktop to see just the wallpaper; click again to bring the files back. |
 | **Desktop clock** | A big see-through clock that ticks with the system clock and adapts to what's behind it. Click it to change how it tells the time. |
 
@@ -209,6 +212,52 @@ skin only needs what it changes; the rest comes from a built-in skin of the same
 ```
 
 A file with a mistake is skipped, and the Style menu and Customise say which file and what's wrong.
+Skin and design files reload by themselves when you save them: no need to press Reload.
+
+### Your own eras
+
+A **design** file lays out a whole new era: each panel as a stack of blocks, top to bottom, and what
+plays in the middle. Himawari ships one as an example, a **1980s Boombox** (two speaker grilles, a
+fluorescent display, piano keys, LED meters and a tuning wheel, with a cassette in the middle). In
+Customise, **Make My Own Era…** copies it into `~/Library/Application Support/Himawari/Designs/` with a
+skin that wears it, and opens it:
+
+```json
+{
+  "format": 1, "id": "my-era", "name": "My Era", "media": "cassette",
+  "left":  [ { "block": "header" }, { "block": "grille" },
+             { "block": "display", "style": "vfd", "height": 140 },
+             { "block": "buttons", "style": "keys" }, { "block": "power" } ],
+  "right": [ { "block": "header" }, { "block": "meters", "style": "leds", "height": 70 },
+             { "block": "grille" }, { "block": "wheel", "label": "TUNING", "height": 96 },
+             { "block": "knobs" } ]
+}
+```
+
+| | |
+|---|---|
+| `media` | `cd`, `record`, `cassette`, `discman`, `player`, `card` |
+| Blocks | `header`, `display` (`vfd`, `lcd`, `glass`, `dial`), `buttons` (`rounded`, `keys`, `round`, `flat`, `bare`), `wheel` (`knurled`, `ring`, `clickwheel`; a `label`), `meters` (`needles`, `leds`, `spectrum`), `spectrum`, `knobs` (`classic`, `flat`, `touch`), `grille`, `toggles`, `sliders`, `power`, `spacer` |
+| `height` | Points, or `"fill"` to share what's left (a grille, a wheel and a spectrum fill unless told otherwise) |
+
+A design needs one display, one row of buttons, one wheel and one row of knobs, on either side. A skin
+wears it with `"design": "my-era"`, and still sets the colours, materials and fonts.
+
+### Lyrics
+
+<p align="center"><img src="docs/lyrics.png" width="640" alt="Today's glass panels with the line being sung on the display, and big under the cover: the sung words bright, the rest of the line dimmed, the next line below"></p>
+
+**Himawari menu ▸ Lyrics:** Off, On the Display, or On the Display and Desktop.
+
+- **On the display**, the line being sung takes the album's place, in each era's own display.
+- **On the desktop**, it shows big under the cover, with the next line below it. Where the file times
+  each word, a karaoke sweep brightens the words as they're sung.
+- The words come from **LRCLIB** (lrclib.net, free and open, no account), looked up by title, artist,
+  album and length so a live take doesn't get the studio words. When LRCLIB has none, Apple Music's own
+  lyrics show as pages that turn with the song.
+- **Words Earlier / Later** (0.5 s steps) fix a file that runs early or late, remembered per song.
+- Lyrics are off at first: turning them on is what sends a song's title to LRCLIB. They're cached in
+  `~/Library/Caches/Himawari/Lyrics`.
 
 ### Hide the desktop's files
 
@@ -338,6 +387,7 @@ Himawari has no accounts, analytics or telemetry, and uploads nothing about you.
 | `music.apple.com` (public album pages) | A song starts | The animated cover's video address |
 | `*.mzstatic.com` (Apple's image and video servers) | A song starts | The cover in full resolution; the animated cover itself |
 | `youtube.com`, `i.ytimg.com` | Only with **…or a YouTube Loop of the Song** on | Finding and playing the music video, in YouTube's embedded player |
+| `lrclib.net` | Only with **Lyrics** on, when a song starts | Its lyrics: only the title, artist, album and length are sent |
 
 With **Show Wallpaper on Lock Screen** on, Himawari changes your macOS wallpaper picture (to a frame of your video, kept in `~/Library/Application Support/Himawari`) and remembers the one you had.
 
