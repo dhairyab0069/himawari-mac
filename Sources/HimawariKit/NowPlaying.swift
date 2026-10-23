@@ -18,6 +18,18 @@ import WebKit
 ///   page isn't an official API, so if Apple changes it, the loop quietly falls
 ///   back to the still cover. (Apple's official Apple Music API needs a paid
 ///   developer account.)
+/// What the Back button means, depending on how far into the song you are.
+///
+/// Music's own Back button starts a song again from the beginning once it is under
+/// way, and only steps back to the one before at the very start. The voice and the
+/// button both do this, so they feel like the same control.
+public enum BackBehaviour: Equatable, Sendable {
+    /// Start the current song again from the beginning.
+    case restart
+    /// Go to the song before this one.
+    case previous
+}
+
 @MainActor
 public final class MusicNowPlaying: ObservableObject {
     public struct Track: Equatable {
@@ -347,6 +359,41 @@ public final class MusicNowPlaying: ObservableObject {
         }
     }
     public func previous() { onAppleMusic ? tell("previous track") : system?.send(.previous) }
+
+    /// The Back button, as a player does it: a song already under way starts again from
+    /// its beginning; at the very start of a song it steps back to the one before.
+    ///
+    /// This is what Music's own Back button does, so the voice and the button agree —
+    /// and both go through here, so they cannot drift apart.
+    public func back() {
+        switch Self.backBehaviour(position: livePosition) {
+        case .restart: seek(to: 0)
+        case .previous: previous()
+        }
+    }
+
+
+
+    /// Which of the two things Back does, for a song at this point.
+    /// Pure, so it can be tested without a player.
+    public nonisolated static func backBehaviour(position: Double?) -> BackBehaviour {
+        // No trustworthy position: step back, as the button always used to.
+        guard let position else { return .previous }
+        return position > backRestartThreshold ? .restart : .previous
+    }
+
+    /// How far into a song Back still means "the one before" rather than "start again".
+    /// This is Music's own rule (and the one every music player uses).
+    public nonisolated static let backRestartThreshold: Double = 3
+
+    /// Where the song is right now, in seconds, when a fresh enough reading is to be had.
+    /// Nil when the last reading is too old to trust — the position is then not known.
+    public var livePosition: Double? {
+        let age = CACurrentMediaTime() - measuredAt
+        guard age < 12, let duration = track?.duration, duration > 0 else { return nil }
+        let p = isPlaying ? measuredPosition + age : measuredPosition
+        return min(max(p, 0), duration)
+    }
 
     /// What the side gear shows besides the song: Music's volume, its repeat and shuffle
     /// settings, and the BASS / TREBLE of Himawari's equalizer preset.

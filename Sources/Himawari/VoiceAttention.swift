@@ -34,6 +34,12 @@ final class VoiceAttention {
     /// The phrase that was last carried out, for the menu ("heard: next").
     private(set) var lastHeard: String?
 
+    /// What that phrase did, in words, for the menu ("heard: next → next track").
+    private(set) var lastAction: String?
+
+    /// When it was last carried out, so the menu can say how long ago.
+    private(set) var lastHeardAt: Date?
+
     /// How loud the microphone is right now.
     private(set) var lastLevel: Float = 0
 
@@ -57,6 +63,8 @@ final class VoiceAttention {
                 Log.write("voice: \\(why)")
             case .command(let action, let phrase):
                 self.lastHeard = phrase
+                self.lastAction = VoiceAttention.describe(action)
+                self.lastHeardAt = Date()
                 self.carryOut(action)
             }
         }
@@ -91,6 +99,26 @@ final class VoiceAttention {
     /// Starts or stops, according to the setting.
     func apply(_ enabled: Bool) {
         if enabled { start() } else { stop() }
+    }
+
+    /// What a command means, in words — for the menu, so the user can see what was heard
+    /// and what it did.
+    static func describe(_ action: VoiceAction) -> String {
+        switch action {
+        case .transport(let command):
+            switch command {
+            case .next: return "next track"
+            case .previous: return "previous track"
+            case .back: return "start again / back"
+            case .play: return "play"
+            case .pause: return "pause"
+            case .togglePlayPause: return "play / pause"
+            case .seek(let seconds): return "seek to \(Int(seconds))s"
+            case .refresh: return "refresh"
+            }
+        case .volume(let by):
+            return by > 0 ? "volume up" : "volume down"
+        }
     }
 
     /// Carries a command out.

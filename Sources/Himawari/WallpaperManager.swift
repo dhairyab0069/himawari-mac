@@ -355,6 +355,21 @@ final class WallpaperManager {
         refreshControls()
     }
 
+    /// Lights a gear button, as if it had been clicked (used when a voice command
+    /// does the same thing).
+    func flashGear(_ command: PlayerCommand) {
+        let control: GearControl?
+        switch command {
+        case .next: control = .next
+        case .previous: control = .previous
+        case .back: control = .previous
+        case .play, .pause, .togglePlayPause: control = .playPause
+        default: control = nil
+        }
+        guard let control else { return }
+        for view in gear { view.press(control) }
+    }
+
     /// The song's lyrics (nil: none, or off), its timing correction, and where they show.
     func showLyrics(_ lyrics: Lyrics?, offset: Double, mode: LyricsMode) {
         NowPlayingSides.words = (lyrics, offset, mode)

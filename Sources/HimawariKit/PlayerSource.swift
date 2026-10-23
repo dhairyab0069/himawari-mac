@@ -122,6 +122,9 @@ public struct PlayerChoice: Sendable, Equatable {
 /// A command for whichever app is playing, through the system's remote-command channel.
 public enum PlayerCommand: Equatable, Sendable {
     case play, pause, togglePlayPause, next, previous
+    /// The Back button: a song under way starts again, a song just begun steps back.
+    /// The app resolves this (it knows the position), so it is never sent to the helper.
+    case back
     case seek(to: Double)
     /// No command: just report the current state again.
     case refresh
@@ -134,6 +137,7 @@ public enum PlayerCommand: Equatable, Sendable {
         case .togglePlayPause: "toggle"
         case .next: "next"
         case .previous: "previous"
+        case .back: "back"
         case .refresh: "refresh"
         case .seek(let seconds): "seek " + String(format: "%.2f", locale: Locale(identifier: "en_US_POSIX"), max(0, seconds))
         }

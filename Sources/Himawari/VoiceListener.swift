@@ -168,7 +168,7 @@ final class VoiceListener: NSObject, @unchecked Sendable {
                     self.finishPhrase(text)
                 } else {
                     // Partial: act early if it already says a command.
-                    self.check(text)
+                    self.check(text, final: false)
                 }
             }
 
@@ -201,9 +201,14 @@ final class VoiceListener: NSObject, @unchecked Sendable {
     private var lastActedAt = Date.distantPast
 
     /// Looks at what was heard and carries out a command if it is one.
-    private func check(_ text: String) {
+    ///
+    /// A partial result is a guess — the words heard so far might still grow ("play" could
+    /// become "play next song"), so a partial is only acted on when it cannot grow into a
+    /// different command. The final result is taken as it stands.
+    private func check(_ text: String, final: Bool) {
         guard !muted else { return }
-        guard let action = VoiceCommands.action(for: text) else { return }
+        let action = final ? VoiceCommands.action(for: text) : VoiceCommands.actionForPartial(text)
+        guard let action else { return }
 
         let phrase = VoiceCommands.normalize(text)
         let now = Date()
@@ -216,7 +221,7 @@ final class VoiceListener: NSObject, @unchecked Sendable {
 
     /// The phrase is over: look at it one last time.
     private func finishPhrase(_ text: String) {
-        check(text)
+        check(text, final: true)
         // Start a fresh request so the next phrase is heard cleanly.
         queue.async { [weak self] in
             guard let self, self.running else { return }
@@ -254,7 +259,7 @@ final class VoiceListener: NSObject, @unchecked Sendable {
             }
             guard let result else { return }
             let text = result.bestTranscription.formattedString
-            if result.isFinal { self.finishPhrase(text) } else { self.check(text) }
+            if result.isFinal { self.finishPhrase(text) } else { self.check(text, final: false) }
         }
     }
 

@@ -137,6 +137,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
                 switch playerCommand {
                 case .next: self.music.next()
                 case .previous: self.music.previous()
+                // Back is the Back button: a song under way starts again, a song just
+                // begun steps back to the one before — exactly what clicking it does.
+                case .back: self.music.back()
                 case .play: self.music.play()
                 case .pause: self.music.pause()
                 case .togglePlayPause: self.music.playPause()
@@ -144,6 +147,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
                 case .refresh: break
                 }
                 Log.write("voice: \(playerCommand.helperLine)")
+                // The gear lights the button that was used, so a spoken command looks
+                // exactly like a clicked one.
+                self.wallpaper.flashGear(playerCommand)
             case .volume(let by):
                 // The player's own volume, like the gear's knob does.
                 let now = self.deck?.volume ?? 0.5
@@ -179,7 +185,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         wallpaper.gearControls.perform = { [weak self] action in
             guard let self else { return }
             switch action {
-            case .button(.previous): self.music.previous()
+            // Back is the Back button: a song under way starts again from its beginning,
+            // a song just begun steps back to the one before. The voice says the same word
+            // and does the same thing, so the two can never disagree.
+            case .button(.previous): self.music.back()
             case .button(.playPause): self.music.playPause()
             case .button(.next): self.music.next()
             case .button(.stop): self.music.pause()
@@ -549,6 +558,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         let voiceItem = item(voiceLabel, #selector(toggleVoiceAttention), checked: settings.voiceAttention)
         voiceItem.isEnabled = !settings.voiceAttention || voice.listening
         menu.addItem(voiceItem)
+        // What was heard, and what it did: so a command that did not land is visible.
+        if let heard = voice.lastHeard, let action = voice.lastAction {
+            let said = NSMenuItem(title: "    Heard: \(heard) → \(action)", action: nil, keyEquivalent: "")
+            said.isEnabled = false
+            menu.addItem(said)
+        }
         menu.addItem(playersItem())
         let changerItem = item("Disc Changer (Playlists)…", #selector(toggleChanger), key: "p")
         changerItem.keyEquivalentModifierMask = [.command, .option, .control]

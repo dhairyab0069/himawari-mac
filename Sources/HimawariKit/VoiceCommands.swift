@@ -34,8 +34,9 @@ public enum VoiceCommands {
         (["next", "next track", "next song", "skip", "skip track", "skip song",
           "play next", "play next track", "play next song", "track next", "song next"], .next),
         (["previous", "previous track", "previous song", "last track", "last song",
-          "play previous", "play previous track", "play previous song", "go back",
+          "play previous", "play previous track", "play previous song",
           "track previous", "song previous"], .previous),
+        (["back", "go back", "take me back", "skip back", "step back"], .back),
         (["pause", "pause it", "pause music", "pause the music", "pause playback", "hold"], .pause),
         (["play", "play it", "play music", "play the music", "play playback", "resume",
           "continue", "unpause"], .play),
@@ -89,6 +90,23 @@ public enum VoiceCommands {
             }
         }
         return nil
+    }
+
+    /// The action for words heard SO FAR, when it is safe to act on them already.
+    ///
+    /// A partial result is a guess: "play" might be the whole word, or the start of
+    /// "play next song". So a partial is only acted on when every longer phrase it could
+    /// grow into means the same thing. "Next" is safe (the only longer forms are "next
+    /// track" and "next song", both the same command); "play" is not (it could become
+    /// "play next", which is a different command).
+    public static func actionForPartial(_ heard: String) -> VoiceAction? {
+        guard let heardAction = action(for: heard) else { return nil }
+        let phrase = normalize(heard)
+        // Every longer phrase this could grow into must mean the same thing.
+        for longer in allPhrases where longer.hasPrefix(phrase + " ") {
+            guard action(for: longer) == heardAction else { return nil }
+        }
+        return heardAction
     }
 
     /// Every phrase the app understands. Used by the settings screen and by the tests.
