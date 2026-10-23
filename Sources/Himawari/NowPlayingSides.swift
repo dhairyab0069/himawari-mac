@@ -46,6 +46,13 @@ final class NowPlayingSides: NSView {
     var animation: StyleOptions.Animation = Styles.shared.options.animation { didSet { if animation != oldValue { restartMotion() } } }
     private lazy var theme: GearTheme = Themes.make(style, meters: meters)
 
+    /// The skin and design files were read again: remake the look even though the skin is the
+    /// "same" (a design it wears may have moved its blocks; the skin only names it).
+    func reloadTheme() {
+        theme = Themes.make(style, meters: meters)
+        rebuild()
+    }
+
     private let deck = CALayer(), analyzer = CALayer()           // the faceplates (drawn hardware)
     private var faces: (left: PanelFace, right: PanelFace)?
     // The display
@@ -131,7 +138,13 @@ final class NowPlayingSides: NSView {
     }
     /// Off while the wallpaper is paused (covered, locked…): the gear stops moving; the time
     /// still follows the song, so it's right the moment you see it again.
-    var animating = true { didSet { if animating != oldValue { restartMotion() } } }
+    var animating = true {
+        didSet {
+            guard animating != oldValue else { return }
+            restartMotion()
+            showLyric(force: true) // the karaoke sweep starts again from where the song is
+        }
+    }
 
     override init(frame: NSRect) {
         super.init(frame: frame)
@@ -191,6 +204,7 @@ final class NowPlayingSides: NSView {
         if reanchor { anchor = (actual, now) }
         self.info = info
         if reanchor { scheduleTick() } // timed from the new state (e.g. just resumed)
+        if reanchor { showLyric(force: true) } // a seek within a line: the sweep starts from the new place
         if songChanged { showSongText() }
         lightIndicators()
         lightLamp()
@@ -205,7 +219,8 @@ final class NowPlayingSides: NSView {
 
     private func showSongText() {
         guard let info else { return }
-        let caps = faces?.left.uppercaseSong ?? true
+        let titled = [faces?.left, faces?.right].compactMap { $0 }.first { f in f.texts.contains { $0.role == .title } }
+        let caps = titled?.uppercaseSong ?? true
         texts[.title]?.string = caps ? info.title.uppercased() : info.title
         texts[.artist]?.string = caps ? info.artist.uppercased() : info.artist
         showAlbumLine()
@@ -821,7 +836,7 @@ final class NowPlayingSides: NSView {
         bigLine.frame = CGRect(x: bounds.midX - width / 2, y: y, width: width, height: 34)
         sungLine.frame = bigLine.frame
         nextLine.frame = CGRect(x: bounds.midX - width / 2, y: y - 26, width: width, height: 24)
-        lyricsLayer.isHidden = lyricsMode != .desktop || info == nil
+        lyricsLayer.isHidden = lyricsMode != .desktop || info == nil || lyrics == nil
     }
 
     /// Shows the line being sung (on the display, and big on the desktop), and wakes up for the

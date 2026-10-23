@@ -46,9 +46,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         Styles.shared.reload() // the skins folder, before the first gear is drawn
-        customiser.onChange = { [weak self] in self?.wallpaper.applyStyle() }
+        customiser.onChange = { [weak self] reloaded in self?.wallpaper.applyStyle(reloaded: reloaded) }
         Styles.shared.watch { [weak self] in
-            self?.wallpaper.applyStyle()
+            self?.wallpaper.applyStyle(reloaded: true)
             self?.customiser.skinsChanged()
         }
         clock.start()
@@ -537,14 +537,15 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
             wallpaper.showLyrics(nil, offset: 0, mode: mode)
             return
         }
-        let offset = lyricsStore.offset(for: track)
-        wallpaper.showLyrics(nil, offset: offset, mode: mode) // the last song's words go at once
+        wallpaper.showLyrics(nil, offset: lyricsStore.offset(for: track), mode: mode) // the last song's words go at once
         lyricsStore.load(track, appleMusic: { [weak self] done in
-            guard let self else { return done(nil) }
-            self.music.fetchAppleMusicLyrics(done)
+            // Music's "current track" must still be this one, before and after asking.
+            guard let self, self.music.track == track else { return done(nil) }
+            self.music.fetchAppleMusicLyrics { [weak self] text in done(self?.music.track == track ? text : nil) }
         }) { [weak self] lyrics in
             guard let self, self.music.track == track else { return }
-            self.wallpaper.showLyrics(lyrics, offset: offset, mode: self.settings.lyrics)
+            // The timing as it is now (Earlier / Later may have been chosen while looking).
+            self.wallpaper.showLyrics(lyrics, offset: self.lyricsStore.offset(for: track), mode: self.settings.lyrics)
         }
     }
 
@@ -648,13 +649,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     @objc private func showCustomiser() { customiser.show() }
 
     @objc private func openSkinsFolder() {
-        Styles.shared.reload() // also makes the folder and its examples, the first time
+        Styles.shared.prepareFolders() // the folder and its examples, the first time (the watcher reads changes)
         NSWorkspace.shared.open(SkinLibrary.folder)
     }
 
     @objc private func reloadSkins() {
         Styles.shared.reload()
-        wallpaper.applyStyle()
+        wallpaper.applyStyle(reloaded: true)
     }
 
     // MARK: - Players: which apps the music wallpaper follows

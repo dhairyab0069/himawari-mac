@@ -100,6 +100,11 @@ final class Styles {
         }.joined(separator: "||")
     }
 
+    /// Makes the folders and their examples, without reading them (the watcher picks up changes).
+    func prepareFolders() {
+        do { try SkinLibrary.writeExamples() } catch { Log.write("skins: couldn't write the examples: \(error.localizedDescription)") }
+    }
+
     /// Reads the skins folder again (Style ▸ Reload Skins), and refreshes its examples.
     func reload() {
         do { try SkinLibrary.writeExamples() } catch { Log.write("skins: couldn't write the examples: \(error.localizedDescription)") }

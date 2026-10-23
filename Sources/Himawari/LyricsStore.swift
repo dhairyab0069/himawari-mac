@@ -25,19 +25,22 @@ final class LyricsStore {
             if cached.lyrics != nil || !cached.stale { return done(cached.lyrics) }
         }
         Task { [weak self] in
-            let found = await LyricsSource.lrclib(title: track.name, artist: track.artist, album: track.album, duration: track.duration)
+            let answer = await LyricsSource.lrclib(title: track.name, artist: track.artist, album: track.album, duration: track.duration)
             guard let self, self.generation == mine else { return }
-            if let found {
-                Self.save(key, found.synced ? Self.lrc(found) : found.lines.map(\.text).joined(separator: "\n"), synced: found.synced,
-                          source: found.source, duration: track.duration)
+            if case .found(let found) = answer {
+                // The text exactly as LRCLIB sent it (read back, it's the same lyrics).
+                Self.save(key, found.raw, synced: found.synced, source: found.source, duration: track.duration)
                 self.status = Self.describe(found)
                 return done(found)
             }
             appleMusic { [weak self] text in
                 guard let self, self.generation == mine else { return }
                 let plain = text.flatMap { Lyrics.plain($0, duration: track.duration, source: .appleMusic) }
-                Self.save(key, plain == nil ? nil : text, synced: false, source: .appleMusic, duration: track.duration)
-                self.status = plain.map(Self.describe) ?? "None found"
+                // "None" is remembered only when LRCLIB really said so: offline, it asks again next time.
+                if plain != nil || answer == .none {
+                    Self.save(key, plain == nil ? nil : text, synced: false, source: .appleMusic, duration: track.duration)
+                }
+                self.status = plain.map(Self.describe) ?? (answer == .failed ? "LRCLIB didn't answer" : "None found")
                 done(plain)
             }
         }
@@ -85,15 +88,6 @@ final class LyricsStore {
         if let text { d["text"] = text }
         try? FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
         if let data = try? JSONSerialization.data(withJSONObject: d) { try? data.write(to: folder.appending(path: "\(key).json"), options: .atomic) }
-    }
-
-    /// Lyrics back to LRC (for the cache), word times and all.
-    private static func lrc(_ l: Lyrics) -> String {
-        func stamp(_ t: Double) -> String { String(format: "%02d:%05.2f", Int(t) / 60, t.truncatingRemainder(dividingBy: 60)) }
-        return l.lines.map { line in
-            let words = line.words.isEmpty ? line.text : line.words.map { "<\(stamp($0.time))> \($0.text)" }.joined(separator: " ")
-            return "[\(stamp(line.time))]\(words)"
-        }.joined(separator: "\n")
     }
 
     private static func describe(_ l: Lyrics) -> String { "\(l.synced ? "Synced" : "Plain") (\(l.source.rawValue))" }

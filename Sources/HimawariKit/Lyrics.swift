@@ -16,6 +16,8 @@ public struct Lyrics: Equatable, Sendable {
     public enum Source: String, Sendable { case lrclib = "LRCLIB", appleMusic = "Apple Music" }
 
     public var lines: [Line]
+    /// The text it was read from (LRC or plain), as it came: what the cache keeps.
+    public var raw = ""
     /// Timed line by line. Plain lyrics are spread evenly over the song and shown a page at a time.
     public var synced: Bool
     public var source: Source
@@ -56,20 +58,25 @@ public struct Lyrics: Equatable, Sendable {
             Line(time: max(l.time - offset, 0), text: l.text, words: l.words.map { Word(time: max($0.time - offset, 0), text: $0.text) })
         }
         lines.sort { $0.time < $1.time }
-        return Lyrics(lines: lines, synced: true, source: source)
+        var lyrics = Lyrics(lines: lines, synced: true, source: source)
+        lyrics.raw = text
+        return lyrics
     }
 
     /// Plain lyrics (no times): one line per line of text, empty lines kept as breaks between
     /// verses, spread over the song so a page turns at about the right time.
     public static func plain(_ text: String, duration: Double, source: Source) -> Lyrics? {
-        var rows = text.replacingOccurrences(of: "\r\n", with: "\n").components(separatedBy: "\n")
+        // (Music's lyrics break lines with a bare carriage return.)
+        var rows = text.replacingOccurrences(of: "\r\n", with: "\n").components(separatedBy: .newlines)
             .map { $0.trimmingCharacters(in: .whitespaces) }
         while rows.first?.isEmpty == true { rows.removeFirst() }
         while rows.last?.isEmpty == true { rows.removeLast() }
         guard rows.contains(where: { !$0.isEmpty }) else { return nil }
         let step = duration > 0 ? duration / Double(rows.count) : 4
-        return Lyrics(lines: rows.enumerated().map { Line(time: Double($0.offset) * step, text: $0.element, words: []) },
-                      synced: false, source: source)
+        var lyrics = Lyrics(lines: rows.enumerated().map { Line(time: Double($0.offset) * step, text: $0.element, words: []) },
+                            synced: false, source: source)
+        lyrics.raw = text
+        return lyrics
     }
 
     /// "01:23.45", "1:23", "01:23:45" (hundredths after a colon, as some files write) → seconds.
@@ -180,18 +187,35 @@ public enum LyricsSource {
         }
     }
 
+    /// What LRCLIB said: the lyrics, or that it has none, or that it couldn't be asked (offline, slow,
+    /// busy). Only "none" is worth remembering.
+    public enum Answer: Equatable, Sendable {
+        case found(Lyrics)
+        case none
+        case failed
+    }
+
     /// The lyrics for a song, from LRCLIB: the exact lookup first (title, artist, album, length),
     /// then a search. Only these four facts are sent.
-    public static func lrclib(title: String, artist: String, album: String, duration: Double) async -> Lyrics? {
+    public static func lrclib(title: String, artist: String, album: String, duration: Double) async -> Answer {
+        var failed = false
         func request(_ path: String, _ query: [URLQueryItem]) async -> Any? {
             var c = URLComponents(string: "https://lrclib.net/api/\(path)")!
             c.queryItems = query
+            // A "+" in a name ("Florence + the Machine") would be read as a space.
+            c.percentEncodedQuery = c.percentEncodedQuery?.replacingOccurrences(of: "+", with: "%2B")
             guard let url = c.url else { return nil }
             var r = URLRequest(url: url, timeoutInterval: 10)
             // LRCLIB asks apps to say who they are.
             r.setValue("Himawari (https://github.com/dhairyab0069/himawari-mac)", forHTTPHeaderField: "User-Agent")
-            guard let (data, response) = try? await URLSession.shared.data(for: r),
-                  (response as? HTTPURLResponse)?.statusCode == 200 else { return nil }
+            guard let (data, response) = try? await URLSession.shared.data(for: r), let status = (response as? HTTPURLResponse)?.statusCode else {
+                failed = true
+                return nil
+            }
+            guard status == 200 else {
+                if status != 404 { failed = true } // 404: no such song; anything else: ask again another time
+                return nil
+            }
             return try? JSONSerialization.jsonObject(with: data)
         }
         var candidates: [Record] = []
@@ -204,8 +228,8 @@ public enum LyricsSource {
             let found = await request("search", [.init(name: "track_name", value: title), .init(name: "artist_name", value: artist)])
             candidates += (found as? [[String: Any]] ?? []).compactMap(Record.init)
         }
-        guard let pick = best(candidates, duration: duration, album: album) else { return nil }
-        if let synced = pick.syncedLyrics, let lyrics = Lyrics.parseLRC(synced) { return lyrics }
-        return pick.plainLyrics.flatMap { Lyrics.plain($0, duration: duration, source: .lrclib) }
+        guard let pick = best(candidates, duration: duration, album: album) else { return failed ? .failed : .none }
+        if let synced = pick.syncedLyrics, let lyrics = Lyrics.parseLRC(synced) { return .found(lyrics) }
+        return pick.plainLyrics.flatMap { Lyrics.plain($0, duration: duration, source: .lrclib) }.map(Answer.found) ?? .none
     }
 }

@@ -328,7 +328,9 @@ final class WallpaperManager {
 
     /// The Style changed (or its skin file was edited): redraw the gear and the media in it. The
     /// song, its position and whether it's playing carry on.
-    func applyStyle() {
+    /// `reloaded`: the skin and design files were read again, so remake the look even if the skin
+    /// itself compares the same (a design's blocks may have moved).
+    func applyStyle(reloaded: Bool = false) {
         let skin = Styles.shared.current, options = Styles.shared.options
         for canvas in canvases {
             canvas.meters = options.meters
@@ -339,7 +341,9 @@ final class WallpaperManager {
             scene.meters = options.meters
             scene.animation = options.animation
             scene.style = skin
+            if reloaded { scene.reloadTheme() }
         }
+        if reloaded { canvases.forEach { $0.gear?.reloadTheme() } }
         refreshControls()
     }
 

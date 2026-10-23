@@ -79,6 +79,15 @@ final class MusicScene: NSView {
     private(set) var media: MediaKind = Themes.media(Styles.shared.current)
     private var restyleAfterChange = false
 
+    /// The skin and design files were read again: the gear is remade, and the media too if the
+    /// design now plays something else.
+    func reloadTheme() {
+        sides.reloadTheme()
+        guard Themes.media(style) != media else { return }
+        guard !changing else { restyleAfterChange = true; return }
+        restyle()
+    }
+
     private func restyle() {
         media = Themes.media(style)
         print = nil // a CD's print is made again for it (the cover may have changed meanwhile)

@@ -47,6 +47,18 @@ final class LRCTests: XCTestCase {
         XCTAssertNil(Lyrics.parseLRC(""))
     }
 
+    func testMusicsCarriageReturns() {
+        XCTAssertEqual(Lyrics.plain("one\rtwo\rthree", duration: 30, source: .appleMusic)?.lines.map(\.text), ["one", "two", "three"])
+    }
+
+    func testTheCacheKeepsTheFileAsItCame() {
+        // Syllable timing and words before the first stamp: read back from what's kept, the same lyrics.
+        for text in ["[00:12.00]<00:12.00>Hel<00:12.30>lo <00:12.60>world", "[00:10.00]Oh <00:10.50> baby <00:11.00> yeah", "[00:59.996]Late"] {
+            let first = Lyrics.parseLRC(text)!
+            XCTAssertEqual(Lyrics.parseLRC(first.raw), first, text)
+        }
+    }
+
     func testTheLineForAPosition() {
         let l = Lyrics.parseLRC("[00:10.00]a\n[00:20.00]b\n[00:30.00]c")!
         XCTAssertNil(l.lineIndex(at: 5), "before the first line")

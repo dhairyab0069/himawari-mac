@@ -9,10 +9,10 @@ import UniformTypeIdentifiers
 /// import one someone shared.
 @MainActor
 final class StyleCustomiser {
-    /// Something changed: redraw the gear and the media.
-    var onChange: () -> Void = {}
+    /// Something changed: redraw the gear and the media (true: the skin files were read again).
+    var onChange: (Bool) -> Void = { _ in }
     private var window: NSWindow?
-    private lazy var model = CustomiseModel { [weak self] in self?.onChange() }
+    private lazy var model = CustomiseModel { [weak self] reloaded in self?.onChange(reloaded) }
 
     /// The window drawn offscreen to a PNG (`--render-customise <file>`), for checking its layout.
     func snapshot(to url: URL) {
@@ -59,12 +59,12 @@ final class CustomiseModel: ObservableObject {
     @Published private(set) var thumbnails: [String: NSImage] = [:]
     @Published private(set) var preview: NSImage?
     @Published var notice: String?
-    private let changed: () -> Void
+    private let changed: (Bool) -> Void // true: the files were read again
     private var pendingPreview: DispatchWorkItem?
     private var pendingApply: DispatchWorkItem?
     private var renderingThumbnails = false
 
-    init(changed: @escaping () -> Void) { self.changed = changed }
+    init(changed: @escaping (Bool) -> Void) { self.changed = changed }
 
     func reload() {
         chosen = Styles.shared.chosen.id
@@ -89,7 +89,7 @@ final class CustomiseModel: ObservableObject {
     func apply() {
         options.brand = StyleOptions.cleanBrand(options.brand)
         Styles.shared.options = options
-        changed()
+        changed(false)
         refreshPreview()
     }
 
@@ -206,7 +206,7 @@ final class CustomiseModel: ObservableObject {
         Styles.shared.reload()
         thumbnails = [:]
         reload()
-        changed()
+        changed(true)
     }
 }
 
@@ -383,10 +383,10 @@ private struct CustomiseView: View {
                 .font(.caption).foregroundStyle(.secondary)
             HStack {
                 Button("Make My Own Era…") { model.makeDesign() }
-                Button("Open Designs Folder") { Styles.shared.reload(); NSWorkspace.shared.open(SkinLibrary.designsFolder) }
+                Button("Open Designs Folder") { Styles.shared.prepareFolders(); NSWorkspace.shared.open(SkinLibrary.designsFolder) }
             }
             HStack {
-                Button("Open Skins Folder") { Styles.shared.reload(); NSWorkspace.shared.open(SkinLibrary.folder) }
+                Button("Open Skins Folder") { Styles.shared.prepareFolders(); NSWorkspace.shared.open(SkinLibrary.folder) }
                 Button("Reload") { model.reloadSkins() }
             }
             if let notice = model.notice { Text(notice).font(.caption).foregroundStyle(.secondary) }
