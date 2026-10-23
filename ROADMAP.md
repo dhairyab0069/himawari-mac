@@ -1,9 +1,10 @@
 # Roadmap
 
-What comes after the Beta 1.1 series. Betas 1.2 to 1.5 are the **last of Beta 1**; the listening
-work is **Beta 2**, which I'm building myself, hands-on, as part of learning machine learning. Then
-comes the **first full release for the Mac**, and after that **Himawari for Linux** (Debian and
-Ubuntu), starting as its own beta.
+What comes after the Beta 1.1 series. Betas 1.2 to 1.5 are the **last of Beta 1** (all out); the
+listening work is **Beta 2**, which I'm building myself, hands-on, as part of learning machine
+learning. Then comes the **first full release for the Mac**, and after that **Himawari beyond the
+Mac**: a shared core, **Linux** (Debian and Ubuntu), a link between your computer and your TV, and
+**Fire TV**, each starting as its own beta.
 
 1. **More players.** Today the music wallpaper follows only Apple's Music app. Next, it follows
    Spotify, YouTube Music, TIDAL, Amazon Music and Deezer too.
@@ -21,7 +22,11 @@ Ubuntu), starting as its own beta.
 | **Beta 2.0** | Your listening, on device | A private listening history and a stats view across every service |
 | **Beta 2.1** | Classification and insights | On-device labels (genre, mood, energy, language) and reports about your listening |
 | **Himawari 3.0** | First full release (Mac) | Notarized, auto-updating, polished and documented: everything from Betas 1 and 2, finished |
+| **Core 0.1** | One core for every platform | The rules every Himawari shares (cover matching, lyrics, skins and designs, the gear's maths) in one Rust library, tested once |
 | **Linux Beta 1** | Debian and Ubuntu | The wallpaper and the music wallpaper on GNOME (and other desktops), packaged as .deb and Flatpak |
+| **Himawari Link** (Mac 3.1, Linux Beta 2) | Your computer, on your TV | What your Mac or Linux PC plays, its cover, levels and lyrics, sent over your home network to a TV, with the remote as the controls |
+| **Fire TV Beta 1** | Fire TV (Fire OS) | A full-screen Himawari for the living room: the eras and the music scene at TV size, for what the TV plays and what your computer sends |
+| **Later** | Android TV and Google TV, Android, Windows | The Fire TV app without Amazon's parts; a live wallpaper on phones; a desktop window on Windows |
 
 Each release ships through the usual pull request and CI, with unit tests for its logic
 (see [CONTRIBUTING.md](CONTRIBUTING.md)).
@@ -355,7 +360,8 @@ After Beta 2, the Mac app gets finished rather than extended. Versions go straig
 1.x and 2.x numbers belong to the betas, and their tags already exist).
 
 - **Trust and installing:** a Developer ID signature and **notarization** (no more right-click ▸
-  Open), and **automatic updates** (Sparkle, signed update feeds).
+  Open), and **automatic updates** with signed feeds (Sparkle), in place of Beta 1.5.1's simple
+  one-click updater.
 - **First run:** a short welcome that picks a video and asks for each permission at the moment
   it's needed, with what it's for.
 - **A Settings window** in place of the long menu, with the Players, Style and Disc Changer
@@ -368,7 +374,35 @@ After Beta 2, the Mac app gets finished rather than extended. Versions go straig
 - **Docs:** an updated code report, a user guide on the project page, a privacy statement.
 - Less reliance on undocumented behaviour where Apple now offers a public way.
 
-## Himawari for Linux (Debian and Ubuntu): Linux Beta 1
+## Himawari beyond the Mac: Linux, your TV, and more
+
+After Himawari 3.0, Himawari goes to other platforms. They share as much as can be shared: the
+rules, the file formats and the looks. Each one gets its own app, drawn with its own platform's
+tools, because a desktop wallpaper, a Linux background and a TV screen are different things.
+
+| Platform | What Himawari is there | Built with | Order |
+|---|---|---|---|
+| **Linux** (Debian, Ubuntu) | The desktop wallpaper, as on the Mac | Rust, GTK 4, GStreamer, MPRIS, PipeWire | First |
+| **Fire TV** (Fire OS) | A full-screen music display for the living room | Kotlin, Jetpack Compose for TV, Media3 | Second |
+| **Android TV, Google TV** | The Fire TV app, without Amazon's parts | (the same) | With Fire TV, as its own build |
+| **Android** phones and tablets | A live wallpaper (the music scene behind your home screen) | Kotlin, `WallpaperService` | Later |
+| **Windows** | The desktop wallpaper, as on the Mac and Linux | Rust core, a window behind the desktop icons (the WorkerW layer) | To explore |
+
+### himawari-core: one set of rules
+
+A Rust library that every new Himawari builds on, with **UniFFI** bindings for Kotlin (Fire TV,
+Android) and Swift (so the Mac can move onto it in 3.x), and plain Rust for Linux.
+
+- **What's in it:** album matching for animated covers and title cleaning for web players; the
+  catalog and LRCLIB lookups; LRC parsing and the line for a position; skin and design files
+  (reading, checking, the built-in skins); the design blocks' layout; the gear's maths (the VU
+  scale, the tonearm, the tape packs); genre rules and cover tints; version checks for updates.
+- **Tests once:** the Mac's tests become shared JSON fixtures (inputs and expected answers) that the
+  core's tests and the Mac's own Swift tests both run, so the apps can't drift apart while the Mac
+  still uses its own code.
+- **Core 0.1** is done when its fixtures pass and the Linux app builds on it.
+
+### Linux Beta 1: Debian and Ubuntu
 
 Then the wallpaper comes to Linux, starting as its own beta. It began from Hanabi for GNOME,
 so this is something of a homecoming, but it's a separate implementation: none of Hanabi's
@@ -388,8 +422,9 @@ are Apple's), but the design can: the same parts, each with a Linux counterpart.
 | Lock screen | Aerial swap | out of scope at first (GNOME's lock screen is drawn by the shell) |
 
 - **Language:** Rust with GTK 4, GStreamer, `zbus` (MPRIS) and PipeWire bindings: fast, safe and
-  well supported on both distributions. The cover-matching rules, title cleaning and gear maths
-  are ported with their tests, so the two apps agree.
+  well supported on both distributions. The rules come from **himawari-core** (below), so the Linux
+  and Mac apps agree.
+- **Skins and designs:** the same JSON files as on the Mac. A skin made on one works on the other.
 - **Packaging:** a `.deb` for Debian 13 and Ubuntu 24.04 LTS and later, and a Flatpak (Flathub) for
   everyone else.
 - **Linux Beta 1 scope:** your own video wallpaper, the music wallpaper (animated covers and the
@@ -397,6 +432,56 @@ are Apple's), but the design can: the same parts, each with a Linux counterpart.
   Mac: Players, playlists (MPRIS has a playlists interface), styles.
 - **Tests and CI:** unit tests for the ported logic, and a GitHub Actions job that builds the
   `.deb` and Flatpak on Ubuntu.
+
+### Himawari Link: your computer, on your TV
+
+A small protocol for showing what one Himawari plays on another screen in the house.
+
+- **Finding each other:** Bonjour / mDNS (`_himawari._tcp`) on the local network, and a four-digit
+  code shown on the TV the first time a computer connects. Nothing goes through the internet.
+- **What's sent** (WebSocket, JSON): the song (title, artist, album, length, position, playing),
+  the cover (or its address), the animated cover's stream address, the style in use, the live
+  levels (about 20 a second, for the meters), and the lyric line. The TV sends the controls back:
+  play/pause, skip, seek, volume.
+- **Mac 3.1 and Linux Beta 2** send; the Fire TV app receives. Two Macs can show each other too.
+- **Tests:** the message format round-trips; a recorded session plays back the same on both ends.
+
+### Fire TV Beta 1
+
+On a TV, Himawari isn't a wallpaper behind icons: it's a full-screen app you open, or leave on,
+while music plays. The scene and the gear are laid out for a TV across the room.
+
+- **What it shows:**
+  - The music scene at TV size: the animated cover when the album has one (Apple Music's loops
+    play in Media3's HLS player), or the cover on the era's media, with the side gear and lyrics.
+  - The same eras, skins and designs as the desktop, from the same JSON files (copied over Link, or
+    added from a web page the app serves on your network).
+- **What's playing:**
+  - **From your computer, over Himawari Link:** the full experience, with real levels for the meters.
+  - **On the TV itself** (Amazon Music, Spotify, YouTube Music and other Fire TV apps): through
+    Android's media sessions. That needs Fire OS's notification access, which some Fire TV models only
+    allow from the developer tools (a one-time `adb` command, explained in the app). The meters animate
+    by themselves there: Fire OS doesn't let one app hear another's sound.
+- **The remote is the controls:** the D-pad moves between the gear's controls, select presses them,
+  left and right on the wheel scrub, and play/pause works as on any player. The Menu button opens Style.
+- **Staying on:** it keeps the screen awake while music plays and dims after a while when it's paused.
+  Fire OS doesn't offer third-party screensavers in Settings; an `adb` setting can make Himawari the
+  screensaver, for people who want that.
+- **Packaging:** the Amazon Appstore, and an APK to sideload.
+- **Vega OS:** Amazon's newer Fire TV devices run Vega OS, which runs React Native apps rather than
+  Android ones. Fire TV Beta 1 targets Fire OS (most devices in homes); a Vega version is a later,
+  separate port, once it's clear what native code Vega apps may use.
+- **Tests and CI:** the core's fixtures through its Kotlin bindings, Compose UI tests for focus
+  order on the gear, and a GitHub Actions job that builds the APK.
+
+### Later
+
+- **Android TV and Google TV:** the Fire TV app without Amazon's parts (the Play Store, Google TV's
+  own screensaver API).
+- **Android phones and tablets:** the music scene as a live wallpaper (`WallpaperService`), following
+  the phone's media sessions; lyrics and styles as on the desktop.
+- **Windows:** worth exploring once the core exists: a window parented behind the desktop icons,
+  Media Foundation for video, the Windows media session for what's playing.
 
 ## Risks and open questions
 
@@ -412,6 +497,15 @@ are Apple's), but the design can: the same parts, each with a Linux counterpart.
   briefly, and the reports are built off the main thread.
 - **Scope.** Beta 1.2 alone makes Himawari useful to most people who don't use Apple Music. Ship it,
   and finish Beta 1 with Betas 1.3 to 1.5, before starting the listening work in Beta 2.
+- **Fire OS limits.** Reading other apps' media sessions needs notification access (granted with
+  `adb` on some models), apps can't hear other apps' sound, and third-party screensavers aren't in
+  Settings. Himawari Link sidesteps all three for music played on a computer.
+- **Vega OS.** Amazon is moving new Fire TV devices to Vega OS (React Native). Fire OS devices will be
+  around for years, but a Vega port may be needed sooner than Android TV.
+- **App stores.** The animated covers come from Apple Music's public pages and the lyrics from
+  LRCLIB; Amazon's and Google's reviews need to accept that, and the app must say where both come from.
+- **Two codebases.** The Mac stays Swift; the core is Rust. Shared fixtures keep them in agreement
+  until the Mac moves onto the core.
 
 ## Done
 
