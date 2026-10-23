@@ -33,6 +33,9 @@ final class StyleCustomiser {
             w.isReleasedWhenClosed = false
             w.contentView = NSHostingView(rootView: CustomiseView(model: model))
             w.minSize = NSSize(width: 820, height: 600)
+            NotificationCenter.default.addObserver(forName: NSWindow.willCloseNotification, object: w, queue: .main) { [weak self] _ in
+                onMainActor { self?.model.flush() } // typing not yet applied: apply it
+            }
             w.center()
             window = w
         }
@@ -52,6 +55,8 @@ final class CustomiseModel: ObservableObject {
     @Published var notice: String?
     private let changed: () -> Void
     private var pendingPreview: DispatchWorkItem?
+    private var pendingApply: DispatchWorkItem?
+    private var renderingThumbnails = false
 
     init(changed: @escaping () -> Void) { self.changed = changed }
 
@@ -82,6 +87,20 @@ final class CustomiseModel: ObservableObject {
         refreshPreview()
     }
 
+    /// Typing (a name, a genre): applied a moment after you stop, and when the window closes.
+    func applySoon() {
+        pendingApply?.cancel()
+        let work = DispatchWorkItem { [weak self] in onMainActor { self?.apply() } }
+        pendingApply = work
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.6, execute: work)
+    }
+
+    func flush() {
+        guard let pending = pendingApply, !pending.isCancelled else { return }
+        pending.cancel()
+        apply()
+    }
+
     func resetRules() {
         options.rules = GenreRule.defaults
         apply()
@@ -109,13 +128,20 @@ final class CustomiseModel: ObservableObject {
 
     /// One small picture per skin, drawn one at a time so the window stays responsive.
     private func renderThumbnails() {
-        guard let next = allSkins.first(where: { thumbnails[$0.id] == nil }) else { return }
+        guard !renderingThumbnails else { return } // one at a time, however often the skins reload
+        renderingThumbnails = true
         DispatchQueue.main.async { [weak self] in
             onMainActor {
                 guard let self else { return }
+                // Chosen now, not when scheduled: the skins may have been reloaded meanwhile.
+                guard let next = self.allSkins.first(where: { self.thumbnails[$0.id] == nil }) else {
+                    self.renderingThumbnails = false
+                    return
+                }
                 if let cg = StylePreview.image(next, scale: 0.35) {
                     self.thumbnails[next.id] = NSImage(cgImage: cg, size: NSSize(width: cg.width, height: cg.height))
                 }
+                self.renderingThumbnails = false
                 self.renderThumbnails()
             }
         }
@@ -266,6 +292,7 @@ private struct CustomiseView: View {
                     TextField("genre", text: $model.options.rules[i].genre)
                         .frame(width: 100)
                         .onSubmit { model.apply() }
+                        .onChange(of: model.options.rules[i].genre) { _, _ in model.applySoon() }
                     Picker("", selection: $model.options.rules[i].skin) {
                         ForEach(model.allSkins, id: \.id) { skin in Text("\(skin.era.title): \(skin.name)").tag(skin.id) }
                     }
@@ -309,7 +336,7 @@ private struct CustomiseView: View {
             }
             HStack {
                 Text("Name").frame(width: 74, alignment: .leading)
-                TextField("HIMAWARI", text: Binding(get: { model.options.brand ?? "" }, set: { model.options.brand = $0 }))
+                TextField("HIMAWARI", text: Binding(get: { model.options.brand ?? "" }, set: { model.options.brand = $0; model.applySoon() }))
                     .onSubmit { model.apply() }
             }
             Text("Still: nothing moves by itself; the meters still follow the music. The name replaces the brand on the faceplates.")

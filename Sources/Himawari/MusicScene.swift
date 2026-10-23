@@ -36,6 +36,8 @@ final class MusicScene: NSView {
     /// The media itself: the disc's square, or the cassette inside it.
     private(set) var mediaRect = CGRect.zero
     var mediaIsRound: Bool { media != .cassette && media != .card }
+    /// Today's look isn't turned: its progress line under the card is dragged instead (`mediaRect` is the line).
+    var mediaIsBar: Bool { media == .card }
     /// The cover wrapped round a disc (DiscPrint): on a CD, in or out of a portable player.
     private var printed: Bool { media == .cd || media == .discman }
     /// How big the printed disc is.
@@ -61,20 +63,27 @@ final class MusicScene: NSView {
     var style: Skin = Styles.shared.current {
         didSet {
             guard style != oldValue else { return }
-            // Only the gear's lit colours changed (the cover's colours, a new song): the media stays,
-            // mid-change or not.
-            if style.era == oldValue.era, style.colors.media == oldValue.colors.media, style.colors.plate == oldValue.colors.plate,
-               style.brand == oldValue.brand {
-                sides.style = style
-                return
-            }
-            media = Themes.media(style.era)
-            print = nil // a CD's print is made again for it (the cover may have changed meanwhile)
             sides.style = style
-            layoutScene(force: true)
+            // Only the lit colours changed (the cover's colours, a new song), and this media doesn't
+            // use them: it stays as it is, mid-change or not. (The pocket player's screen does.)
+            var lit = oldValue
+            lit.colors.display = style.colors.display
+            lit.colors.accent = style.colors.accent
+            if lit == style, media != .player { return }
+            // A change of discs under way: let it finish, then change the media (a new record
+            // mustn't be swapped out from under its own slide).
+            guard !changing else { restyleAfterChange = true; return }
+            restyle()
         }
     }
     private(set) var media: MediaKind = Themes.media(Styles.shared.current.era)
+    private var restyleAfterChange = false
+
+    private func restyle() {
+        media = Themes.media(style.era)
+        print = nil // a CD's print is made again for it (the cover may have changed meanwhile)
+        layoutScene(force: true)
+    }
 
     var running = true {
         didSet {
@@ -98,7 +107,7 @@ final class MusicScene: NSView {
 
     private var grabbedAt: [CGFloat] = []
     /// Cassette hubs turn a little faster than your hand (they're small).
-    private var turnRatio: CGFloat { media == .cassette ? 2 : media == .card ? 0.06 : 1 } // a card only tilts
+    private var turnRatio: CGFloat { media == .cassette ? 2 : 1 }
 
     /// You grabbed the disc: it stops turning by itself, right where it was.
     func grabDisc() {
@@ -212,6 +221,12 @@ final class MusicScene: NSView {
     /// A change of discs just finished: if more songs went by meanwhile, show the latest.
     private func changeFinished() {
         changing = false
+        if restyleAfterChange {
+            restyleAfterChange = false
+            queued = nil // the new media shows the newest cover anyway
+            restyle()
+            return
+        }
         guard let next = queued else { return }
         queued = nil
         changeDiscs(next)
@@ -775,6 +790,25 @@ final class MusicScene: NSView {
     /// The cover card's place in the square.
     enum Card {
         static let rect = CGRect(x: 0.1, y: 0.12, width: 0.8, height: 0.8)
+        /// Where the progress line under it takes clicks and drags (taller than the line, to be easy to hit).
+        static let bar = CGRect(x: 0.1, y: 0.025, width: 0.8, height: 0.06)
+    }
+
+    /// Dragging along the card's progress line: it shows `fraction` (0…1) until you let go.
+    func previewProgress(_ fraction: Double) {
+        CATransaction.begin()
+        CATransaction.setDisableActions(true)
+        for fill in fills {
+            fill.removeAnimation(forKey: "fill")
+            fill.transform = CATransform3DMakeScale(max(CGFloat(min(max(fraction, 0), 1)), 0.001), 1, 1)
+        }
+        CATransaction.commit()
+    }
+
+    /// Let go of the line: it follows the song again, once the player reports where the seek landed
+    /// (sooner if it does: a jump in position re-aims it).
+    func endProgressPreview() {
+        DispatchQueue.main.asyncAfter(deadline: .now() + 1.5) { [weak self] in self?.followSong(force: true) }
     }
 
     /// The cover on a card, floating a little, with a hairline of progress under it.
@@ -796,7 +830,7 @@ final class MusicScene: NSView {
         card.borderWidth = 1
         holder.addSublayer(card)
         label = card
-        let line = CGRect(x: rect.minX, y: rect.minY - side * 0.06, width: rect.width, height: 3)
+        let line = CGRect(x: rect.minX, y: Card.bar.midY * side - 2, width: rect.width, height: 4)
         addProgress(line, in: holder, track: NSColor(white: 1, alpha: 0.18).cgColor, fill: NSColor(white: 1, alpha: 0.85).cgColor)
         if motion == .full { // drifting gently up and down
             let float = CABasicAnimation(keyPath: "transform.translation.y")
@@ -809,7 +843,7 @@ final class MusicScene: NSView {
             float.preferredFrameRateRange = CAFrameRateRange(minimum: 10, maximum: 20, preferred: 15)
             card.add(float, forKey: "float")
         }
-        spinners = [card]
+        spinners = [] // nothing to turn: the line under it is what you drag
         return holder
     }
 
@@ -1108,7 +1142,7 @@ final class MusicScene: NSView {
         mediaRect = switch media {
         case .cassette: inSquare(Tape.tapeRect)
         case .player: inSquare(Player.wheel)
-        case .card: inSquare(Card.rect)
+        case .card: inSquare(Card.bar)
         default: discRect
         }
         ambient.arrange(in: bounds, around: discRect)

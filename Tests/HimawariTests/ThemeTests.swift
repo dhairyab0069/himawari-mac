@@ -47,6 +47,11 @@ final class ThemeLayoutTests: XCTestCase {
                 for size in sizes {
                     let face = theme.right(size: size)
                     check(face, size, "\(skin.era) right, \(kind) meters, \(size)")
+                    for needle in face.needles {
+                        for bar in face.bars where bar.frame.intersects(needle) {
+                            XCTFail("\(skin.era) \(kind) \(size): a meter at \(bar.frame) runs into the needles at \(needle)")
+                        }
+                    }
                     XCTAssertFalse(face.needles.isEmpty && face.bars.filter { if case .channel = $0.source { true } else { false } }.isEmpty
                                    && kind != .spectrum, "\(skin.era) \(kind): some level meter shows")
                 }
@@ -72,6 +77,15 @@ final class ThemeLayoutTests: XCTestCase {
         options.brand = "SUNFLOWER"
         XCTAssertEqual(styles.resolve(.standard, options: options).brand, "SUNFLOWER")
         _ = styles.follow(genre: nil, cover: nil)
+    }
+
+    func testAnImportedSkinNeverTakesAnIDInUse() {
+        let taken: Set<String> = ["red-rack", "red-rack-2", String(repeating: "a", count: 40)]
+        XCTAssertEqual(Styles.freeID("red-rack", taken: taken.contains), "red-rack-3")
+        XCTAssertEqual(Styles.freeID("blue", taken: taken.contains), "blue")
+        let long = Styles.freeID(String(repeating: "a", count: 40), taken: taken.contains)
+        XCTAssertEqual(long.count, 40, "still a valid id")
+        XCTAssertTrue(long.hasSuffix("-2"))
     }
 
     func testEveryEraHasEveryControl() {

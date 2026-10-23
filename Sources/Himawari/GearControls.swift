@@ -46,7 +46,9 @@ final class GearControls {
             for scene in scenes where scene.window != nil && scene.mediaRect.width > 0 {
                 guard let screen = Self.screenRect(scene.mediaRect, in: scene) else { continue }
                 // (round or not: a new catcher when the style swaps a disc for a cassette)
-                wanted.append(("\(scene.catcherKey).disc.\(scene.mediaIsRound)", screen, { [unowned self] in self.discCatcher(scene) }))
+                wanted.append(("\(scene.catcherKey).disc.\(scene.mediaIsRound).\(scene.mediaIsBar)", screen, { [unowned self] in
+                    scene.mediaIsBar ? self.barCatcher(scene) : self.discCatcher(scene)
+                }))
             }
         }
         // Keep the ones still needed (just moved), close the others, add the new ones.
@@ -181,6 +183,27 @@ final class GearControls {
             scene?.gear?.endScrub()
             self?.scratch.stop()
             if abs(seconds) > 0.2 { self?.perform?(.scrub(seconds: seconds)) }
+        }
+        return c
+    }
+
+    /// Today's look: the progress line under the cover card. Click to jump; drag to scrub along it,
+    /// landing where you let go.
+    private func barCatcher(_ scene: MusicScene) -> Catcher {
+        let c = Catcher()
+        func fraction(_ point: CGPoint) -> Double {
+            let width = c.contentView?.bounds.width ?? 1
+            return min(max(Double(point.x / max(width, 1)), 0), 1)
+        }
+        c.onDown = { [weak scene] point in scene?.previewProgress(fraction(point)) }
+        c.onDrag = { [weak self, weak scene] point in
+            scene?.previewProgress(fraction(point))
+            if let s = self?.song(), s.duration > 0 { scene?.gear?.scrub(by: fraction(point) * s.duration - s.position, angle: 0) }
+        }
+        c.onUp = { [weak self, weak scene] point in
+            scene?.gear?.endScrub()
+            self?.perform?(.seek(fraction: fraction(point)))
+            scene?.endProgressPreview()
         }
         return c
     }

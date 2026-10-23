@@ -174,10 +174,10 @@ changer: your playlists as discs to flip through and play.
 | **1990s Portable** | A portable CD player's LCD, round rubber buttons and a jog dial; its LCD remote with level bars, a spectrum and MEGA BASS | The CD turning under the player's clear lid | Silver, Translucent Purple |
 | **2000s Rack** | The CD deck and stereo analyzer (the original look, and still the default) | A picture CD | Black, Champagne Gold |
 | **2000s Pocket Player** | A speaker dock: a pocket player's Now Playing screen, flat buttons and a click wheel; a speaker grille and touch knobs | The player itself, the cover on its screen; turn its wheel to scrub | White, Black, Colours (Blue) |
-| **Today, Minimal** | Glass panes: the song in large plain type, a thin progress line, bare controls and a ring to turn; a thin waveform and flat knobs | The cover on a floating card | Dark, Light, Frosted |
+| **Today, Minimal** | Glass panes: the song in large plain type, a thin progress line, bare controls and a ring to turn; a thin waveform and flat knobs | The cover on a floating card; drag the line under it to scrub | Dark, Light, Frosted |
 
 The controls work the same in every era: the buttons, the progress, turning the wheel or the media to
-scrub, and the VOLUME, BASS and TREBLE knobs. Switching keeps the song where it is.
+scrub (in today's look, dragging the line under the cover), and the VOLUME, BASS and TREBLE knobs. Switching keeps the song where it is.
 
 **Customise** (Style ▸ Customise…):
 
