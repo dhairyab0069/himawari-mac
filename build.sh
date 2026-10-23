@@ -53,6 +53,8 @@ make_app() {
     <key>LSMinimumSystemVersion</key><string>14.4</string>
     <key>LSUIElement</key><true/>
     <key>NSAudioCaptureUsageDescription</key><string>$name measures how loud the song Music is playing is, to move the VU meters and spectrum on the wallpaper. Nothing is recorded.</string>
+    <key>NSMicrophoneUsageDescription</key><string>$name listens for spoken commands like “next”, “pause” and “volume up” so you can control the music by voice. Recognition happens on this Mac; nothing is recorded or sent anywhere.</string>
+    <key>NSSpeechRecognitionUsageDescription</key><string>$name turns the words you say into music commands like “next” or “pause”. The recognition runs on this Mac, and only those command words are listened for.</string>
     <key>NSAppleEventsUsageDescription</key><string>$name shows and controls what Music is playing.</string>
 </dict></plist>
 PLIST

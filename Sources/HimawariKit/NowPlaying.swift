@@ -312,6 +312,8 @@ public final class MusicNowPlaying: ObservableObject {
         else { system?.send(.seek(to: seconds)) }
     }
     public func pause() { onAppleMusic ? tell("pause") : system?.send(.pause) }
+    /// Start playing again (after a pause).
+    public func play() { onAppleMusic ? tell("play") : system?.send(.play) }
     public func next() { onAppleMusic ? tell("next track") : system?.send(.next) }
 
     /// The VOLUME knob, 0…100: Apple Music's own volume, or the Mac's output volume for other

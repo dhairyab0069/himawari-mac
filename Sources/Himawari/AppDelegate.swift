@@ -38,11 +38,21 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     private var deck: MusicNowPlaying.Deck?
     private var deckTimer: Timer?
     private var lastGearTouch: CFTimeInterval = 0 // a knob being turned: don't read over it
+    /// Voice attention: hears "next", "pause", "volume up"… and acts on them.
+    private let voice = VoiceAttention()
     private var lastToneSent: CFTimeInterval = 0
     private var finalTone: DispatchWorkItem?
 
     func applicationWillTerminate(_ notification: Notification) {
         clock.stop()
+        voice.stop()
+    }
+
+    /// Turns voice attention on or off from the menu.
+    @objc private func toggleVoiceAttention() {
+        settings.voiceAttention.toggle()
+        HimawariKit.Settings.broadcastChange()
+        voice.apply(settings.voiceAttention)
     }
 
     func applicationDidFinishLaunching(_ notification: Notification) {
@@ -119,6 +129,38 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
             self?.wallpaper.powerChanged()
             self?.applyMusicWallpaper() // also re-evaluates pausing
         }
+        // Voice attention: spoken commands, carried out on the player that is playing.
+        voice.onCommand { [weak self] command in
+            guard let self else { return }
+            switch command {
+            case .transport(let playerCommand):
+                switch playerCommand {
+                case .next: self.music.next()
+                case .previous: self.music.previous()
+                case .play: self.music.play()
+                case .pause: self.music.pause()
+                case .togglePlayPause: self.music.playPause()
+                case .seek(let seconds): self.music.seek(to: seconds)
+                case .refresh: break
+                }
+                Log.write("voice: \(playerCommand.helperLine)")
+            case .volume(let by):
+                // The player's own volume, like the gear's knob does.
+                let now = self.deck?.volume ?? 0.5
+                let target = max(0, min(1, now + by))
+                self.music.setVolume(Int((target * 100).rounded()))
+                if self.music.player == .appleMusic || self.music.player == .spotify { self.deck?.volume = target }
+                Log.write("voice: volume \(Int(target * 100))")
+            }
+        }
+        VoiceCheck.watchRequests()
+        if self.settings.voiceAttention {
+            Log.write("voice: starting (enabled)")
+            voice.start()
+        } else {
+            Log.write("voice: off")
+        }
+
         // The side gear and the CD are playable (see GearControls).
         var lastVolumeSent = 0.0
         wallpaper.gearControls.song = { [weak self] in
@@ -503,6 +545,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         menu.addItem(styleItem())
         menu.addItem(lyricsItem())
         menu.addItem(item("Music Wallpaper While Playing", #selector(toggleMusicWallpaper), checked: settings.musicWallpaper))
+        let voiceLabel = voice.listening ? "Voice Attention (Listening)" : (voice.problem.map { "Voice Attention — \($0)" } ?? "Voice Attention")
+        let voiceItem = item(voiceLabel, #selector(toggleVoiceAttention), checked: settings.voiceAttention)
+        voiceItem.isEnabled = !settings.voiceAttention || voice.listening
+        menu.addItem(voiceItem)
         menu.addItem(playersItem())
         let changerItem = item("Disc Changer (Playlists)…", #selector(toggleChanger), key: "p")
         changerItem.keyEquivalentModifierMask = [.command, .option, .control]

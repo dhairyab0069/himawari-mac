@@ -26,5 +26,9 @@
 	<string>Himawari reads what Music is playing so the wallpaper can show the album's animated artwork, and checks Finder's selection when you click the desktop.</string>
 	<key>NSAudioCaptureUsageDescription</key>
 	<string>Himawari measures how loud the song Music is playing is, to move the VU meters and spectrum on the wallpaper. Nothing is recorded.</string>
+	<key>NSMicrophoneUsageDescription</key>
+	<string>Himawari listens for spoken commands like “next”, “pause” and “volume up” so you can control the music by voice. Recognition happens on this Mac; nothing is recorded or sent anywhere.</string>
+	<key>NSSpeechRecognitionUsageDescription</key>
+	<string>Himawari turns the words you say into music commands like “next” or “pause”. The recognition runs on this Mac, and only those command words are listened for.</string>
 </dict>
 </plist>

@@ -143,6 +143,13 @@ final class Settings {
         get { defaults.bool(forKey: "showInDock") }
         set { defaults.set(newValue, forKey: "showInDock") }
     }
+
+    /// Whether Himawari listens for spoken commands ("next", "pause", "volume up"…).
+    /// Off by default: it opens the microphone, so turning it on is the user's choice.
+    var voiceAttention: Bool {
+        get { defaults.bool(forKey: "voiceAttention") }
+        set { defaults.set(newValue, forKey: "voiceAttention") }
+    }
 }
 
 /// Where the lyrics show (Himawari menu ▸ Lyrics).

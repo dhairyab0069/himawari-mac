@@ -22,6 +22,7 @@ public final class Settings {
             "pauseWhenCovered": true,
             "userPaused": false,
             "showInDock": false,
+            "voiceAttention": false,
             "showClock": true,
             "clockPosition": ClockPosition.topCenter.rawValue,
             "clock24h": false,
@@ -112,6 +113,13 @@ public final class Settings {
     public var showInDock: Bool {
         get { bool("showInDock") }
         set { defaults.set(newValue, forKey: "showInDock") }
+    }
+
+    /// Whether Himawari listens for spoken commands ("next", "pause", "volume up"…).
+    /// Off by default: it opens the microphone, so it is the user's choice to turn on.
+    public var voiceAttention: Bool {
+        get { bool("voiceAttention") }
+        set { defaults.set(newValue, forKey: "voiceAttention") }
     }
 
     // MARK: - Clock service
