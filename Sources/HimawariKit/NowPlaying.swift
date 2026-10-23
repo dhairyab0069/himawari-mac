@@ -308,6 +308,15 @@ public final class MusicNowPlaying: ObservableObject {
         else { Self.timedScript("set volume output volume \(v)") { _, _ in } }
     }
 
+    /// The words Music has for the song playing (plain text, as shown in Music's lyrics view);
+    /// nil for other players, or when Music has none.
+    public func fetchAppleMusicLyrics(_ done: @escaping @MainActor (String?) -> Void) {
+        guard onAppleMusic else { return done(nil) }
+        Self.osascript("tell application id \"\(Self.music)\" to return lyrics of current track") { out in
+            done(out.flatMap { $0.isEmpty || $0 == "missing value" ? nil : $0 })
+        }
+    }
+
     /// nil when there's no answer (an output with no volume control, like HDMI, says "missing value").
     public func fetchVolume(_ done: @escaping @MainActor (Int?) -> Void) {
         if onAppleMusic {

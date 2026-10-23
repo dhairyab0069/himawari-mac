@@ -144,7 +144,7 @@ struct PortableTheme: GearTheme {
     }
 
     /// A round, soft rubber button with its symbol moulded in.
-    private static func rubberButton(_ r: CGRect, symbol: String, _ skin: Skin) {
+    static func rubberButton(_ r: CGRect, symbol: String, _ skin: Skin) {
         NSColor(white: 0, alpha: 0.4).setFill()
         NSBezierPath(ovalIn: r.insetBy(dx: -2, dy: -2).offsetBy(dx: 0, dy: -1.5)).fill()
         NSGradient(colors: skin.colors.button.map(\.ns))?.draw(in: NSBezierPath(ovalIn: r), relativeCenterPosition: NSPoint(x: -0.3, y: 0.4))
@@ -154,7 +154,7 @@ struct PortableTheme: GearTheme {
     }
 
     /// The MEGA BASS slide switch (for show), and the HOLD switch.
-    private static func megaBass(_ r: CGRect, _ skin: Skin) {
+    static func megaBass(_ r: CGRect, _ skin: Skin) {
         for (i, (name, on)) in [("MEGA BASS", true), ("HOLD", false)].enumerated() {
             let c = CGPoint(x: r.minX + r.width * (0.27 + 0.46 * CGFloat(i)), y: r.midY + 6)
             let track = NSRect(x: c.x - 22, y: c.y - 7, width: 44, height: 14)

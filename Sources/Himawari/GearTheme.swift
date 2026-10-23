@@ -23,12 +23,18 @@ enum MediaKind {
     case discman   // a CD in a portable player, under its clear lid
     case player    // a pocket player: the cover on its screen, a click wheel that scrubs
     case card      // the cover on a floating card
+    case cartridge // a handheld console's game cartridge, the cover on its label
+    case hologram  // the cover projected as a hologram: tilted, scan-lined, flickering
 }
 
 @MainActor
 enum Themes {
     static func make(_ skin: Skin, meters: StyleOptions.Meters = .era) -> GearTheme {
-        switch skin.era {
+        // Your own era, when the skin wears one that's there (otherwise its era's own layout).
+        if let id = skin.design, let design = Styles.shared.library.design(id: id) {
+            return CustomTheme(skin: skin, design: design, meters: meters)
+        }
+        return switch skin.era {
         case .rack: RackTheme(skin: skin, meters: meters)
         case .hifi: HiFiTheme(skin: skin, meters: meters)
         case .cassette: CassetteTheme(skin: skin, meters: meters)
@@ -36,6 +42,23 @@ enum Themes {
         case .pocket: PocketTheme(skin: skin, meters: meters)
         case .minimal: MinimalTheme(skin: skin, meters: meters)
         }
+    }
+
+    /// What plays in the middle for this skin: its design's media, or its era's.
+    static func media(_ skin: Skin) -> MediaKind {
+        if let id = skin.design, let design = Styles.shared.library.design(id: id) {
+            switch design.media {
+            case .cd: return .cd
+            case .record: return .record
+            case .cassette: return .cassette
+            case .discman: return .discman
+            case .player: return .player
+            case .card: return .card
+            case .cartridge: return .cartridge
+            case .hologram: return .hologram
+            }
+        }
+        return media(skin.era)
     }
 
     static func media(_ era: GearEra) -> MediaKind {
@@ -324,7 +347,8 @@ enum Paint {
         if skin.layout.caseWidth > 0 { cabinet(full, skin) }
         let r = GearLayout.plate(size, skin)
         let plateCorner = skin.layout.caseWidth > 0 ? min(corner, 3) : corner
-        let plate = NSBezierPath(roundedRect: r.insetBy(dx: 0.5, dy: 0.5), xRadius: plateCorner, yRadius: plateCorner)
+        let plate = skin.material == .hud ? chamfer(r.insetBy(dx: 0.5, dy: 0.5), max(corner, 10))
+            : NSBezierPath(roundedRect: r.insetBy(dx: 0.5, dy: 0.5), xRadius: plateCorner, yRadius: plateCorner)
         NSGradient(colors: skin.colors.plate.map(\.ns), atLocations: [0, 0.5, 1], colorSpace: .sRGB)?.draw(in: plate, angle: -90)
         NSGraphicsContext.saveGraphicsState()
         plate.addClip()
@@ -333,8 +357,22 @@ enum Paint {
         NSColor(white: 1, alpha: 0.18).setStroke()
         plate.lineWidth = 1
         plate.stroke()
+        if skin.material == .hud { hudTrim(r, plate: plate, skin) }
+        if skin.material == .neon || skin.material == .hud { // a tube of light round the edge, glowing inward
+            NSGraphicsContext.saveGraphicsState()
+            plate.addClip()
+            for (width, alpha) in [(16.0, 0.06), (9.0, 0.12), (4.0, 0.3)] {
+                skin.colors.accent.alpha(alpha).ns.setStroke()
+                plate.lineWidth = width
+                plate.stroke()
+            }
+            NSGraphicsContext.restoreGraphicsState()
+            skin.colors.accent.alpha(0.95).ns.setStroke()
+            plate.lineWidth = 1.5
+            plate.stroke()
+        }
         for p in [CGPoint(x: r.minX + 12, y: r.minY + 12), CGPoint(x: r.maxX - 12, y: r.minY + 12),
-                  CGPoint(x: r.minX + 12, y: r.maxY - 12), CGPoint(x: r.maxX - 12, y: r.maxY - 12)] where screws {
+                  CGPoint(x: r.minX + 12, y: r.maxY - 12), CGPoint(x: r.maxX - 12, y: r.maxY - 12)] where screws && skin.material != .hud {
             screw(p)
         }
     }
@@ -359,8 +397,10 @@ enum Paint {
                 NSRect(x: r.minX + .random(in: 0..<r.width, using: &rng), y: r.minY + .random(in: 0..<r.height, using: &rng), width: 1, height: 1).fill()
             }
             NSGradient(colors: [NSColor(white: 1, alpha: 0.06), NSColor(white: 1, alpha: 0)])?.draw(in: r, angle: -90)
-        case .matte:
+        case .matte, .neon:
             break
+        case .hud:
+            hudTexture(r, skin)
         }
     }
 

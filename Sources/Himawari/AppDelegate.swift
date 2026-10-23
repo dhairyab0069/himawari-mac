@@ -18,6 +18,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     private var positionWatch: AnyCancellable?
     private var playerWatch: AnyCancellable?
     private var styleWatch: AnyCancellable?
+    private var lyricsWatch: AnyCancellable?
+    private let lyricsStore = LyricsStore()
     private let customiser = StyleCustomiser()
     private var pausedSince: Date? // when Music last stopped reporting "playing"
     private var clockHotKey: HotKey? // ⌃⌥⌘C: show / hide the desktop clock
@@ -44,7 +46,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         Styles.shared.reload() // the skins folder, before the first gear is drawn
-        customiser.onChange = { [weak self] in self?.wallpaper.applyStyle() }
+        customiser.onChange = { [weak self] reloaded in self?.wallpaper.applyStyle(reloaded: reloaded) }
+        Styles.shared.watch { [weak self] in
+            self?.wallpaper.applyStyle(reloaded: true)
+            self?.customiser.skinsChanged()
+        }
         clock.start()
         statusItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.squareLength)
         let menu = NSMenu()
@@ -183,6 +189,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
             .sink { [weak self] _ in
                 onMainActor { self?.applyMusicWallpaper() }
             }
+        // A new song: its lyrics, if they're on.
+        lyricsWatch = music.$track
+            .removeDuplicates()
+            .receive(on: RunLoop.main)
+            .sink { [weak self] _ in onMainActor { self?.loadLyrics() } }
         // The look can follow the song: its genre (Apple's catalog), or its cover's colours.
         styleWatch = music.$genre.combineLatest(music.$artwork)
             .receive(on: RunLoop.main)
@@ -480,6 +491,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         sizingItem.submenu = sizingMenu
         menu.addItem(sizingItem)
         menu.addItem(styleItem())
+        menu.addItem(lyricsItem())
         menu.addItem(item("Music Wallpaper While Playing", #selector(toggleMusicWallpaper), checked: settings.musicWallpaper))
         menu.addItem(playersItem())
         let changerItem = item("Disc Changer (Playlists)…", #selector(toggleChanger), key: "p")
@@ -516,41 +528,50 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         }
     }
 
-    // MARK: - Style: the side gear's era and skin
+    // MARK: - Lyrics
 
-    private func styleItem() -> NSMenuItem {
-        let entry = NSMenuItem(title: "Style", action: nil, keyEquivalent: "")
+    private func loadLyrics() {
+        let mode = settings.lyrics
+        guard mode != .off, let track = music.track else {
+            lyricsStore.clear(mode == .off ? "Off" : "No song")
+            wallpaper.showLyrics(nil, offset: 0, mode: mode)
+            return
+        }
+        wallpaper.showLyrics(nil, offset: lyricsStore.offset(for: track), mode: mode) // the last song's words go at once
+        lyricsStore.load(track, appleMusic: { [weak self] done in
+            // Music's "current track" must still be this one, before and after asking.
+            guard let self, self.music.track == track else { return done(nil) }
+            self.music.fetchAppleMusicLyrics { [weak self] text in done(self?.music.track == track ? text : nil) }
+        }) { [weak self] lyrics in
+            guard let self, self.music.track == track else { return }
+            // The timing as it is now (Earlier / Later may have been chosen while looking).
+            self.wallpaper.showLyrics(lyrics, offset: self.lyricsStore.offset(for: track), mode: self.settings.lyrics)
+        }
+    }
+
+    private func lyricsItem() -> NSMenuItem {
+        let entry = NSMenuItem(title: "Lyrics", action: nil, keyEquivalent: "")
         let sub = NSMenu()
-        let styles = Styles.shared
-        let current = styles.chosen.id
-        sub.addItem(item("Customise…", #selector(showCustomiser)))
-        let following = styles.options.mode
-        if following != .pinned {
-            let note = NSMenuItem(title: following == .genre ? "Following the genre: \(styles.current.name)" : "In the cover's colours",
-                                  action: nil, keyEquivalent: "")
-            note.isEnabled = false
-            sub.addItem(note)
+        for mode in LyricsMode.allCases {
+            let choice = item(mode.rawValue, #selector(setLyricsMode(_:)), checked: settings.lyrics == mode)
+            choice.representedObject = mode.rawValue
+            sub.addItem(choice)
         }
-        sub.addItem(.separator())
-        for era in GearEra.allCases {
-            let skins = styles.library.skins(of: era)
-            guard !skins.isEmpty else { continue }
-            if sub.numberOfItems > 0 { sub.addItem(.separator()) }
-            let heading = NSMenuItem(title: era.title, action: nil, keyEquivalent: "")
-            heading.isEnabled = false
-            sub.addItem(heading)
-            for skin in skins {
-                let choice = item(skin.name, #selector(chooseSkin(_:)), checked: skin.id == current)
-                choice.representedObject = skin.id
-                choice.indentationLevel = 1
-                sub.addItem(choice)
+        if settings.lyrics != .off {
+            sub.addItem(.separator())
+            let found = NSMenuItem(title: "This song: \(lyricsStore.status)", action: nil, keyEquivalent: "")
+            found.isEnabled = false
+            sub.addItem(found)
+            if let track = music.track {
+                let offset = lyricsStore.offset(for: track)
+                let timing = NSMenuItem(title: offset == 0 ? "Timing: as found" : String(format: "Timing: %+.1f s", offset), action: nil, keyEquivalent: "")
+                timing.isEnabled = false
+                sub.addItem(timing)
+                sub.addItem(item("Words Earlier (−0.5 s)", #selector(lyricsEarlier)))
+                sub.addItem(item("Words Later (+0.5 s)", #selector(lyricsLater)))
+                if offset != 0 { sub.addItem(item("Reset Timing", #selector(lyricsResetTiming))) }
             }
-        }
-        sub.addItem(.separator())
-        sub.addItem(item("Open Skins Folder", #selector(openSkinsFolder)))
-        sub.addItem(item("Reload Skins", #selector(reloadSkins)))
-        for problem in styles.library.problems { // a skin file with a mistake: say which, and what
-            let note = NSMenuItem(title: "⚠︎ " + problem, action: nil, keyEquivalent: "")
+            let note = NSMenuItem(title: "Words from LRCLIB (lrclib.net), or Apple Music's own", action: nil, keyEquivalent: "")
             note.isEnabled = false
             sub.addItem(note)
         }
@@ -558,22 +579,49 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         return entry
     }
 
+    @objc private func setLyricsMode(_ sender: NSMenuItem) {
+        guard let raw = sender.representedObject as? String, let mode = LyricsMode(rawValue: raw) else { return }
+        settings.lyrics = mode
+        loadLyrics()
+    }
+
+    private func nudgeLyrics(_ by: Double?) {
+        guard let track = music.track else { return }
+        let offset = by.map { lyricsStore.offset(for: track) + $0 } ?? 0
+        lyricsStore.setOffset(offset, for: track)
+        wallpaper.nudgeLyrics(lyricsStore.offset(for: track))
+    }
+
+    @objc private func lyricsEarlier() { nudgeLyrics(-0.5) }
+    @objc private func lyricsLater() { nudgeLyrics(0.5) }
+    @objc private func lyricsResetTiming() { nudgeLyrics(nil) }
+
+    // MARK: - Style: the side gear's era and skin
+
+    /// Style…: everything about the look is in the Customise window, with previews to pick from.
+    private func styleItem() -> NSMenuItem {
+        let mode = Styles.shared.options.mode
+        let now = mode == .genre ? "following the genre" : mode == .coverColours ? "in the cover's colours" : Styles.shared.chosen.name
+        return item("Style… (\(now))", #selector(showCustomiser))
+    }
+
     @objc private func chooseSkin(_ sender: NSMenuItem) {
         guard let id = sender.representedObject as? String else { return }
         Styles.shared.select(id)
         wallpaper.applyStyle()
+        customiser.skinsChanged() // an open Customise window shows the choice too
     }
 
     @objc private func showCustomiser() { customiser.show() }
 
     @objc private func openSkinsFolder() {
-        Styles.shared.reload() // also makes the folder and its examples, the first time
+        Styles.shared.prepareFolders() // the folder and its examples, the first time (the watcher reads changes)
         NSWorkspace.shared.open(SkinLibrary.folder)
     }
 
     @objc private func reloadSkins() {
         Styles.shared.reload()
-        wallpaper.applyStyle()
+        wallpaper.applyStyle(reloaded: true)
     }
 
     // MARK: - Players: which apps the music wallpaper follows

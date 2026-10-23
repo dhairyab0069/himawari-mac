@@ -156,7 +156,7 @@ struct CassetteTheme: GearTheme {
     }
 
     /// The deck's door: smoked plastic with a chrome rim.
-    private static func door(_ r: CGRect, _ skin: Skin) {
+    static func door(_ r: CGRect, _ skin: Skin) {
         NSColor(white: 0, alpha: 0.6).setFill()
         NSBezierPath(roundedRect: r.insetBy(dx: -3, dy: -3), xRadius: 6, yRadius: 6).fill()
         NSGradient(colors: [NSColor(white: 0.16, alpha: 1), NSColor(white: 0.05, alpha: 1)])?
@@ -389,7 +389,7 @@ struct CassetteTheme: GearTheme {
     }
 
     /// Piano keys: chunky, squared, with a lit stripe along the top edge.
-    private static func key(_ r: CGRect, symbol: String, _ skin: Skin) {
+    static func key(_ r: CGRect, symbol: String, _ skin: Skin) {
         NSColor(white: 0, alpha: 0.6).setFill()
         NSBezierPath(roundedRect: r.insetBy(dx: -1, dy: -1).offsetBy(dx: 0, dy: -2), xRadius: 2, yRadius: 2).fill()
         let key = NSBezierPath(roundedRect: r, xRadius: 2, yRadius: 2)
@@ -400,7 +400,7 @@ struct CassetteTheme: GearTheme {
     }
 
     /// The equalizer's sliders (for show): a groove each, with a cap set to a gentle smile.
-    private static func sliders(_ r: CGRect, count: Int, inset: CGFloat, _ skin: Skin) {
+    static func sliders(_ r: CGRect, count: Int, inset: CGFloat, _ skin: Skin) {
         let inner = r.insetBy(dx: inset, dy: 6)
         let step = inner.width / CGFloat(count)
         NSColor(white: 1, alpha: 0.12).setFill()

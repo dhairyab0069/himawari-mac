@@ -117,6 +117,13 @@ final class Settings {
         set { defaults.set(newValue, forKey: "clickToClearDesktop") }
     }
 
+    /// Synced lyrics: off, on the deck's display, or on the display and big on the desktop.
+    /// Off at first: turning them on is what sends a song's title to LRCLIB.
+    var lyrics: LyricsMode {
+        get { LyricsMode(rawValue: defaults.string(forKey: "lyricsMode") ?? "") ?? .off }
+        set { defaults.set(newValue.rawValue, forKey: "lyricsMode") }
+    }
+
     var videoSizing: VideoSizing {
         get { VideoSizing(rawValue: defaults.string(forKey: "videoSizing") ?? "") ?? .widescreen }
         set { defaults.set(newValue.rawValue, forKey: "videoSizing") }
@@ -136,6 +143,13 @@ final class Settings {
         get { defaults.bool(forKey: "showInDock") }
         set { defaults.set(newValue, forKey: "showInDock") }
     }
+}
+
+/// Where the lyrics show (Himawari menu ▸ Lyrics).
+enum LyricsMode: String, CaseIterable {
+    case off = "Off"
+    case display = "On the Display"
+    case desktop = "On the Display and Desktop"
 }
 
 /// What fills the bars around a video that doesn't cover the screen.

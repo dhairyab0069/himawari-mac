@@ -1,0 +1,52 @@
+{
+  "format": 1,
+  "id": "my-cyberpunk",
+  "name": "My Cyberpunk",
+  "media": "hologram",
+  "left": [
+    {
+      "block": "header"
+    },
+    {
+      "block": "display",
+      "style": "hud",
+      "height": 160
+    },
+    {
+      "block": "buttons",
+      "style": "hud",
+      "height": 38
+    },
+    {
+      "block": "wheel",
+      "style": "reactor",
+      "label": "NEURAL SCRUB"
+    },
+    {
+      "block": "readout",
+      "height": 50
+    }
+  ],
+  "right": [
+    {
+      "block": "header"
+    },
+    {
+      "block": "meters",
+      "style": "leds",
+      "height": 70
+    },
+    {
+      "block": "spectrum"
+    },
+    {
+      "block": "readout",
+      "height": 62
+    },
+    {
+      "block": "knobs",
+      "style": "hud",
+      "height": 84
+    }
+  ]
+}

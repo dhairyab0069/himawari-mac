@@ -51,6 +51,9 @@ final class Styles {
         return skin
     }
 
+    /// Uses this library instead of the folders' (previews of files elsewhere).
+    func use(_ library: SkinLibrary) { self.library = library }
+
     func select(_ id: String) {
         guard library.skin(id: id) != nil else { return }
         defaults.set(id, forKey: "gearSkin")
@@ -65,10 +68,51 @@ final class Styles {
         return current != before
     }
 
+    // MARK: Watching the skins folder
+
+    private var watchTimer: Timer?
+    private var fingerprint = ""
+
+    /// Calls `changed` (after reloading) whenever a skin file is added, removed or saved: edit a
+    /// skin in any editor and the desktop follows within a couple of seconds, no Reload needed.
+    func watch(_ changed: @escaping @MainActor () -> Void) {
+        fingerprint = Self.fingerprint()
+        watchTimer?.invalidate()
+        watchTimer = Timer.scheduledTimer(withTimeInterval: 2, repeats: true) { [weak self] _ in
+            onMainActor {
+                guard let self else { return }
+                let now = Self.fingerprint()
+                guard now != self.fingerprint else { return }
+                self.fingerprint = now
+                self.reload()
+                Log.write("skins: the folder changed; reloaded (\(self.library.skins.count) skins)")
+                changed()
+            }
+        }
+        watchTimer?.tolerance = 1
+    }
+
+    /// The skin and design files and when each was last saved (Examples/ aside: Himawari writes those itself).
+    private static func fingerprint() -> String {
+        [SkinLibrary.folder, SkinLibrary.designsFolder].map { folder in
+            let names = (try? FileManager.default.contentsOfDirectory(atPath: folder.path)) ?? []
+            return names.filter { $0.lowercased().hasSuffix(".json") }.sorted().map { name in
+                let date = (try? folder.appending(path: name).resourceValues(forKeys: [.contentModificationDateKey]).contentModificationDate) ?? .distantPast
+                return "\(name)@\(date.timeIntervalSince1970)"
+            }.joined(separator: "|")
+        }.joined(separator: "||")
+    }
+
+    /// Makes the folders and their examples, without reading them (the watcher picks up changes).
+    func prepareFolders() {
+        do { try SkinLibrary.writeExamples() } catch { Log.write("skins: couldn't write the examples: \(error.localizedDescription)") }
+    }
+
     /// Reads the skins folder again (Style ▸ Reload Skins), and refreshes its examples.
     func reload() {
         do { try SkinLibrary.writeExamples() } catch { Log.write("skins: couldn't write the examples: \(error.localizedDescription)") }
         library = SkinLibrary()
+        fingerprint = Self.fingerprint() // what's read now isn't a change to watch for
         for problem in library.problems { Log.write("skins: \(problem)") }
     }
 
@@ -84,6 +128,28 @@ final class Styles {
         try copy.encoded().write(to: url, options: .atomic)
         reload()
         return url
+    }
+
+    /// Starts your own era: a copy of the example design in the Designs folder, and a skin that
+    /// wears it (in `skin`'s colours). Returns the design file, to open.
+    func makeDesign(from skin: Skin) throws -> (design: URL, skin: String) {
+        var design = Design.builtIn[0]
+        let taken = { (id: String) in
+            self.library.design(id: id) != nil || FileManager.default.fileExists(atPath: SkinLibrary.designsFolder.appending(path: "\(id).json").path)
+        }
+        design.id = Self.freeID("my-era", taken: taken)
+        design.name = "My Era"
+        try FileManager.default.createDirectory(at: SkinLibrary.designsFolder, withIntermediateDirectories: true)
+        let file = SkinLibrary.designsFolder.appending(path: "\(design.id).json")
+        try design.encoded().write(to: file, options: .atomic)
+        var wearer = skin
+        wearer.id = freeID(design.id)
+        wearer.name = "My Era"
+        wearer.design = design.id
+        try FileManager.default.createDirectory(at: SkinLibrary.folder, withIntermediateDirectories: true)
+        try wearer.encoded().write(to: SkinLibrary.folder.appending(path: "\(wearer.id).json"), options: .atomic)
+        reload()
+        return (file, wearer.id)
     }
 
     /// Copies a skin file someone shared into the skins folder, if it loads. Returns its name, or

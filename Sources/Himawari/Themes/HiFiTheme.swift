@@ -109,7 +109,7 @@ struct HiFiTheme: GearTheme {
     // MARK: Drawing
 
     /// The FM scale printed on the dial glass: frequencies, ticks, the "FM" and "MHz".
-    private static func fmScale(_ r: CGRect, track: CGRect, _ skin: Skin) {
+    static func fmScale(_ r: CGRect, track: CGRect, _ skin: Skin) {
         let ink = skin.colors.display.alpha(0.75).ns
         let faint = skin.colors.display.alpha(0.4).ns
         NSAttributedString(string: "FM", attributes: [.font: NSFont.systemFont(ofSize: 9, weight: .heavy), .foregroundColor: ink])
@@ -133,7 +133,7 @@ struct HiFiTheme: GearTheme {
     }
 
     /// A long brushed key with a dark lip below it, like a receiver's function keys.
-    private static func pianoKey(_ r: CGRect, symbol: String, _ skin: Skin) {
+    static func pianoKey(_ r: CGRect, symbol: String, _ skin: Skin) {
         NSColor(white: 0, alpha: 0.55).setFill()
         NSBezierPath(roundedRect: r.offsetBy(dx: 0, dy: -3), xRadius: 2, yRadius: 2).fill() // its shadow / lip
         let key = NSBezierPath(roundedRect: r, xRadius: 2, yRadius: 2)
@@ -146,7 +146,7 @@ struct HiFiTheme: GearTheme {
     }
 
     /// A row of bat-handle toggle switches (they're for show).
-    private static func toggles(_ r: CGRect, _ skin: Skin) {
+    static func toggles(_ r: CGRect, _ skin: Skin) {
         let names = ["LOUDNESS", "MONO", "TAPE", "FILTER"]
         let up = [true, false, false, true]
         for (i, name) in names.enumerated() {

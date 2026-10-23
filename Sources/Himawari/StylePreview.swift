@@ -15,8 +15,28 @@ enum StylePreview {
             return true
         }
         guard let i = arguments.firstIndex(of: "--render-styles") else { return false }
+        if arguments.contains("--with-lyrics") { // the sample song's words, big on the desktop too
+            NowPlayingSides.words = (Lyrics.parseLRC("[01:20.00]<01:20.00> Golden <01:21.50> hour, <01:23.00> slow <01:24.00> and <01:25.00> warm\n[01:27.00]The sky is ours tonight"), 0, .desktop)
+        }
         let folder = URL(fileURLWithPath: i + 1 < arguments.count ? arguments[i + 1] : ".")
         try? FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
+        // A skin (and a design) straight from files, not the folders: for the docs' step-by-step pictures.
+        if let f = arguments.firstIndex(of: "--skin-file"), f + 1 < arguments.count {
+            var library = Styles.shared.library
+            if let d = arguments.firstIndex(of: "--design-file"), d + 1 < arguments.count,
+               let data = try? Data(contentsOf: URL(fileURLWithPath: arguments[d + 1])) {
+                do { library.add(try Design.decode(data)) } catch { print("design: \(error)"); return true }
+            }
+            Styles.shared.use(library)
+            guard let data = try? Data(contentsOf: URL(fileURLWithPath: arguments[f + 1])) else { print("can't read the skin"); return true }
+            do {
+                let skin = try Skin.decode(data)
+                let url = folder.appending(path: "\(skin.id).png")
+                render(skin, to: url)
+                print(url.path)
+            } catch { print("skin: \(error)") }
+            return true
+        }
         let only = i + 2 < arguments.count ? arguments[i + 2] : nil // one skin's id ("all": every one)…
         let meters = (i + 3 < arguments.count ? StyleOptions.Meters(rawValue: arguments[i + 3]) : nil) ?? .era // …with these meters
         for skin in Styles.shared.library.skins where only == nil || only == "all" || skin.id == only {

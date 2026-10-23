@@ -9,10 +9,10 @@ import UniformTypeIdentifiers
 /// import one someone shared.
 @MainActor
 final class StyleCustomiser {
-    /// Something changed: redraw the gear and the media.
-    var onChange: () -> Void = {}
+    /// Something changed: redraw the gear and the media (true: the skin files were read again).
+    var onChange: (Bool) -> Void = { _ in }
     private var window: NSWindow?
-    private lazy var model = CustomiseModel { [weak self] in self?.onChange() }
+    private lazy var model = CustomiseModel { [weak self] reloaded in self?.onChange(reloaded) }
 
     /// The window drawn offscreen to a PNG (`--render-customise <file>`), for checking its layout.
     func snapshot(to url: URL) {
@@ -22,6 +22,12 @@ final class StyleCustomiser {
         guard let rep = view.bitmapImageRepForCachingDisplay(in: view.bounds) else { return }
         view.cacheDisplay(in: view.bounds, to: rep)
         try? rep.representation(using: .png, properties: [:])?.write(to: url)
+    }
+
+    /// The skins folder changed: redraw the previews (the window stays as it is otherwise).
+    func skinsChanged() {
+        guard window?.isVisible == true else { return }
+        model.skinsChanged()
     }
 
     func show() {
@@ -48,30 +54,33 @@ final class StyleCustomiser {
 final class CustomiseModel: ObservableObject {
     @Published var chosen: String = Styles.shared.chosen.id
     @Published var options = Styles.shared.options
-    @Published private(set) var skins: [GearEra: [Skin]] = [:]
+    /// The styles to pick from: each era's skins, then each design's (your own eras).
+    @Published private(set) var sections: [(title: String, skins: [Skin])] = []
     @Published private(set) var problems: [String] = []
     @Published private(set) var thumbnails: [String: NSImage] = [:]
     @Published private(set) var preview: NSImage?
     @Published var notice: String?
-    private let changed: () -> Void
+    private let changed: (Bool) -> Void // true: the files were read again
     private var pendingPreview: DispatchWorkItem?
     private var pendingApply: DispatchWorkItem?
     private var renderingThumbnails = false
 
-    init(changed: @escaping () -> Void) { self.changed = changed }
+    init(changed: @escaping (Bool) -> Void) { self.changed = changed }
 
     func reload() {
         chosen = Styles.shared.chosen.id
         options = Styles.shared.options
         let library = Styles.shared.library
-        skins = Dictionary(uniqueKeysWithValues: GearEra.allCases.map { ($0, library.skins(of: $0)) })
+        let worn = { (s: Skin) in s.design.flatMap { library.design(id: $0) } }
+        sections = GearEra.allCases.map { era in (era.title, library.skins(of: era).filter { worn($0) == nil }) }.filter { !$0.skins.isEmpty }
+            + library.designs.map { d in (d.name, library.skins.filter { worn($0)?.id == d.id }) }.filter { !$0.skins.isEmpty }
         problems = library.problems
         thumbnails = thumbnails.filter { id, _ in library.skin(id: id) != nil }
         renderThumbnails()
         refreshPreview()
     }
 
-    var allSkins: [Skin] { GearEra.allCases.flatMap { skins[$0] ?? [] } }
+    var allSkins: [Skin] { sections.flatMap(\.skins) }
 
     func choose(_ id: String) {
         chosen = id
@@ -83,7 +92,7 @@ final class CustomiseModel: ObservableObject {
     func apply() {
         options.brand = StyleOptions.cleanBrand(options.brand)
         Styles.shared.options = options
-        changed()
+        changed(false)
         refreshPreview()
     }
 
@@ -162,6 +171,19 @@ final class CustomiseModel: ObservableObject {
         }
     }
 
+    func makeDesign() {
+        guard let skin = Styles.shared.library.skin(id: chosen) else { return }
+        do {
+            let made = try Styles.shared.makeDesign(from: skin)
+            reload()
+            choose(made.skin)
+            NSWorkspace.shared.open(made.design)
+            notice = "Saved \(made.design.lastPathComponent) in the Designs folder, and a skin wearing it. Move the blocks about and save: the desktop follows."
+        } catch {
+            notice = "Couldn't save the design: \(error.localizedDescription)"
+        }
+    }
+
     func importSkin() {
         let panel = NSOpenPanel()
         panel.allowedContentTypes = [.json]
@@ -177,11 +199,17 @@ final class CustomiseModel: ObservableObject {
             .compactMap { $0 }.joined(separator: "  ")
     }
 
+    /// Someone saved a skin file: draw the previews again from the new files.
+    func skinsChanged() {
+        thumbnails = [:]
+        reload()
+    }
+
     func reloadSkins() {
         Styles.shared.reload()
         thumbnails = [:]
         reload()
-        changed()
+        changed(true)
     }
 }
 
@@ -225,13 +253,11 @@ private struct CustomiseView: View {
     private var styles: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 12) {
-                ForEach(GearEra.allCases, id: \.self) { era in
-                    if let skins = model.skins[era], !skins.isEmpty {
-                        Text(era.title).font(.headline)
-                        ScrollView(.horizontal, showsIndicators: false) {
-                            HStack(spacing: 10) {
-                                ForEach(skins, id: \.id) { skin in tile(skin) }
-                            }
+                ForEach(model.sections, id: \.title) { section in
+                    Text(section.title).font(.headline)
+                    ScrollView(.horizontal, showsIndicators: false) {
+                        HStack(spacing: 10) {
+                            ForEach(section.skins, id: \.id) { skin in tile(skin) }
                         }
                     }
                 }
@@ -347,14 +373,20 @@ private struct CustomiseView: View {
     private var yourOwn: some View {
         VStack(alignment: .leading, spacing: 8) {
             Text("Your own skins").font(.headline)
-            Text("A skin is a small JSON file of colours, materials, fonts and a few sizes. Start from the one selected, or add one someone shared.")
+            Text("A skin is a small JSON file of colours, materials, fonts and a few sizes. Start from the one selected, or add one someone shared. Files reload as you save them.")
                 .font(.caption).foregroundStyle(.secondary)
             HStack {
                 Button("Make My Own…") { model.makeCopy() }
                 Button("Import…") { model.importSkin() }
             }
+            Text("Your own era: a design file lays out the panels as blocks (display, buttons, wheel, meters, knobs, grille…) and picks what plays in the middle.")
+                .font(.caption).foregroundStyle(.secondary)
             HStack {
-                Button("Open Skins Folder") { Styles.shared.reload(); NSWorkspace.shared.open(SkinLibrary.folder) }
+                Button("Make My Own Era…") { model.makeDesign() }
+                Button("Open Designs Folder") { Styles.shared.prepareFolders(); NSWorkspace.shared.open(SkinLibrary.designsFolder) }
+            }
+            HStack {
+                Button("Open Skins Folder") { Styles.shared.prepareFolders(); NSWorkspace.shared.open(SkinLibrary.folder) }
                 Button("Reload") { model.reloadSkins() }
             }
             if let notice = model.notice { Text(notice).font(.caption).foregroundStyle(.secondary) }

@@ -1,0 +1,39 @@
+{
+  "format": 1,
+  "id": "my-neon",
+  "name": "My Neon",
+  "era": "minimal",
+  "base": "minimal-dark",
+  "brand": "NEO-TOKYO",
+  "models": {
+    "left": "SOUND SYSTEM   NT-2099",
+    "right": "SIGNAL ANALYZER   NT-2099"
+  },
+  "fonts": {
+    "brand": "Futura-CondensedExtraBold",
+    "display": "Menlo-Bold"
+  },
+  "material": "hud",
+  "layout": {
+    "corner": 16
+  },
+  "colors": {
+    "plate": [
+      "#0E0A1CEE",
+      "#07050FEE",
+      "#0B0817EE"
+    ],
+    "button": [
+      "#1C1236",
+      "#0A0618"
+    ],
+    "knob": [
+      "#2A1A48",
+      "#0A0618"
+    ],
+    "display": "#00F0FF",
+    "accent": "#FF2BD6",
+    "peak": "#FFE600",
+    "label": "#FF2BD6"
+  }
+}
