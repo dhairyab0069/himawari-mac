@@ -494,7 +494,7 @@ public final class MusicNowPlaying: ObservableObject {
         reportsPosition = false
         searching = new != nil
         artwork = nil // never show the last song's cover for this one
-        guard let new else { artwork = nil; motionVideo = nil; return }
+        guard let new else { artwork = nil; motionVideo = nil; genre = nil; return }
         loadArtwork(for: new, generation: generation)
     }
 
@@ -526,7 +526,8 @@ public final class MusicNowPlaying: ObservableObject {
             return
         }
         motionVideo = nil
-        genre = nil
+        // (The genre isn't cleared here: the last one stands until the lookup says, so a look that
+        // follows the genre doesn't flip to the default and back with every song.)
         Task { [weak self] in
             // A web player's "song" is often a video title: search with the artist and song in it.
             let names = self?.player == .browser ? WebTitle.clean(title: track.name, artist: track.artist) : (title: track.name, artist: track.artist)

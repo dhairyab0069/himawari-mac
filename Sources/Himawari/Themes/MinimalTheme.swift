@@ -67,7 +67,9 @@ struct MinimalTheme: GearTheme {
         let y = column.minY + 18
         let floor = y + big + 20
         let lines = CGRect(x: column.minX, y: top - 70, width: colW, height: 40)
-        let wave = CGRect(x: column.minX, y: floor + 10, width: colW, height: max(min(lines.minY - 24 - floor - 10, 240), 60))
+        // The waveform fills what's left (below the needles, when there are needles up there).
+        let waveTop = meters == .needles ? lines.minY - 68 : lines.minY - 24
+        let wave = CGRect(x: column.minX, y: floor + 10, width: colW, height: max(min(waveTop - floor - 10, 240), 40))
         let knobs: [(control: GearControl, rect: CGRect)] = [
             (.bass, CGRect(x: column.minX + colW * 0.18 - small / 2, y: y + (big - small) / 2, width: small, height: small)),
             (.treble, CGRect(x: column.minX + colW * 0.45 - small / 2, y: y + (big - small) / 2, width: small, height: small)),
