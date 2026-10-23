@@ -1,19 +1,26 @@
 import AppKit
 import HimawariKit
 
-/// `Himawari --render-styles <folder>`: draws the music scene (the side gear and the media in
+/// `Himawari --render-styles <folder> [skin id | all] [era | needles | leds | spectrum]`: draws the music scene (the side gear and the media in
 /// the middle) once per skin, as PNGs, without touching the desktop. For checking a skin by eye
 /// and for the docs' pictures.
 @MainActor
 enum StylePreview {
     static func run(_ arguments: [String]) -> Bool {
+        if let i = arguments.firstIndex(of: "--render-customise"), i + 1 < arguments.count {
+            _ = NSApplication.shared
+            Styles.shared.reload()
+            StyleCustomiser().snapshot(to: URL(fileURLWithPath: arguments[i + 1]))
+            return true
+        }
         guard let i = arguments.firstIndex(of: "--render-styles") else { return false }
         let folder = URL(fileURLWithPath: i + 1 < arguments.count ? arguments[i + 1] : ".")
         try? FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
-        let only = i + 2 < arguments.count ? arguments[i + 2] : nil // one skin's id, or all of them
-        for skin in Styles.shared.library.skins where only == nil || skin.id == only {
-            let url = folder.appending(path: "\(skin.id).png")
-            render(skin, to: url)
+        let only = i + 2 < arguments.count ? arguments[i + 2] : nil // one skin's id ("all": every one)…
+        let meters = (i + 3 < arguments.count ? StyleOptions.Meters(rawValue: arguments[i + 3]) : nil) ?? .era // …with these meters
+        for skin in Styles.shared.library.skins where only == nil || only == "all" || skin.id == only {
+            let url = folder.appending(path: "\(skin.id)\(meters == .era ? "" : "-" + meters.rawValue).png")
+            render(skin, meters: meters, to: url)
             print(url.path)
         }
         return true
@@ -30,27 +37,41 @@ enum StylePreview {
         return true
     }
 
-    static func render(_ skin: Skin, to url: URL) {
+    static func render(_ skin: Skin, meters: StyleOptions.Meters = .era, to url: URL) {
+        guard let image = image(skin, meters: meters, scale: 2),
+              let png = NSBitmapImageRep(cgImage: image).representation(using: .png, properties: [:]) else { return }
+        try? png.write(to: url)
+    }
+
+    /// The music scene in `skin`, a sample song playing, its meters at a typical level: a
+    /// 1470 × 956 point screen drawn at `scale` pixels a point.
+    static func image(_ skin: Skin, meters: StyleOptions.Meters = .era, animation: StyleOptions.Animation = .reduced,
+                      cover: NSImage? = nil, scale: CGFloat) -> CGImage? {
         let frame = NSRect(x: 0, y: 0, width: 1470, height: 956)
-        let scene = MusicScene(frame: frame, artwork: artwork, topInset: 33, bottomInset: 70)
+        MusicScene.printsInline = true
+        defer { MusicScene.printsInline = false }
+        let scene = MusicScene(frame: frame, artwork: cover ?? artwork, topInset: 33, bottomInset: 70)
         scene.lively = false
+        scene.animation = animation
+        scene.meters = meters
         scene.style = skin
         // In a window that's never shown: the side gear's layers join the scene's only in a window.
         let window = NSWindow(contentRect: frame, styleMask: .borderless, backing: .buffered, defer: false)
+        window.isReleasedWhenClosed = false // ARC owns it (closing must not release it a second time)
         window.contentView = scene
+        defer { window.close() }
         scene.setSong(SongInfo(title: "Golden Hour", artist: "Sample Artist", album: "Sunsets", duration: 215,
                                position: 83, playing: true), animating: false)
-        RunLoop.main.run(until: Date().addingTimeInterval(1)) // the disc's print is made in the background
-        let scale: CGFloat = 2
+        // One pass of the window's display cycle: that's when the side gear's layers join the scene's.
+        window.displayIfNeeded()
+        CATransaction.flush()
+        scene.showSampleLevels()
         guard let layer = scene.layer,
               let ctx = CGContext(data: nil, width: Int(frame.width * scale), height: Int(frame.height * scale), bitsPerComponent: 8,
                                   bytesPerRow: 0, space: CGColorSpace(name: CGColorSpace.sRGB)!,
-                                  bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue) else { return }
+                                  bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue) else { return nil }
         ctx.scaleBy(x: scale, y: scale)
         layer.render(in: ctx)
-        guard let image = ctx.makeImage(),
-              let png = NSBitmapImageRep(cgImage: image).representation(using: .png, properties: [:]) else { return }
-        try? png.write(to: url)
-        window.close()
+        return ctx.makeImage()
     }
 }

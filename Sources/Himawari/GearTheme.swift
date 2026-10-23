@@ -8,6 +8,8 @@ import QuartzCore
 @MainActor
 protocol GearTheme {
     var skin: Skin { get }
+    /// The level meters to draw: the era's own (`.era`), or needles, LEDs or a spectrum.
+    var meters: StyleOptions.Meters { get }
     /// The left panel (the player) and the right one (meters and knobs), each `size` points.
     func left(size: CGSize) -> PanelFace
     func right(size: CGSize) -> PanelFace
@@ -18,15 +20,21 @@ enum MediaKind {
     case cd        // a picture CD
     case record    // a vinyl record on a turntable, with a tonearm
     case cassette  // a cassette whose reels turn
+    case discman   // a CD in a portable player, under its clear lid
+    case player    // a pocket player: the cover on its screen, a click wheel that scrubs
+    case card      // the cover on a floating card
 }
 
 @MainActor
 enum Themes {
-    static func make(_ skin: Skin) -> GearTheme {
+    static func make(_ skin: Skin, meters: StyleOptions.Meters = .era) -> GearTheme {
         switch skin.era {
-        case .rack: RackTheme(skin: skin)
-        case .hifi: HiFiTheme(skin: skin)
-        case .cassette: CassetteTheme(skin: skin)
+        case .rack: RackTheme(skin: skin, meters: meters)
+        case .hifi: HiFiTheme(skin: skin, meters: meters)
+        case .cassette: CassetteTheme(skin: skin, meters: meters)
+        case .portable: PortableTheme(skin: skin, meters: meters)
+        case .pocket: PocketTheme(skin: skin, meters: meters)
+        case .minimal: MinimalTheme(skin: skin, meters: meters)
         }
     }
 
@@ -35,6 +43,9 @@ enum Themes {
         case .rack: .cd
         case .hifi: .record
         case .cassette: .cassette
+        case .portable: .discman
+        case .pocket: .player
+        case .minimal: .card
         }
     }
 }
@@ -52,6 +63,8 @@ struct PanelFace {
     var ladderGlow = true
     /// …and/or as a pointer that travels along this track (left to right) through the song…
     var dialPointer: CGRect?
+    /// The pointer is a dot (on a thin line) rather than a needle across the dial.
+    var dialDot = false
     /// …and/or as two tape packs: the left one empties as the right one fills.
     var tape: TapePart?
     var rotors: [RotorPart] = []
@@ -62,6 +75,8 @@ struct PanelFace {
     var meshes: [CGRect] = []           // a fluorescent display's dot mesh
     /// Where each control takes clicks (knobs include their grab margin).
     var controls: [GearControl: CGRect] = [:]
+    /// Title and artist in capitals, like a fluorescent or LCD display (today's glass: as written).
+    var uppercaseSong = true
     /// The display text's glow.
     var glow: (opacity: Float, radius: CGFloat) = (0.7, 3.5)
     /// Things that show but aren't controls, which mustn't overlap the controls (for the tests).
@@ -101,6 +116,8 @@ struct BarPart {
     var gap: CGFloat = 2
     var colors: [CGColor]            // one per segment, bottom (or left) first
     var glow: CGColor?
+    /// Grows out from its middle both ways (a waveform), not up from the bottom.
+    var centred = false
 }
 
 /// The tape on a cassette's two reels.
@@ -132,6 +149,64 @@ enum GearLayout {
         var areas: [GearControl: CGRect] = [:]
         for k in knobs { areas[k.control] = k.rect.insetBy(dx: -margin, dy: -margin).intersection(bounds) }
         return areas
+    }
+
+    /// The left and right level meters filling `area`, as `kind` (needles, LEDs or a spectrum): for
+    /// a theme whose meters the Customise window has swapped for another kind.
+    struct MeterBlock {
+        var draw: () -> Void
+        var needles: [CGRect] = []
+        var bars: [BarPart] = []
+        var fixtures: [CGRect] = []
+    }
+
+    static func meters(_ kind: StyleOptions.Meters, in area: CGRect, _ skin: Skin) -> MeterBlock {
+        switch kind {
+        case .era, .needles:
+            let faces: [CGRect]
+            if area.height >= 110 { // stacked
+                let h = min((area.height - 12) / 2, area.width * 0.52)
+                let top = area.midY + 6 + h
+                faces = [CGRect(x: area.minX, y: top - h, width: area.width, height: h),
+                         CGRect(x: area.minX, y: top - 2 * h - 12, width: area.width, height: h)]
+            } else { // side by side
+                let w = (area.width - 12) / 2
+                faces = [CGRect(x: area.minX, y: area.minY, width: w, height: area.height),
+                         CGRect(x: area.minX + w + 12, y: area.minY, width: w, height: area.height)]
+            }
+            return MeterBlock(draw: { for (i, f) in faces.enumerated() { Paint.vuFace(f, channel: i == 0 ? "L" : "R", skin) } },
+                              needles: faces, fixtures: faces)
+        case .leds:
+            let glass = CGRect(x: area.minX, y: area.midY - min(area.height, 70) / 2, width: area.width, height: min(area.height, 70))
+            let rows = [CGRect(x: glass.minX + 26, y: glass.maxY - 22, width: glass.width - 38, height: 9),
+                        CGRect(x: glass.minX + 26, y: glass.minY + 13, width: glass.width - 38, height: 9)]
+            let colors = ledColors(20, skin)
+            return MeterBlock(draw: { Paint.glass(glass, skin, corner: 4); Paint.levelScale(rows, skin) },
+                              bars: rows.enumerated().map { BarPart(source: .channel($0.offset), frame: $0.element, segments: 20, vertical: false, colors: colors) },
+                              fixtures: [glass])
+        case .spectrum:
+            let glass = area
+            let labels = CGRect(x: glass.minX + 12, y: glass.minY + 7, width: glass.width - 24, height: 10)
+            let r = CGRect(x: glass.minX + 12, y: labels.maxY + 5, width: glass.width - 24, height: max(glass.height - 30, 10))
+            let count = AudioLevels.bandCount, gap: CGFloat = 5
+            let w = (r.width - CGFloat(count - 1) * gap) / CGFloat(count)
+            let segments = max(Int(r.height / 8), 4)
+            let colors = ledColors(segments, skin)
+            return MeterBlock(draw: { Paint.glass(glass, skin, corner: 4); Paint.bandLabels(labels, skin.colors.display.alpha(0.45).ns) },
+                              bars: (0..<count).map { i in
+                                  BarPart(source: .band(i), frame: CGRect(x: r.minX + CGFloat(i) * (w + gap), y: r.minY, width: w, height: r.height),
+                                          segments: segments, gap: 2, colors: colors, glow: skin.colors.display.cg)
+                              },
+                              fixtures: [glass])
+        }
+    }
+
+    /// Segment colours, bottom (or left) first: the display colour, then the accent, then the peak.
+    static func ledColors(_ n: Int, _ skin: Skin) -> [CGColor] {
+        (0..<n).map { i -> CGColor in
+            let f = Double(i) / Double(n)
+            return (f >= 0.85 ? skin.colors.peak : f >= 0.7 ? skin.colors.accent : skin.colors.display).cg
+        }
     }
 
     /// The faceplate inside the wooden case (all of it when there's no case).
@@ -243,7 +318,7 @@ enum Paint {
 
     /// The panel: a wooden case if the skin has one, then the faceplate in its material, bevelled,
     /// with screws in the corners.
-    static func faceplate(_ size: CGSize, _ skin: Skin) {
+    static func faceplate(_ size: CGSize, _ skin: Skin, screws: Bool = true) {
         let full = NSRect(origin: .zero, size: size)
         let corner = CGFloat(skin.layout.corner)
         if skin.layout.caseWidth > 0 { cabinet(full, skin) }
@@ -259,7 +334,7 @@ enum Paint {
         plate.lineWidth = 1
         plate.stroke()
         for p in [CGPoint(x: r.minX + 12, y: r.minY + 12), CGPoint(x: r.maxX - 12, y: r.minY + 12),
-                  CGPoint(x: r.minX + 12, y: r.maxY - 12), CGPoint(x: r.maxX - 12, y: r.maxY - 12)] {
+                  CGPoint(x: r.minX + 12, y: r.maxY - 12), CGPoint(x: r.maxX - 12, y: r.maxY - 12)] where screws {
             screw(p)
         }
     }
@@ -513,6 +588,23 @@ enum Paint {
         }
         let dimple = NSRect(x: c.x + d * 0.2 - d * 0.07, y: c.y + d * 0.12 - d * 0.07, width: d * 0.14, height: d * 0.14)
         NSGradient(colors: [dark.mixed(SkinColor(0, 0, 0), 0.52).ns, dark.mixed(light, 0.4).ns])?.draw(in: NSBezierPath(ovalIn: dimple), angle: -60)
+    }
+
+    /// The dB marks under each LED row and the L / R labels.
+    static func levelScale(_ rows: [CGRect], _ skin: Skin) {
+        let ink = skin.colors.display.alpha(0.55).ns
+        for (row, ch) in zip(rows, ["L", "R"]) {
+            NSAttributedString(string: ch, attributes: [.font: NSFont.systemFont(ofSize: 9, weight: .heavy), .foregroundColor: ink])
+                .draw(at: NSPoint(x: row.minX - 16, y: row.midY - 6))
+        }
+        let marks: [(String, Double)] = [("-20", 0), ("-10", 0.28), ("-5", 0.53), ("-3", 0.64), ("0", 0.82), ("+3", 1)]
+        let row = rows[0]
+        let y = (rows[0].minY + rows[1].maxY) / 2 - 5
+        for (text, f) in marks {
+            let s = NSAttributedString(string: text, attributes: [.font: NSFont.monospacedSystemFont(ofSize: 7, weight: .medium), .foregroundColor: ink])
+            let x = row.minX + row.width * CGFloat(f)
+            s.draw(at: NSPoint(x: min(max(x - s.size().width / 2, row.minX), row.maxX - s.size().width), y: y))
+        }
     }
 
     /// Spectrum band labels along the bottom of a display.

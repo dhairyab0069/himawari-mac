@@ -16,7 +16,8 @@ Ubuntu), starting as its own beta.
 | **Beta 1.2** | Any player | The wallpaper, gear and CD follow whichever app is playing |
 | **Beta 1.3** | Per-player depth and playlists | Spotify and the others get the controls Apple Music has today, where their apps allow it; playlists on the desktop |
 | **Beta 1.4** | Styles, part 1: eras and skins | A theme system, the first new eras (1970s turntable, 1980s cassette), skins as files, a Style menu |
-| **Beta 1.5** (final Beta 1) | Styles, part 2: genres and customising | The other eras, looks that follow the genre, a customise window with live previews, the changer restyled per era |
+| **Beta 1.4.5** | Styles, part 2: genres and customising | The other eras, looks that follow the genre, a customise window with live previews, the changer restyled per era |
+| **Beta 1.5** (final Beta 1) | Synced lyrics | The song's words in time with the music, on the deck's display and, if you like, big on the desktop |
 | **Beta 2.0** | Your listening, on device | A private listening history and a stats view across every service |
 | **Beta 2.1** | Classification and insights | On-device labels (genre, mood, energy, language) and reports about your listening |
 | **Himawari 3.0** | First full release (Mac) | Notarized, auto-updating, polished and documented: everything from Betas 1 and 2, finished |
@@ -140,7 +141,7 @@ possible later option, but it means accounts and tokens, so it isn't in 1.3.
   changer and the up-next display dim the same way the other controls do.
 - Playlists are read when the changer opens, not polled. Covers come from the player (Apple
   Music's artwork) or a generated mosaic of the first four song covers.
-- The changer is drawn by the gear (so Beta 1.5's eras can restyle it: a CD changer, a cassette
+- The changer is drawn by the gear (so Beta 1.4.5's eras can restyle it: a CD changer, a cassette
   rack, a crate of records).
 
 **Tests:** playlist parsing from AppleScript output, the "7 / 24" position, pinned-link validation
@@ -148,11 +149,11 @@ possible later option, but it means accounts and tokens, so it isn't in 1.3.
 
 ---
 
-## Styles and skins (Betas 1.4 and 1.5, the end of Beta 1)
+## Styles and skins (Betas 1.4 and 1.4.5)
 
 The side gear and the CD scene are one look today: a black 2000s hi-fi rack and a picture disc.
-Betas 1.4 and 1.5 make the look a choice, built as **themes** the gear and the scene draw from:
-1.4 builds the theme system and the first new eras, 1.5 the rest, the genre rules and customising.
+Betas 1.4 and 1.4.5 make the look a choice, built as **themes** the gear and the scene draw from:
+1.4 builds the theme system and the first new eras, 1.4.5 the rest, the genre rules and customising.
 
 ### Eras of players
 
@@ -162,10 +163,10 @@ Each era is a layout (what the hardware is and where its controls sit) plus its 
 |---|---|---|---|---|
 | **1970s hi-fi** | Walnut receiver, big tuning dial, analog VU meters | Vinyl on a turntable with a tonearm (the "CD" becomes a record: scrub by turning it) | Walnut, brushed silver | 1.4 |
 | **1980s cassette deck** | Twin-deck tape player, spooling reels, LED meters | A cassette whose reels turn; scrubbing winds the tape | Black plastic, chrome "Metal" | 1.4 |
-| **1990s portable** | Discman-style player, LCD display | A CD in a clear lid | Silver, translucent colours | 1.5 |
+| **1990s portable** | Discman-style player, LCD display | A CD in a clear lid | Silver, translucent colours | 1.4.5 |
 | **2000s rack** (today's) | The current CD deck and stereo analyzer | Picture CD | Black, champagne gold | 1.4 (made a theme) |
-| **2000s pocket player** | Click-wheel music player | Cover art on a small screen, the wheel scrubs | White, black, colours | 1.5 |
-| **Today, minimal** | Flat glass panels, large cover, thin waveform | Floating cover card | Light, dark, frosted | 1.5 |
+| **2000s pocket player** | Click-wheel music player | Cover art on a small screen, the wheel scrubs | White, black, colours | 1.4.5 |
+| **Today, minimal** | Flat glass panels, large cover, thin waveform | Floating cover card | Light, dark, frosted | 1.4.5 |
 
 The controls stay the same everywhere (play/pause, skip, the progress control, turning to scrub,
 volume), so `GearControls` keeps working: each layout just reports where its controls are
@@ -173,8 +174,8 @@ volume), so `GearControls` keeps working: each layout just reports where its con
 
 ### Looks that follow the genre
 
-A theme can pick its era and skin from the song's genre (the catalog genre Himawari already looks
-up), so the desktop matches the music:
+A theme can pick its era and skin from the song's genre (the genre in Apple's catalog, from the
+lookup Himawari already makes for animated covers), so the desktop matches the music:
 
 - Jazz, soul, classic rock → 1970s hi-fi; synth-pop, 80s → cassette deck; hip-hop, R&B → 2000s rack;
   electronic → minimal with neon accents; classical → walnut, quiet animation.
@@ -202,7 +203,7 @@ up), so the desktop matches the music:
     that come up along the way.
   - **Tests:** each layout's controls stay inside its frame and don't overlap; skin files load and
     reject bad values; switching themes keeps the song, position and playing state.
-- **Beta 1.5: genres and customising** (the final Beta 1)
+- **Beta 1.4.5: genres and customising** (built)
   - The other eras: **1990s portable**, **2000s pocket player**, **today, minimal**.
   - **Looks that follow the genre**, with your own genre → look rules, a pinned look, or the
     cover's colours.
@@ -210,6 +211,34 @@ up), so the desktop matches the music:
     (needles, LEDs, spectrum), label text.
   - The **disc changer restyled per era**: a CD changer, a cassette rack, a crate of records.
   - **Tests:** genre → look rules; the customise window's choices round-trip through settings.
+
+---
+
+## Synced lyrics (Beta 1.5, the end of Beta 1)
+
+The words of the song, in time with it, as part of the gear rather than a separate window.
+
+- **Where they show:**
+  - On the deck's display, in place of the album line: the line being sung, which scrolls on as
+    the song does (each era's display: the fluorescent rack, the receiver's dial, the LCD…).
+  - Optionally, **big on the desktop** under the media: the current line bright, the next one
+    dimmed, with a soft karaoke sweep across the words where the timing is per word.
+- **Where they come from:**
+  - **LRCLIB** (lrclib.net): a free, open database of time-synced lyrics, no account or key.
+    Looked up by title, artist, album and length, so a remix or a live take doesn't get the studio
+    words.
+  - **Apple Music's own lyrics** (the track's `lyrics`, through AppleScript) when LRCLIB has
+    none: plain text, so they're shown as pages that turn with the song, not line by line.
+  - Nothing found: nothing shown, and the display keeps the album.
+- **Timing:** lines follow the gear's own steady clock (the one the time display uses), so they
+  stay in step through seeks, scrubs and pauses. A small offset (±0.5 s steps) fixes a file
+  that runs early or late, saved per song.
+- **Privacy:** only the song's title, artist, album and length are sent, to LRCLIB, and only when
+  lyrics are switched on. Results are cached on the Mac.
+- **Menu:** Lyrics ▸ Off / On the Display / On the Display and Desktop, plus the timing offset.
+- **Tests:** parsing LRC files (timestamps, several stamps on one line, offsets, word timing),
+  choosing the right result (length and album matching), the line for a given position, and
+  plain lyrics split into pages.
 
 ---
 

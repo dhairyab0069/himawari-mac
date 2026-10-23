@@ -59,6 +59,8 @@ public final class MusicNowPlaying: ObservableObject {
     public private(set) var measuredAt: Double = CACurrentMediaTime()
     @Published public private(set) var artwork: NSImage?
     @Published public private(set) var motionVideo: URL?
+    /// The song's genre from Apple's catalog ("Hip-Hop/Rap"), once the lookup has found it.
+    @Published public private(set) var genre: String?
     /// YouTube videos to loop when the album has no motion artwork (tried in order).
     @Published public private(set) var youtubeVideos: [String] = []
     /// Still looking for this song's motion artwork / YouTube video.
@@ -518,11 +520,13 @@ public final class MusicNowPlaying: ObservableObject {
         if let entry = Self.motionCache[key], Self.fresh(entry.result.video != nil, entry.at) {
             let cached = entry.result
             motionVideo = cached.video
+            genre = cached.genre
             if artwork == nil, let cover = cached.cover { fetchImage(cover, generation: generation) }
             if cached.video == nil { findYouTube(for: track, generation: generation) } else { searching = false }
             return
         }
         motionVideo = nil
+        genre = nil
         Task { [weak self] in
             // A web player's "song" is often a video title: search with the artist and song in it.
             let names = self?.player == .browser ? WebTitle.clean(title: track.name, artist: track.artist) : (title: track.name, artist: track.artist)
@@ -531,6 +535,7 @@ public final class MusicNowPlaying: ObservableObject {
             Self.motionCache[key] = (result, Date())
             guard self.generation == generation else { return }
             self.motionVideo = result.video
+            self.genre = result.genre
             if self.artwork == nil, let cover = result.cover { self.fetchImage(cover, generation: generation) }
             if result.video == nil { self.findYouTube(for: track, generation: generation) } else { self.searching = false }
         }
@@ -647,6 +652,7 @@ public enum MotionArtwork {
     public struct Result: Sendable {
         public let video: URL?
         public let cover: URL? // 600×600 still, from the same lookup
+        public var genre: String? = nil // the catalog's genre for the song (or its album): "Hip-Hop/Rap"
     }
 
     /// The animated cover of the album this song is on. Only a result that really is that album
@@ -654,11 +660,14 @@ public enum MotionArtwork {
     /// like the "Intro" of an earlier album) are not it, and no animation beats the wrong one.
     public static func find(artist: String, album: String, song: String = "", duration: Double = 0) async -> Result {
         // Best: search the catalog for the *song*: its result links to the exact album it's on.
+        var genre: String?
         if !song.isEmpty, let hit = await songAlbum(artist: artist, song: song, album: album, duration: duration) {
-            let result = await motion(onAlbumPage: hit.page, cover: hit.cover)
+            var result = await motion(onAlbumPage: hit.page, cover: hit.cover)
+            result.genre = hit.genre
+            genre = hit.genre
             if result.video != nil { return result }
         }
-        guard !albumKey(album).isEmpty else { return Result(video: nil, cover: nil) }
+        guard !albumKey(album).isEmpty else { return Result(video: nil, cover: nil, genre: genre) }
         let artists = YouTubeLoop.artistNames(artist)
         for store in stores {
             var search = URLComponents(string: "https://itunes.apple.com/search")!
@@ -670,10 +679,15 @@ public enum MotionArtwork {
             }
             guard let best else { continue }
             let cover = (best["artworkUrl100"] as? String).flatMap { URL(string: $0.replacingOccurrences(of: "100x100bb", with: "600x600bb")) }
-            guard let pageURL = (best["collectionViewUrl"] as? String).flatMap(URL.init(string:)) else { return Result(video: nil, cover: cover) }
-            return await motion(onAlbumPage: pageURL, cover: cover)
+            let albumGenre = genre ?? best["primaryGenreName"] as? String
+            guard let pageURL = (best["collectionViewUrl"] as? String).flatMap(URL.init(string:)) else {
+                return Result(video: nil, cover: cover, genre: albumGenre)
+            }
+            var result = await motion(onAlbumPage: pageURL, cover: cover)
+            result.genre = albumGenre
+            return result
         }
-        return Result(video: nil, cover: nil)
+        return Result(video: nil, cover: nil, genre: genre)
     }
 
     /// Your region's store first, then the US one.
@@ -711,7 +725,7 @@ public enum MotionArtwork {
 
     /// The album a song is on, from Apple's catalog: the song by this artist *on this album*
     /// (or, when Music doesn't name the album, the one whose length matches).
-    private static func songAlbum(artist: String, song: String, album: String, duration: Double) async -> (page: URL, cover: URL?)? {
+    private static func songAlbum(artist: String, song: String, album: String, duration: Double) async -> (page: URL, cover: URL?, genre: String?)? {
         let wanted = YouTubeLoop.normalize(song), artists = YouTubeLoop.artistNames(artist)
         guard !wanted.isEmpty else { return nil }
         let knowAlbum = !albumKey(album).isEmpty
@@ -735,7 +749,7 @@ public enum MotionArtwork {
             }
             if let match, let page = (match["collectionViewUrl"] as? String).flatMap(URL.init(string:)) {
                 let cover = (match["artworkUrl100"] as? String).flatMap { URL(string: $0.replacingOccurrences(of: "100x100bb", with: "600x600bb")) }
-                return (page, cover)
+                return (page, cover, match["primaryGenreName"] as? String)
             }
         }
         return nil

@@ -16,6 +16,8 @@ final class PlaylistChanger: ObservableObject {
     @Published private(set) var pinned: [String]
     @Published private(set) var spotifyLinks: [Playlist]
     @Published var notice: String?
+    /// The style's era: the changer is dressed to match (a crate of records, a cassette rack…).
+    @Published var era: GearEra = .rack
     var openPlayer: () -> Void = {}
 
     private var panel: ChangerPanel?
@@ -39,6 +41,7 @@ final class PlaylistChanger: ObservableObject {
     func open(on screen: NSScreen?) {
         guard let screen = screen ?? NSScreen.main else { return }
         notice = nil
+        era = Styles.shared.current.era
         if player == .appleMusic || player == nil { library.reloadAppleMusic() }
         let panel = self.panel ?? ChangerPanel(content: ChangerView(changer: self))
         self.panel = panel
@@ -162,7 +165,34 @@ private final class ChangerPanel: NSPanel {
     override func cancelOperation(_ sender: Any?) { onEscape?() }
 }
 
-// MARK: - The look: the same brushed metal and cyan fluorescent display as the deck
+// MARK: - The look: dressed like the style's era
+
+/// The changer as each era's way of keeping music: a crate of records, a cassette rack, a CD
+/// changer, a pocket player's library, today's grid of cards.
+private struct ChangerLook {
+    enum Tile { case sleeve, cassette, jewelCase, rounded }
+    let model: String
+    let background: [Color]
+    let corner: CGFloat
+    let tile: Tile
+
+    init(_ era: GearEra) {
+        switch era {
+        case .hifi:
+            (model, background, corner, tile) = ("RECORD CRATE  RC-75", [Color(red: 0.36, green: 0.2, blue: 0.1), Color(red: 0.17, green: 0.09, blue: 0.04)], 10, .sleeve)
+        case .cassette:
+            (model, background, corner, tile) = ("CASSETTE RACK  CR-85", [Color(white: 0.16), Color(white: 0.06)], 6, .cassette)
+        case .portable, .rack:
+            (model, background, corner, tile) = ("DISC CHANGER  DC-27", [Color(white: 0.2), Color(white: 0.09)], 14, .jewelCase)
+        case .pocket:
+            (model, background, corner, tile) = ("PLAYLISTS", [Color(white: 0.24), Color(white: 0.12)], 20, .rounded)
+        case .minimal:
+            (model, background, corner, tile) = ("PLAYLISTS", [Color(white: 0.12).opacity(0.96), Color(white: 0.06).opacity(0.96)], 22, .rounded)
+        }
+    }
+}
+
+// The deck's cyan fluorescent display, for the text
 
 private let vfd = Color(red: 0.45, green: 0.97, blue: 1)
 private let amber = Color(red: 1, green: 0.72, blue: 0.3)
@@ -175,6 +205,8 @@ private struct ChangerView: View {
         self.changer = changer
         self.library = changer.library
     }
+
+    private var look: ChangerLook { ChangerLook(changer.era) }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
@@ -194,9 +226,9 @@ private struct ChangerView: View {
         .padding(18)
         .frame(width: 620, height: 470)
         .background(
-            RoundedRectangle(cornerRadius: 14)
-                .fill(LinearGradient(colors: [Color(white: 0.2), Color(white: 0.09)], startPoint: .top, endPoint: .bottom))
-                .overlay(RoundedRectangle(cornerRadius: 14).stroke(.black, lineWidth: 1))
+            RoundedRectangle(cornerRadius: look.corner)
+                .fill(LinearGradient(colors: look.background, startPoint: .top, endPoint: .bottom))
+                .overlay(RoundedRectangle(cornerRadius: look.corner).stroke(.black, lineWidth: 1))
                 .shadow(radius: 20)
         )
         .environment(\.colorScheme, .dark)
@@ -206,7 +238,7 @@ private struct ChangerView: View {
         HStack(alignment: .firstTextBaseline) {
             VStack(alignment: .leading, spacing: 2) {
                 Text("HIMAWARI").font(.system(size: 13, weight: .bold)).tracking(3)
-                Text("DISC CHANGER  DC-27").font(.system(size: 8, weight: .medium)).tracking(2).opacity(0.55)
+                Text(look.model).font(.system(size: 8, weight: .medium)).tracking(2).opacity(0.55)
             }
             Spacer()
             if library.loading { ProgressView().controlSize(.small) }
@@ -274,8 +306,7 @@ private struct ChangerView: View {
                         }
                     }
                     .frame(width: 104, height: 104)
-                    .clipShape(RoundedRectangle(cornerRadius: 6))
-                    .overlay(RoundedRectangle(cornerRadius: 6).stroke(.white.opacity(0.12)))
+                    .modifier(TileLook(tile: look.tile))
                     if isPinned {
                         Image(systemName: "pin.fill").font(.system(size: 10)).foregroundStyle(amber).padding(5)
                     }
@@ -313,5 +344,49 @@ private struct ChangerView: View {
             }
         }
         .controlSize(.small)
+    }
+}
+
+/// How a playlist's cover sits in the changer: in a record sleeve with the vinyl peeking out, in a
+/// cassette case, in a CD's jewel case, or as a rounded card.
+private struct TileLook: ViewModifier {
+    let tile: ChangerLook.Tile
+
+    func body(content: Content) -> some View {
+        switch tile {
+        case .sleeve:
+            ZStack(alignment: .leading) {
+                Circle() // the record, half out of its sleeve
+                    .fill(RadialGradient(colors: [Color(white: 0.2), Color(white: 0.03)], center: .center, startRadius: 4, endRadius: 50))
+                    .overlay(Circle().stroke(Color(white: 0.3), lineWidth: 0.5))
+                    .frame(width: 96, height: 96)
+                    .offset(x: 16)
+                content.clipShape(Rectangle()).shadow(color: .black.opacity(0.5), radius: 3, x: 2)
+            }
+            .frame(width: 104, height: 104, alignment: .leading)
+        case .cassette:
+            content
+                .clipShape(RoundedRectangle(cornerRadius: 2))
+                .padding(.leading, 9)
+                .background(RoundedRectangle(cornerRadius: 3).fill(Color(white: 0.12)))
+                .overlay(RoundedRectangle(cornerRadius: 3).stroke(.white.opacity(0.3)))
+                .overlay(alignment: .top) { // the case's clear lid catching the light
+                    LinearGradient(colors: [.white.opacity(0.18), .clear], startPoint: .top, endPoint: .center).allowsHitTesting(false)
+                }
+                .frame(width: 104, height: 104)
+        case .jewelCase:
+            content
+                .overlay(alignment: .leading) { // the case's hinge and spine
+                    Rectangle().fill(LinearGradient(colors: [Color(white: 0.05).opacity(0.85), Color(white: 0.2).opacity(0.6)],
+                                                    startPoint: .leading, endPoint: .trailing)).frame(width: 9)
+                }
+                .overlay(LinearGradient(colors: [.white.opacity(0.22), .clear, .white.opacity(0.06)], startPoint: .topLeading, endPoint: .bottomTrailing))
+                .clipShape(RoundedRectangle(cornerRadius: 3))
+                .overlay(RoundedRectangle(cornerRadius: 3).stroke(.white.opacity(0.25)))
+        case .rounded:
+            content
+                .clipShape(RoundedRectangle(cornerRadius: 10))
+                .shadow(color: .black.opacity(0.35), radius: 4, y: 2)
+        }
     }
 }

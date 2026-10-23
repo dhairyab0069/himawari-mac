@@ -35,12 +35,39 @@ final class MusicScene: NSView {
     private(set) var discRect = CGRect.zero
     /// The media itself: the disc's square, or the cassette inside it.
     private(set) var mediaRect = CGRect.zero
-    var mediaIsRound: Bool { media != .cassette }
+    var mediaIsRound: Bool { media != .cassette && media != .card }
+    /// The cover wrapped round a disc (DiscPrint): on a CD, in or out of a portable player.
+    private var printed: Bool { media == .cd || media == .discman }
+    /// How big the printed disc is.
+    private var printSide: CGFloat { discRect.width * (media == .discman ? Discman.cd : 1) }
+    /// How much the scene moves by itself (Customise ▸ Animation), with Battery Saver's say.
+    var animation: StyleOptions.Animation = Styles.shared.options.animation {
+        didSet {
+            guard animation != oldValue else { return }
+            sides.animation = animation
+            layoutScene(force: true)
+        }
+    }
+    /// The side gear's level meters (Customise).
+    var meters: StyleOptions.Meters {
+        get { sides.meters }
+        set { sides.meters = newValue }
+    }
+    private var motion: StyleOptions.Animation {
+        animation == .still ? .still : (animation == .reduced || !lively) ? .reduced : .full
+    }
 
     /// The look: switching rebuilds the gear and the media; the song and its place stay.
     var style: Skin = Styles.shared.current {
         didSet {
             guard style != oldValue else { return }
+            // Only the gear's lit colours changed (the cover's colours, a new song): the media stays,
+            // mid-change or not.
+            if style.era == oldValue.era, style.colors.media == oldValue.colors.media, style.colors.plate == oldValue.colors.plate,
+               style.brand == oldValue.brand {
+                sides.style = style
+                return
+            }
             media = Themes.media(style.era)
             print = nil // a CD's print is made again for it (the cover may have changed meanwhile)
             sides.style = style
@@ -59,6 +86,8 @@ final class MusicScene: NSView {
     private let sides = NowPlayingSides(frame: .zero)
     var meterSource: AudioLevels? { didSet { sides.meterSource = meterSource } }
     func levelsChanged() { sides.levelsChanged() }
+    /// The meters held at a typical level (for still pictures).
+    func showSampleLevels() { sides.showSampleLevels() }
     /// The side gear beside the disc (for the click catchers).
     var gear: NowPlayingSides? { sides.isHidden ? nil : sides }
     private var song: SongInfo?
@@ -69,7 +98,7 @@ final class MusicScene: NSView {
 
     private var grabbedAt: [CGFloat] = []
     /// Cassette hubs turn a little faster than your hand (they're small).
-    private var turnRatio: CGFloat { media == .cassette ? 2 : 1 }
+    private var turnRatio: CGFloat { media == .cassette ? 2 : media == .card ? 0.06 : 1 } // a card only tilts
 
     /// You grabbed the disc: it stops turning by itself, right where it was.
     func grabDisc() {
@@ -170,11 +199,11 @@ final class MusicScene: NSView {
             guard let self, self.changing, self.changes == change else { return }
             self.changeFinished()
         }
-        guard media == .cd else { print = nil; swapDisc(direction); return } // records and tapes show the cover as it is
-        renderPrint(side: discRect.width) { [weak self] image in
+        guard printed else { print = nil; swapDisc(direction); return } // the others show the cover as it is
+        renderPrint(side: printSide) { [weak self] image in
             guard let self else { return }
             // Switched to a record or a cassette meanwhile: it already shows the new cover.
-            guard self.media == .cd else { self.print = nil; self.changeFinished(); return }
+            guard self.printed else { self.print = nil; self.changeFinished(); return }
             self.print = image
             self.swapDisc(direction)
         }
@@ -253,9 +282,9 @@ final class MusicScene: NSView {
         palette = cover.flatMap { FrameSampler($0) }.map(AmbientPalette.from) ?? .neutral
         ambient.show(palette)
         guard discRect.width > 0 else { return }
-        guard media == .cd else { print = nil; label?.contents = cover; return }
-        renderPrint(side: discRect.width) { [weak self] image in
-            guard let self, self.media == .cd, let disc = self.spinners.first else { return }
+        guard printed else { print = nil; label?.contents = cover; return }
+        renderPrint(side: printSide) { [weak self] image in
+            guard let self, self.printed, let disc = self.spinners.first else { return }
             self.print = image
             self.showPrint(on: disc)
         }
@@ -328,8 +357,8 @@ final class MusicScene: NSView {
         enter.preferredFrameRateRange = rate
         newHolder.add(enter, forKey: "in")
 
-        // …and it arrives spinning a little faster, slowing to the normal speed.
-        for spinner in spinners {
+        // …and it arrives spinning a little faster, slowing to the normal speed (what turns, that is).
+        for spinner in spinners where media != .player && media != .card {
             let spinUp = CABasicAnimation(keyPath: "transform.rotation.z")
             // Additive and ending at 0, so removing it when it finishes changes nothing: an extra turn
             // that winds down (it used to end 2.6 rad off, and the print jumped ~150° at the end).
@@ -402,6 +431,7 @@ final class MusicScene: NSView {
     /// platter, or the cassette. Sets `spinners`, `label` and `packs` to its parts.
     private func makeMedia() -> CALayer {
         packs = []
+        fills = []
         label = nil
         tapeText = nil
         switch media {
@@ -411,6 +441,9 @@ final class MusicScene: NSView {
             return holder
         case .record: return makeRecord(side: discRect.width)
         case .cassette: return makeCassette()
+        case .discman: return makeDiscman()
+        case .player: return makePlayer()
+        case .card: return makeCard()
         }
     }
 
@@ -618,6 +651,186 @@ final class MusicScene: NSView {
     /// An empty reel's size as a fraction of a full one's.
     private var packHub: CGFloat = 0.4
 
+    /// The portable player's layout, as fractions of the square.
+    enum Discman {
+        static let cd: CGFloat = 0.8       // the disc, under the lid
+    }
+
+    /// A CD in a portable player, seen from above: the round body, the disc turning on its
+    /// spindle, and the clear lid over it all.
+    private func makeDiscman() -> CALayer {
+        let side = discRect.width, scale = window?.backingScaleFactor ?? 2
+        let bounds = CGRect(x: 0, y: 0, width: side, height: side)
+        let holder = makeHolder(bounds, shadow: CGPath(ellipseIn: bounds, transform: nil))
+        let skin = style
+        let body = CALayer()
+        body.frame = bounds
+        body.contents = Paint.image(size: bounds.size, scale: scale) { _ in Self.discmanBody(bounds, skin) }
+        body.contentsScale = scale
+        holder.addSublayer(body)
+        let cd = side * Discman.cd
+        let (inner, disc) = makeDisc(side: cd)
+        inner.position = CGPoint(x: side / 2, y: side / 2)
+        inner.shadowRadius = 6
+        inner.shadowOffset = CGSize(width: 0, height: -2)
+        inner.shadowOpacity = 0.4
+        holder.addSublayer(inner)
+        let lid = CALayer()
+        lid.frame = bounds
+        lid.contents = Paint.image(size: bounds.size, scale: scale) { _ in Self.discmanLid(bounds) }
+        lid.contentsScale = scale
+        holder.addSublayer(lid)
+        spinners = [disc]
+        return holder
+    }
+
+    /// The player's body: a round shell in the skin's plastic, a recessed well for the disc, and
+    /// its printing round the rim.
+    private static func discmanBody(_ r: CGRect, _ skin: Skin) {
+        let shell = NSBezierPath(ovalIn: r.insetBy(dx: 1, dy: 1))
+        let c = skin.colors.media
+        NSGradient(colors: [c.mixed(SkinColor(1, 1, 1, c.a), 0.25).ns, c.ns, c.mixed(SkinColor(0, 0, 0, c.a), 0.25).ns],
+                   atLocations: [0, 0.55, 1], colorSpace: .sRGB)?.draw(in: shell, angle: -70)
+        NSColor(white: 1, alpha: 0.3).setStroke(); shell.lineWidth = 1; shell.stroke()
+        let well = r.insetBy(dx: r.width * (1 - Discman.cd) / 2 - 4, dy: r.width * (1 - Discman.cd) / 2 - 4)
+        NSColor(white: 0, alpha: 0.35).setFill()
+        NSBezierPath(ovalIn: well).fill()
+        // Printing on the rim, around the top.
+        let text = "\(skin.brand)  ·  ANTI-SKIP  ·  DIGITAL MEGA BASS"
+        let font = NSFont.systemFont(ofSize: r.width * 0.026, weight: .bold)
+        let ink = skin.colors.label.alpha(0.8).ns
+        let radius = r.width * 0.455, c0 = CGPoint(x: r.midX, y: r.midY)
+        let chars = Array(text)
+        let step = 0.042
+        for (i, ch) in chars.enumerated() {
+            let a = .pi / 2 + (Double(chars.count - 1) / 2 - Double(i)) * step
+            let glyph = NSAttributedString(string: String(ch), attributes: [.font: font, .foregroundColor: ink])
+            let g = NSGraphicsContext.current!.cgContext
+            g.saveGState()
+            g.translateBy(x: c0.x + cos(a) * radius, y: c0.y + sin(a) * radius)
+            g.rotate(by: a - .pi / 2)
+            glyph.draw(at: NSPoint(x: -glyph.size().width / 2, y: -glyph.size().height / 2))
+            g.restoreGState()
+        }
+    }
+
+    /// The clear lid: a faint dome of light and its rim.
+    private static func discmanLid(_ r: CGRect) {
+        let lid = NSBezierPath(ovalIn: r.insetBy(dx: r.width * 0.06, dy: r.width * 0.06))
+        NSGradient(colors: [NSColor(white: 1, alpha: 0.16), NSColor(white: 1, alpha: 0.02), NSColor(white: 1, alpha: 0.08)],
+                   atLocations: [0, 0.5, 1], colorSpace: .sRGB)?.draw(in: lid, angle: -60)
+        NSColor(white: 1, alpha: 0.35).setStroke(); lid.lineWidth = 1.5; lid.stroke()
+    }
+
+    /// The pocket player's layout, as fractions of the square.
+    enum Player {
+        static let body = CGRect(x: 0.2, y: 0.01, width: 0.6, height: 0.98)
+        static let screen = CGRect(x: 0.24, y: 0.47, width: 0.52, height: 0.48)
+        static let wheel = CGRect(x: 0.32, y: 0.07, width: 0.36, height: 0.36)
+    }
+
+    /// The pocket player: its body, the cover on its screen with the song and a progress bar, and
+    /// the click wheel (turn it to scrub).
+    private func makePlayer() -> CALayer {
+        let side = discRect.width, scale = window?.backingScaleFactor ?? 2
+        func at(_ r: CGRect) -> CGRect { CGRect(x: r.minX * side, y: r.minY * side, width: r.width * side, height: r.height * side) }
+        let bounds = CGRect(x: 0, y: 0, width: side, height: side)
+        let body = at(Player.body), screen = at(Player.screen), wheel = at(Player.wheel)
+        let corner = body.width * 0.12
+        let holder = makeHolder(bounds, shadow: CGPath(roundedRect: body, cornerWidth: corner, cornerHeight: corner, transform: nil))
+        let skin = style
+        let shell = CALayer()
+        shell.frame = bounds
+        shell.contents = Paint.image(size: bounds.size, scale: scale) { _ in
+            let b = NSBezierPath(roundedRect: body, xRadius: corner, yRadius: corner)
+            NSGradient(colors: skin.colors.plate.map(\.ns), atLocations: [0, 0.5, 1], colorSpace: .sRGB)?.draw(in: b, angle: -90)
+            NSColor(white: 1, alpha: 0.4).setStroke(); b.lineWidth = 1; b.stroke()
+            PocketTheme.screen(screen, skin)
+            PocketTheme.clickWheel(wheel, skin)
+        }
+        shell.contentsScale = scale
+        holder.addSublayer(shell)
+        // On the screen: the cover, and under it a bar with the song's progress.
+        let art = CALayer()
+        let artSide = screen.height - side * 0.07
+        art.frame = CGRect(x: screen.midX - artSide / 2, y: screen.maxY - artSide - side * 0.012, width: artSide, height: artSide)
+        art.contents = cover
+        art.contentsGravity = .resizeAspectFill
+        art.masksToBounds = true
+        art.cornerRadius = 2
+        holder.addSublayer(art)
+        label = art
+        let bar = CGRect(x: screen.minX + side * 0.03, y: screen.minY + side * 0.022, width: screen.width - side * 0.06, height: max(side * 0.012, 4))
+        addProgress(bar, in: holder, track: skin.colors.display.alpha(0.15).cg, fill: skin.colors.accent.cg)
+        // The wheel doesn't turn: a dot under your finger shows where you are.
+        let dot = CALayer()
+        dot.frame = wheel
+        dot.contents = Paint.image(size: wheel.size, scale: scale) { _ in PocketTheme.touchDot(diameter: wheel.width, skin) }
+        dot.contentsScale = scale
+        holder.addSublayer(dot)
+        spinners = [dot]
+        return holder
+    }
+
+    /// The cover card's place in the square.
+    enum Card {
+        static let rect = CGRect(x: 0.1, y: 0.12, width: 0.8, height: 0.8)
+    }
+
+    /// The cover on a card, floating a little, with a hairline of progress under it.
+    private func makeCard() -> CALayer {
+        let side = discRect.width
+        let bounds = CGRect(x: 0, y: 0, width: side, height: side)
+        let rect = CGRect(x: Card.rect.minX * side, y: Card.rect.minY * side, width: Card.rect.width * side, height: Card.rect.height * side)
+        let corner = side * 0.035
+        let holder = makeHolder(bounds, shadow: CGPath(roundedRect: rect, cornerWidth: corner, cornerHeight: corner, transform: nil))
+        holder.shadowRadius = 40
+        holder.shadowOpacity = 0.5
+        let card = CALayer()
+        card.frame = rect
+        card.contents = cover
+        card.contentsGravity = .resizeAspectFill
+        card.masksToBounds = true
+        card.cornerRadius = corner
+        card.borderColor = NSColor(white: 1, alpha: 0.12).cgColor
+        card.borderWidth = 1
+        holder.addSublayer(card)
+        label = card
+        let line = CGRect(x: rect.minX, y: rect.minY - side * 0.06, width: rect.width, height: 3)
+        addProgress(line, in: holder, track: NSColor(white: 1, alpha: 0.18).cgColor, fill: NSColor(white: 1, alpha: 0.85).cgColor)
+        if motion == .full { // drifting gently up and down
+            let float = CABasicAnimation(keyPath: "transform.translation.y")
+            float.fromValue = -side * 0.008
+            float.toValue = side * 0.008
+            float.duration = 3.5
+            float.autoreverses = true
+            float.repeatCount = .infinity
+            float.timingFunction = CAMediaTimingFunction(name: .easeInEaseOut)
+            float.preferredFrameRateRange = CAFrameRateRange(minimum: 10, maximum: 20, preferred: 15)
+            card.add(float, forKey: "float")
+        }
+        spinners = [card]
+        return holder
+    }
+
+    /// A rounded progress line in `holder`: its groove, and the fill that `followSong` moves.
+    private func addProgress(_ r: CGRect, in holder: CALayer, track: CGColor, fill: CGColor) {
+        let groove = CALayer()
+        groove.frame = r
+        groove.cornerRadius = r.height / 2
+        groove.backgroundColor = track
+        holder.addSublayer(groove)
+        let bar = CALayer()
+        bar.anchorPoint = CGPoint(x: 0, y: 0.5)
+        bar.bounds = CGRect(origin: .zero, size: r.size)
+        bar.position = CGPoint(x: r.minX, y: r.midY)
+        bar.cornerRadius = r.height / 2
+        bar.backgroundColor = fill
+        bar.transform = CATransform3DMakeScale(0.001, 1, 1)
+        holder.addSublayer(bar)
+        fills.append(bar)
+    }
+
     /// The tonearm's picture, pointing along +x from its pivot at (`back`, height / 2).
     private static func tonearmImage(length: CGFloat, scale: CGFloat) -> (CGImage?, back: CGFloat, size: CGSize) {
         let back = length * 0.22, w = max(length * 0.09, 14)
@@ -692,6 +905,9 @@ final class MusicScene: NSView {
         disc.contentsGravity = print != nil ? .resize : .resizeAspectFill // the print is already disc-shaped
     }
 
+    /// Previews of the scene (StylePreview) make the disc's print there and then.
+    static var printsInline = false
+
     /// Wraps the cover around a disc of `side` points on a background queue, then hands it over.
     private func renderPrint(side: CGFloat, then apply: @escaping @MainActor (CGImage?) -> Void) {
         printJob += 1
@@ -699,6 +915,7 @@ final class MusicScene: NSView {
         guard let cover else { apply(nil); return }
         let pixels = Int((side * (window?.backingScaleFactor ?? 2)).rounded())
         let inner = Double(CD.print)
+        if Self.printsInline { apply(DiscPrint.make(from: cover, side: pixels, inner: inner)); return } // a still picture: wait for it
         DispatchQueue.global(qos: .userInitiated).async {
             let image = DiscPrint.make(from: cover, side: pixels, inner: inner)
             DispatchQueue.main.async {
@@ -750,10 +967,14 @@ final class MusicScene: NSView {
         let spin = CABasicAnimation(keyPath: "transform.rotation.z")
         spin.byValue = -2 * Double.pi // clockwise, like a record
         // A record turns at its own steady pace (33⅓ would blur); a cassette's hubs turn quickly.
+        // A pocket player's wheel and a cover card don't turn by themselves; nothing does when still.
+        guard motion != .still, media != .player, media != .card else { return }
+        let full = motion == .full
         spin.duration = switch media {
-        case .cd: lively ? 14 : 30
-        case .record: lively ? 9 : 20
-        case .cassette: lively ? 3 : 6
+        case .cd, .discman: full ? 14 : 30
+        case .record: full ? 9 : 20
+        case .cassette: full ? 3 : 6
+        case .player, .card: 0
         }
         spin.repeatCount = .infinity
         spin.isRemovedOnCompletion = false
@@ -766,7 +987,7 @@ final class MusicScene: NSView {
     /// Moves the tonearm and the tape to where the song is, then lets them travel on with it
     /// to its end. Only re-aimed when the song, play state or position really changes.
     private func followSong(force: Bool) {
-        guard media != .cd else { tonearm.isHidden = true; return }
+        guard !printed else { tonearm.isHidden = true; return }
         let now = CACurrentMediaTime()
         guard let song else {
             followed = nil
@@ -805,10 +1026,31 @@ final class MusicScene: NSView {
                 wind.preferredFrameRateRange = CAFrameRateRange(minimum: 1, maximum: 4, preferred: 2)
                 pack.add(wind, forKey: "wind")
             }
-        case .cd:
+        case .player, .card:
+            // The progress line fills to where the song is, then on to the end with it.
+            for fill in fills {
+                CATransaction.begin()
+                CATransaction.setDisableActions(true)
+                fill.removeAnimation(forKey: "fill")
+                fill.transform = CATransform3DMakeScale(max(CGFloat(fraction), 0.001), 1, 1)
+                CATransaction.commit()
+                guard moving else { continue }
+                let grow = CABasicAnimation(keyPath: "transform.scale.x")
+                grow.fromValue = max(fraction, 0.001)
+                grow.toValue = 1
+                grow.duration = remaining
+                grow.fillMode = .forwards
+                grow.isRemovedOnCompletion = false
+                grow.preferredFrameRateRange = CAFrameRateRange(minimum: 1, maximum: 4, preferred: 2)
+                fill.add(grow, forKey: "fill")
+            }
+        case .cd, .discman:
             break
         }
     }
+
+    /// Progress lines that fill through the song (the player's screen, under the card).
+    private var fills: [CALayer] = []
 
     private func aimTonearm(from start: CGFloat, to end: CGFloat?, duration: Double) {
         CATransaction.begin()
@@ -860,10 +1102,15 @@ final class MusicScene: NSView {
         let area = CGRect(x: 0, y: bottomInset, width: bounds.width, height: bounds.height - topInset - bottomInset)
         let side = min(area.height * 0.66, area.width * 0.46)
         discRect = CGRect(x: area.midX - side / 2, y: area.midY - side / 2 + area.height * 0.03, width: side, height: side).integral
-        mediaRect = media == .cassette
-            ? CGRect(x: discRect.minX + Tape.tapeRect.minX * side, y: discRect.minY + Tape.tapeRect.minY * side,
-                     width: Tape.tapeRect.width * side, height: Tape.tapeRect.height * side)
-            : discRect
+        func inSquare(_ r: CGRect) -> CGRect {
+            CGRect(x: discRect.minX + r.minX * side, y: discRect.minY + r.minY * side, width: r.width * side, height: r.height * side)
+        }
+        mediaRect = switch media {
+        case .cassette: inSquare(Tape.tapeRect)
+        case .player: inSquare(Player.wheel)
+        case .card: inSquare(Card.rect)
+        default: discRect
+        }
         ambient.arrange(in: bounds, around: discRect)
         ambient.animated = lively
         sides.lively = lively
@@ -872,22 +1119,23 @@ final class MusicScene: NSView {
         discStage.replaceSublayer(holder, with: fresh)
         holder = fresh
         spinners.forEach(addSpin)
-        if media == .cd {
-            renderPrint(side: side) { [weak self] image in // this size's print
-                guard let self, self.media == .cd, let disc = self.spinners.first else { return }
+        if printed {
+            renderPrint(side: printSide) { [weak self] image in // this size's print
+                guard let self, self.printed, let disc = self.spinners.first else { return }
                 self.print = image
                 self.showPrint(on: disc)
             }
         }
         // The light on the disc: rainbow on a CD, plain on a record, none on a cassette.
-        sheen.isHidden = media == .cassette
-        sheen.colors = Self.lusterColors(rainbow: media == .cd)
-        sheen.frame = discRect
+        sheen.isHidden = !printed && media != .record
+        sheen.colors = Self.lusterColors(rainbow: printed)
+        let shine = printSide
+        sheen.frame = CGRect(x: discRect.midX - shine / 2, y: discRect.midY - shine / 2, width: shine, height: shine)
         // Shine over the middle of the disc only: none in the hole, full around the hub,
         // fading out softly before the edge. (A record's grooves shine all the way out.)
         let lusterMask = CAGradientLayer()
         lusterMask.type = .radial
-        lusterMask.frame = CGRect(x: 0, y: 0, width: side, height: side)
+        lusterMask.frame = CGRect(x: 0, y: 0, width: shine, height: shine)
         lusterMask.startPoint = CGPoint(x: 0.5, y: 0.5)
         lusterMask.endPoint = CGPoint(x: 1, y: 1)
         lusterMask.colors = [NSColor.clear, .clear, .white, .white, .clear].map(\.cgColor)
@@ -897,7 +1145,7 @@ final class MusicScene: NSView {
         lusterMask.locations = stops.map { NSNumber(value: Double($0)) }
         sheen.mask = lusterMask
         sheen.removeAnimation(forKey: "sway")
-        if lively {
+        if motion == .full {
             // The light shifts a little, now and then: the streaks drift slowly back and forth.
             let sway = CAKeyframeAnimation(keyPath: "transform.rotation.z")
             sway.values = [0, 0.16, -0.08, 0.1, 0]
@@ -928,7 +1176,7 @@ final class MusicScene: NSView {
 
         runners.sublayers?.forEach { $0.removeFromSuperlayer() }
         runners.frame = bounds
-        if lively { addRunners(groundY: bottomInset + 18) }
+        if motion == .full { addRunners(groundY: bottomInset + 18) }
         CATransaction.commit()
         updateClock()
     }

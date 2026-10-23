@@ -6,6 +6,7 @@ import HimawariKit
 /// stereo analyzer (two analog VU meters, a spectrum display, knobs).
 struct RackTheme: GearTheme {
     let skin: Skin
+    var meters: StyleOptions.Meters = .era
 
     func left(size: CGSize) -> PanelFace {
         let column = GearLayout.column(size, skin)
@@ -92,17 +93,20 @@ struct RackTheme: GearTheme {
             (.treble, CGRect(x: column.minX + colW * 0.45 - small / 2, y: y + (big - small) / 2, width: small, height: small)),
             (.volume, CGRect(x: column.minX + colW * 0.78 - big / 2, y: y, width: big, height: big))]
 
+        // The level meters: the era's two VU meters, or the kind chosen in Customise.
+        let block = meters == .era ? nil
+            : GearLayout.meters(meters, in: CGRect(x: m2.minX, y: m2.minY, width: colW, height: m1.maxY - m2.minY), skin)
         var face = PanelFace()
         let skin = skin
         face.draw = { size in
             Paint.faceplate(size, skin)
             Paint.header(header, brand: skin.brand, model: skin.rightModel, skin)
-            for (i, m) in [m1, m2].enumerated() { Paint.vuFace(m, channel: i == 0 ? "L" : "R", skin) }
+            if let block { block.draw() } else { for (i, m) in [m1, m2].enumerated() { Paint.vuFace(m, channel: i == 0 ? "L" : "R", skin) } }
             Paint.glass(spectrumGlass, skin)
             Paint.bandLabels(labels, skin.colors.display.alpha(0.45).ns)
             for k in knobs { Paint.knob(k.rect, label: k.control.knobName ?? "", skin, pointer: false) }
         }
-        face.needles = [m1, m2]
+        face.needles = block?.needles ?? [m1, m2]
         // Spectrum: fluorescent segment columns.
         let count = 10, segments = 14, colGap: CGFloat = 5
         let barW = (spectrum.width - CGFloat(count - 1) * colGap) / CGFloat(count)
@@ -111,10 +115,11 @@ struct RackTheme: GearTheme {
             BarPart(source: .band(i), frame: CGRect(x: spectrum.minX + CGFloat(i) * (barW + colGap), y: spectrum.minY, width: barW, height: spectrum.height),
                     segments: segments, colors: colors, glow: skin.colors.display.cg)
         }
+        face.bars += block?.bars ?? []
         face.meshes = [spectrumGlass.insetBy(dx: 4, dy: 4)]
         face.knobs = knobs
         face.controls = GearLayout.grabAreas(knobs, within: CGRect(origin: .zero, size: size))
-        face.fixtures = [m1, m2, spectrumGlass]
+        face.fixtures = (block?.fixtures ?? [m1, m2]) + [spectrumGlass]
         return face
     }
 }

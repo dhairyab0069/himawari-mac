@@ -7,6 +7,7 @@ import HimawariKit
 /// a segment spectrum, sliders, knobs). The big cassette in the middle is the music scene's.
 struct CassetteTheme: GearTheme {
     let skin: Skin
+    var meters: StyleOptions.Meters = .era
 
     func left(size: CGSize) -> PanelFace {
         let column = GearLayout.column(size, skin)
@@ -110,13 +111,16 @@ struct CassetteTheme: GearTheme {
         let barX = levels.minX + 26, barW = levels.width - 38
         let rows = [CGRect(x: barX, y: levels.maxY - 22, width: barW, height: 9), CGRect(x: barX, y: levels.minY + 13, width: barW, height: 9)]
 
+        let block = meters == .era || meters == .leds ? nil : GearLayout.meters(meters, in: levels, skin) // LEDs are its own
         var face = PanelFace()
         let skin = skin
         face.draw = { size in
             Paint.faceplate(size, skin)
             Paint.header(header, brand: skin.brand, model: skin.rightModel, skin)
-            Paint.glass(levels, skin, corner: 4)
-            Self.levelScale(rows, skin)
+            if let block { block.draw() } else {
+                Paint.glass(levels, skin, corner: 4)
+                Paint.levelScale(rows, skin)
+            }
             Paint.glass(spectrumGlass, skin, corner: 4)
             Paint.bandLabels(labels, skin.colors.display.alpha(0.45).ns)
             if slidersH > 0 { Self.sliders(sliders, count: 10, inset: 12, skin) }
@@ -126,9 +130,10 @@ struct CassetteTheme: GearTheme {
             let f = Double(i) / Double(n)
             return (f >= 0.85 ? skin.colors.peak : f >= 0.7 ? skin.colors.accent : skin.colors.display).cg
         } }
-        face.bars = rows.enumerated().map { i, r in
+        face.bars = block?.bars ?? rows.enumerated().map { i, r in
             BarPart(source: .channel(i), frame: r, segments: 20, vertical: false, gap: 2, colors: ledColors(20), glow: nil)
         }
+        face.needles = block?.needles ?? []
         let count = 10, segments = 12, colGap: CGFloat = 6
         let barW2 = (spectrum.width - CGFloat(count - 1) * colGap) / CGFloat(count)
         face.bars += (0..<count).map { i in
@@ -392,23 +397,6 @@ struct CassetteTheme: GearTheme {
         NSColor(white: 1, alpha: 0.28).setFill()
         NSRect(x: r.minX + 1, y: r.maxY - 3, width: r.width - 2, height: 2).fill()
         Paint.symbol(symbol, in: r.offsetBy(dx: 0, dy: -1), color: Paint.markColor(on: skin.colors.button[0].mixed(skin.colors.button[1], 0.5)))
-    }
-
-    /// The dB marks under each LED row and the L / R labels.
-    private static func levelScale(_ rows: [CGRect], _ skin: Skin) {
-        let ink = skin.colors.display.alpha(0.55).ns
-        for (row, ch) in zip(rows, ["L", "R"]) {
-            NSAttributedString(string: ch, attributes: [.font: NSFont.systemFont(ofSize: 9, weight: .heavy), .foregroundColor: ink])
-                .draw(at: NSPoint(x: row.minX - 16, y: row.midY - 6))
-        }
-        let marks: [(String, Double)] = [("-20", 0), ("-10", 0.28), ("-5", 0.53), ("-3", 0.64), ("0", 0.82), ("+3", 1)]
-        let row = rows[0]
-        let y = (rows[0].minY + rows[1].maxY) / 2 - 5
-        for (text, f) in marks {
-            let s = NSAttributedString(string: text, attributes: [.font: NSFont.monospacedSystemFont(ofSize: 7, weight: .medium), .foregroundColor: ink])
-            let x = row.minX + row.width * CGFloat(f)
-            s.draw(at: NSPoint(x: min(max(x - s.size().width / 2, row.minX), row.maxX - s.size().width), y: y))
-        }
     }
 
     /// The equalizer's sliders (for show): a groove each, with a cap set to a gentle smile.

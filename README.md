@@ -56,7 +56,7 @@
 | **Apple Music artwork** | While a song plays, the album's animated cover becomes the wallpaper, shown whole, never cropped. |
 | **Retro hi-fi side gear** | Beside the artwork: a CD deck (fluorescent display, time, progress, transport, jog wheel) and a stereo analyzer whose VU needles and spectrum follow the actual music. |
 | **Spinning CD** | Songs without an animation get their cover wrapped onto a spinning CD, with a disc-changer transition between songs and little characters running along the bottom. |
-| **Styles** | Pick the gear's era: a 1970s receiver with a record on a turntable, a 1980s tape deck with a cassette, or the 2000s CD rack, each in two skins. Make your own skins as small JSON files. |
+| **Styles** | Six eras of gear, from a 1970s receiver with a record on a turntable to today's glass panes, in 14 skins; looks that follow the genre or the cover's colours; your own skins as small JSON files. |
 | **Click to hide files** | Click an empty spot on the desktop to see just the wallpaper; click again to bring the files back. |
 | **Desktop clock** | A big see-through clock that ticks with the system clock and adapts to what's behind it. Click it to change how it tells the time. |
 
@@ -162,25 +162,40 @@ changer: your playlists as discs to flip through and play.
 
 ### Styles and skins
 
-<p align="center"><img src="docs/styles.png" width="720" alt="The three eras: a walnut receiver and amplifier with a record and tonearm; a black tape deck and graphic equalizer with a cassette; the black CD deck and stereo analyzer with a picture CD"></p>
+<p align="center"><img src="docs/styles.png" width="760" alt="The six eras: a walnut receiver with a record and tonearm; a tape deck with a cassette in front of its case; a portable CD player under its clear lid; the black CD rack; a white pocket player with a click wheel, on its speaker dock; today's dark glass panels with the cover on a floating card"></p>
 
-**Himawari menu ▸ Style** picks what the side gear and the middle of the music scene look like:
+**Himawari menu ▸ Style** picks what the side gear and the middle of the music scene look like.
+**Style ▸ Customise…** shows them all as live previews.
 
 | Era | The player | In the middle | Skins |
 |---|---|---|---|
 | **1970s Hi-Fi** | A receiver with a backlit tuning dial (its red pointer travels through the song), piano keys and a big tuning knob; an amplifier with VU meters | A record on a turntable; the tonearm moves in as the song plays | Walnut, Brushed Silver |
 | **1980s Cassette Deck** | A tape deck whose cassette winds from one reel to the other, piano keys and a search dial; a graphic equalizer with LED meters | A cassette in front of its case: the whole cover on the case, the song written on the tape's label; its reels turn | Black Plastic, Chrome Metal |
+| **1990s Portable** | A portable CD player's LCD, round rubber buttons and a jog dial; its LCD remote with level bars, a spectrum and MEGA BASS | The CD turning under the player's clear lid | Silver, Translucent Purple |
 | **2000s Rack** | The CD deck and stereo analyzer (the original look, and still the default) | A picture CD | Black, Champagne Gold |
+| **2000s Pocket Player** | A speaker dock: a pocket player's Now Playing screen, flat buttons and a click wheel; a speaker grille and touch knobs | The player itself, the cover on its screen; turn its wheel to scrub | White, Black, Colours (Blue) |
+| **Today, Minimal** | Glass panes: the song in large plain type, a thin progress line, bare controls and a ring to turn; a thin waveform and flat knobs | The cover on a floating card | Dark, Light, Frosted |
 
-The controls work the same in every era: the buttons, the progress (the ladder, or the tuning dial),
-turning the wheel or the media to scrub, and the VOLUME, BASS and TREBLE knobs. Switching keeps the
-song where it is.
+The controls work the same in every era: the buttons, the progress, turning the wheel or the media to
+scrub, and the VOLUME, BASS and TREBLE knobs. Switching keeps the song where it is.
 
-**Skins are files.** Each one sets colours, materials, lettering and a few layout numbers, so a new
-skin needs no code. Put `.json` files in `~/Library/Application Support/Himawari/Skins/` (**Style ▸
-Open Skins Folder**), then **Style ▸ Reload Skins**. The built-in skins are written to `Skins/Examples/`
-as a starting point, with a read-me. A skin only needs what it changes; the rest comes from a built-in
-skin of the same era:
+**Customise** (Style ▸ Customise…):
+
+- **The look:** always one style; **follow the song's genre** (Apple's catalog genre: jazz and soul
+  on the walnut hi-fi, synth-pop on the tape deck, hip-hop on the rack, pop on the pocket player,
+  electronic on today's glass…), with your own genre → style rules; or **take the cover's colours**,
+  lighting the displays and lamps in each song's cover colours.
+- **Animation:** Full, Reduced (no idle wheels or characters) or Still (nothing moves by itself; the
+  meters still follow the music).
+- **Meters:** the era's own, or needles, LEDs or a spectrum in any era.
+- **Name:** your own name on the faceplates instead of HIMAWARI.
+- The **disc changer** dresses to match: a crate of records, a cassette rack, a CD changer, a grid of cards.
+
+**Make your own skins.** A skin is a small JSON file: colours, materials, fonts and a few layout
+numbers, so a new skin needs no code. In Customise, **Make My Own…** saves a copy of the selected skin
+to `~/Library/Application Support/Himawari/Skins/` and opens it; change it, save, press **Reload**.
+**Import…** adds skins someone shared. The built-in skins are in `Skins/Examples/` with a read-me. A
+skin only needs what it changes; the rest comes from a built-in skin of the same era:
 
 ```json
 {
@@ -193,7 +208,7 @@ skin of the same era:
 }
 ```
 
-A file with a mistake is skipped, and the Style menu says which file and what's wrong.
+A file with a mistake is skipped, and the Style menu and Customise say which file and what's wrong.
 
 ### Hide the desktop's files
 

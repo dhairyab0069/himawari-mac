@@ -17,6 +17,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     private var musicWatch: AnyCancellable?
     private var positionWatch: AnyCancellable?
     private var playerWatch: AnyCancellable?
+    private var styleWatch: AnyCancellable?
+    private let customiser = StyleCustomiser()
     private var pausedSince: Date? // when Music last stopped reporting "playing"
     private var clockHotKey: HotKey? // ⌃⌥⌘C: show / hide the desktop clock
     private var repairTimer: Timer?
@@ -42,6 +44,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         Styles.shared.reload() // the skins folder, before the first gear is drawn
+        customiser.onChange = { [weak self] in self?.wallpaper.applyStyle() }
         clock.start()
         statusItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.squareLength)
         let menu = NSMenu()
@@ -179,6 +182,16 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
             .receive(on: RunLoop.main)
             .sink { [weak self] _ in
                 onMainActor { self?.applyMusicWallpaper() }
+            }
+        // The look can follow the song: its genre (Apple's catalog), or its cover's colours.
+        styleWatch = music.$genre.combineLatest(music.$artwork)
+            .receive(on: RunLoop.main)
+            .sink { [weak self] genre, cover in
+                onMainActor {
+                    guard let self, Styles.shared.follow(genre: genre, cover: cover) else { return }
+                    if let genre { Log.write("style: \(Styles.shared.current.id) for \(genre)") }
+                    self.wallpaper.applyStyle()
+                }
             }
         // A new player (or the same kind of player in another app): the gear's controls and the tap follow.
         playerWatch = music.$playerPID
@@ -509,7 +522,16 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         let entry = NSMenuItem(title: "Style", action: nil, keyEquivalent: "")
         let sub = NSMenu()
         let styles = Styles.shared
-        let current = styles.current.id
+        let current = styles.chosen.id
+        sub.addItem(item("Customise…", #selector(showCustomiser)))
+        let following = styles.options.mode
+        if following != .pinned {
+            let note = NSMenuItem(title: following == .genre ? "Following the genre: \(styles.current.name)" : "In the cover's colours",
+                                  action: nil, keyEquivalent: "")
+            note.isEnabled = false
+            sub.addItem(note)
+        }
+        sub.addItem(.separator())
         for era in GearEra.allCases {
             let skins = styles.library.skins(of: era)
             guard !skins.isEmpty else { continue }
@@ -541,6 +563,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         Styles.shared.select(id)
         wallpaper.applyStyle()
     }
+
+    @objc private func showCustomiser() { customiser.show() }
 
     @objc private func openSkinsFolder() {
         Styles.shared.reload() // also makes the folder and its examples, the first time

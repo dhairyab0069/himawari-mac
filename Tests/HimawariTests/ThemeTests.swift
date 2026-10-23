@@ -40,6 +40,40 @@ final class ThemeLayoutTests: XCTestCase {
         }
     }
 
+    func testEveryMeterKindFitsEveryEra() {
+        for skin in Skin.builtIn where Skin.builtIn.first(where: { $0.era == skin.era })?.id == skin.id {
+            for kind in StyleOptions.Meters.allCases {
+                let theme = Themes.make(skin, meters: kind)
+                for size in sizes {
+                    let face = theme.right(size: size)
+                    check(face, size, "\(skin.era) right, \(kind) meters, \(size)")
+                    XCTAssertFalse(face.needles.isEmpty && face.bars.filter { if case .channel = $0.source { true } else { false } }.isEmpty
+                                   && kind != .spectrum, "\(skin.era) \(kind): some level meter shows")
+                }
+            }
+        }
+    }
+
+    func testTheGenreAndTheCoverDressTheLook() {
+        let styles = Styles.shared
+        var options = StyleOptions()
+        options.mode = .genre
+        _ = styles.follow(genre: "Hip-Hop/Rap", cover: nil)
+        XCTAssertEqual(styles.resolve(Skin.builtIn.first { $0.id == "hifi-walnut" }!, options: options).id, "rack-black")
+        _ = styles.follow(genre: "Comedy", cover: nil)
+        XCTAssertEqual(styles.resolve(Skin.builtIn.first { $0.id == "hifi-walnut" }!, options: options).id, "hifi-walnut", "no match: the chosen one")
+        options.mode = .coverColours
+        let red = NSImage(size: NSSize(width: 8, height: 8), flipped: false) { r in NSColor.systemRed.setFill(); r.fill(); return true }
+        _ = styles.follow(genre: nil, cover: red)
+        let rack = styles.resolve(.standard, options: options)
+        XCTAssertGreaterThan(rack.colors.display.r, rack.colors.display.b, "the rack's display lit red")
+        let pocket = styles.resolve(Skin.builtIn.first { $0.id == "pocket-white" }!, options: options)
+        XCTAssertEqual(pocket.colors.display, Skin.builtIn.first { $0.id == "pocket-white" }!.colors.display, "an LCD keeps its dark type")
+        options.brand = "SUNFLOWER"
+        XCTAssertEqual(styles.resolve(.standard, options: options).brand, "SUNFLOWER")
+        _ = styles.follow(genre: nil, cover: nil)
+    }
+
     func testEveryEraHasEveryControl() {
         let player: Set<GearControl> = [.previous, .playPause, .next, .stop, .eject, .progress, .jog, .repeatMode, .shuffle]
         let amp: Set<GearControl> = [.volume, .bass, .treble]

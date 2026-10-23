@@ -4,14 +4,20 @@ import Foundation
 public enum GearEra: String, CaseIterable, Sendable {
     case hifi      // 1970s: a walnut receiver and amplifier, a record on a turntable
     case cassette  // 1980s: a tape deck and a graphic equalizer, a cassette
+    case portable  // 1990s: a portable CD player and its remote, a CD under a clear lid
     case rack      // 2000s: a CD deck and a stereo analyzer, a picture CD
+    case pocket    // 2000s: a click-wheel pocket player and a speaker dock, the cover on its screen
+    case minimal   // today: glass panels, a large cover, a thin waveform, a floating cover card
 
     /// The Style menu's heading for this era.
     public var title: String {
         switch self {
         case .hifi: "1970s Hi-Fi"
         case .cassette: "1980s Cassette Deck"
+        case .portable: "1990s Portable"
         case .rack: "2000s Rack"
+        case .pocket: "2000s Pocket Player"
+        case .minimal: "Today, Minimal"
         }
     }
 }
@@ -90,7 +96,7 @@ public struct Skin: Equatable, Sendable {
 
     public struct Layout: Equatable, Sendable {
         public var columnWidth: Double  // how wide the controls are, at most (200…360)
-        public var corner: Double       // faceplate corner radius (0…20)
+        public var corner: Double       // faceplate corner radius (0…30)
         public var gap: Double          // between buttons (4…16)
         public var caseWidth: Double    // the wooden case's sides (0 = none, up to 30)
     }
@@ -209,7 +215,7 @@ extension Skin {
             let keys = ["columnWidth", "corner", "gap", "caseWidth"]
             if let extra = l.keys.sorted().first(where: { !keys.contains($0) }) { throw SkinError.unknownKey("layout.\(extra)") }
             if let v = try range(l, "columnWidth", 200...360, path: "layout.columnWidth") { skin.layout.columnWidth = v }
-            if let v = try range(l, "corner", 0...20, path: "layout.corner") { skin.layout.corner = v }
+            if let v = try range(l, "corner", 0...30, path: "layout.corner") { skin.layout.corner = v }
             if let v = try range(l, "gap", 4...16, path: "layout.gap") { skin.layout.gap = v }
             if let v = try range(l, "caseWidth", 0...30, path: "layout.caseWidth") { skin.layout.caseWidth = v }
         }
@@ -312,6 +318,24 @@ extension Skin {
                            knob: [c("#F4F6F8"), c("#7E8389")], cabinet: c("#A3A8AD"), media: c("#9AA1A8")),
              brandFont: "AvenirNext-HeavyItalic", displayFont: nil,
              layout: .init(columnWidth: 300, corner: 4, gap: 6, caseWidth: 0)),
+        Skin(id: "portable-silver", name: "Silver", era: .portable, brand: "HIMAWARI",
+             leftModel: "DISCPLAYER   D-1994   ANTI-SKIP", rightModel: "LCD REMOTE   RM-94   MEGA BASS",
+             material: .plastic, grain: 0.03,
+             colors: .init(plate: [c("#D9DCDF"), c("#B3B7BB"), c("#C7CBCF")], glass: [c("#B9C6A6"), c("#9DAC88")],
+                           display: c("#1C2618"), accent: c("#E8A33A"), peak: c("#D8342C"), label: c("#2A2D31"),
+                           ink: c("#2E1F14"), meter: [c("#B9C6A6"), c("#9DAC88")], button: [c("#8E9398"), c("#5B6066")],
+                           knob: [c("#EEF0F2"), c("#8F9499")], cabinet: c("#B3B7BB"), media: c("#C9CDD1")),
+             brandFont: "AvenirNext-DemiBoldItalic", displayFont: nil,
+             layout: .init(columnWidth: 300, corner: 18, gap: 10, caseWidth: 0)),
+        Skin(id: "portable-clear", name: "Translucent Purple", era: .portable, brand: "HIMAWARI",
+             leftModel: "DISCPLAYER   D-1998   ANTI-SKIP", rightModel: "LCD REMOTE   RM-98   MEGA BASS",
+             material: .matte, grain: 0,
+             colors: .init(plate: [c("#9B7BE0C0"), c("#6E4FC2B0"), c("#8463D4B8")], glass: [c("#B8D2C8"), c("#94B4A8")],
+                           display: c("#142019"), accent: c("#FFD24D"), peak: c("#FF4D6A"), label: c("#F2ECFF"),
+                           ink: c("#2E1F14"), meter: [c("#B8D2C8"), c("#94B4A8")], button: [c("#C9B6F5D0"), c("#7E5CD0D0")],
+                           knob: [c("#E4DAFF"), c("#7253C6")], cabinet: c("#6E4FC2"), media: c("#8A6ADBC0")),
+             brandFont: "AvenirNext-DemiBoldItalic", displayFont: nil,
+             layout: .init(columnWidth: 300, corner: 18, gap: 10, caseWidth: 0)),
         // Today's look, exactly as before skins: the numbers are the old hard-coded ones.
         Skin(id: "rack-black", name: "Black", era: .rack, brand: "HIMAWARI",
              leftModel: "COMPACT DISC PLAYER   HD-2160", rightModel: "STEREO LEVEL ANALYZER   SA-10",
@@ -331,6 +355,60 @@ extension Skin {
                            knob: [c("#E2D2AC"), c("#7A6643")], cabinet: c("#9C8760"), media: c("#9C8760")),
              brandFont: nil, displayFont: nil,
              layout: .init(columnWidth: 300, corner: 8, gap: 8, caseWidth: 0)),
+        Skin(id: "pocket-white", name: "White", era: .pocket, brand: "HIMAWARI",
+             leftModel: "POCKET PLAYER   40 GB", rightModel: "SPEAKER DOCK   HI-FI",
+             material: .matte, grain: 0,
+             colors: .init(plate: [c("#FCFCFC"), c("#ECECEE"), c("#F5F5F7")], glass: [c("#E9EEF4"), c("#C9D3DE")],
+                           display: c("#1F2933"), accent: c("#3D8BFF"), peak: c("#FF3B30"), label: c("#6E7378"),
+                           ink: c("#2E1F14"), meter: [c("#FFE6A8"), c("#EDB866")], button: [c("#FFFFFF"), c("#E3E4E6")],
+                           knob: [c("#FFFFFF"), c("#C7C9CC")], cabinet: c("#D9DADC"), media: c("#F7F7F8")),
+             brandFont: "HelveticaNeue-Medium", displayFont: "HelveticaNeue-Bold",
+             layout: .init(columnWidth: 300, corner: 20, gap: 8, caseWidth: 0)),
+        Skin(id: "pocket-black", name: "Black", era: .pocket, brand: "HIMAWARI",
+             leftModel: "POCKET PLAYER   80 GB", rightModel: "SPEAKER DOCK   HI-FI",
+             material: .matte, grain: 0,
+             colors: .init(plate: [c("#2B2C2F"), c("#151618"), c("#202124")], glass: [c("#E9EEF4"), c("#C9D3DE")],
+                           display: c("#1F2933"), accent: c("#3D8BFF"), peak: c("#FF3B30"), label: c("#9A9EA3"),
+                           ink: c("#2E1F14"), meter: [c("#FFE6A8"), c("#EDB866")], button: [c("#3A3B3F"), c("#1C1D20")],
+                           knob: [c("#55575C"), c("#1E1F22")], cabinet: c("#151618"), media: c("#1D1E21")),
+             brandFont: "HelveticaNeue-Medium", displayFont: "HelveticaNeue-Bold",
+             layout: .init(columnWidth: 300, corner: 20, gap: 8, caseWidth: 0)),
+        Skin(id: "pocket-blue", name: "Colours (Blue)", era: .pocket, brand: "HIMAWARI",
+             leftModel: "POCKET PLAYER   MINI", rightModel: "SPEAKER DOCK   MINI",
+             material: .brushed, grain: 0.03,
+             colors: .init(plate: [c("#7FB8EE"), c("#4F92D8"), c("#68A6E4")], glass: [c("#E9EEF4"), c("#C9D3DE")],
+                           display: c("#1F2933"), accent: c("#FF9F0A"), peak: c("#FF3B30"), label: c("#0E2A4A"),
+                           ink: c("#2E1F14"), meter: [c("#FFE6A8"), c("#EDB866")], button: [c("#F4F7FA"), c("#D5DEE8")],
+                           knob: [c("#F4F7FA"), c("#B8C6D6")], cabinet: c("#4F92D8"), media: c("#5E9FE0")),
+             brandFont: "HelveticaNeue-Medium", displayFont: "HelveticaNeue-Bold",
+             layout: .init(columnWidth: 300, corner: 20, gap: 8, caseWidth: 0)),
+        Skin(id: "minimal-dark", name: "Dark", era: .minimal, brand: "HIMAWARI",
+             leftModel: "NOW PLAYING", rightModel: "LEVELS",
+             material: .matte, grain: 0,
+             colors: .init(plate: [c("#1C1C1EB8"), c("#141416B8"), c("#18181AB8")], glass: [c("#00000000"), c("#00000000")],
+                           display: c("#F5F5F7"), accent: c("#FF375F"), peak: c("#FF453A"), label: c("#A1A1A6"),
+                           ink: c("#2E1F14"), meter: [c("#FFE6A8"), c("#EDB866")], button: [c("#FFFFFF14"), c("#FFFFFF0A")],
+                           knob: [c("#3A3A3C"), c("#2C2C2E")], cabinet: c("#141416"), media: c("#1C1C1E")),
+             brandFont: "HelveticaNeue-Medium", displayFont: nil,
+             layout: .init(columnWidth: 300, corner: 22, gap: 8, caseWidth: 0)),
+        Skin(id: "minimal-light", name: "Light", era: .minimal, brand: "HIMAWARI",
+             leftModel: "NOW PLAYING", rightModel: "LEVELS",
+             material: .matte, grain: 0,
+             colors: .init(plate: [c("#FFFFFFD8"), c("#F2F2F7D8"), c("#F8F8FAD8")], glass: [c("#00000000"), c("#00000000")],
+                           display: c("#1C1C1E"), accent: c("#0A84FF"), peak: c("#FF3B30"), label: c("#6E6E73"),
+                           ink: c("#2E1F14"), meter: [c("#FFE6A8"), c("#EDB866")], button: [c("#0000000F"), c("#00000008")],
+                           knob: [c("#FFFFFF"), c("#E5E5EA")], cabinet: c("#F2F2F7"), media: c("#FFFFFF")),
+             brandFont: "HelveticaNeue-Medium", displayFont: nil,
+             layout: .init(columnWidth: 300, corner: 22, gap: 8, caseWidth: 0)),
+        Skin(id: "minimal-frosted", name: "Frosted", era: .minimal, brand: "HIMAWARI",
+             leftModel: "NOW PLAYING", rightModel: "LEVELS",
+             material: .matte, grain: 0,
+             colors: .init(plate: [c("#FFFFFF40"), c("#FFFFFF26"), c("#FFFFFF33")], glass: [c("#00000000"), c("#00000000")],
+                           display: c("#FFFFFF"), accent: c("#FFD60A"), peak: c("#FF453A"), label: c("#FFFFFFB0"),
+                           ink: c("#2E1F14"), meter: [c("#FFE6A8"), c("#EDB866")], button: [c("#FFFFFF24"), c("#FFFFFF10")],
+                           knob: [c("#FFFFFF60"), c("#FFFFFF30")], cabinet: c("#FFFFFF33"), media: c("#FFFFFF")),
+             brandFont: "HelveticaNeue-Medium", displayFont: nil,
+             layout: .init(columnWidth: 300, corner: 22, gap: 8, caseWidth: 0)),
     ]
 
     /// Today's look: what Himawari shows until you pick another.
@@ -410,12 +488,13 @@ public struct SkinLibrary: Sendable {
           "colors": { "display": "#FF4A3D" }
         }
 
-    era:      hifi (1970s), cassette (1980s), rack (2000s)
+    era:      hifi (1970s), cassette (1980s), portable (1990s), rack (2000s),
+              pocket (2000s), minimal (today)
     material: brushed, chrome, plastic, matte;  grain: 0 to 0.2
     colours:  "#RRGGBB" or "#RRGGBBAA"; plate is 3 colours (top, middle, bottom), glass, meter,
               button and knob are 2, the rest are 1
     fonts:    PostScript names (as Font Book shows them), or null for the system font
-    layout:   columnWidth 200-360, corner 0-20, gap 4-16, caseWidth 0-30 (a wooden case)
+    layout:   columnWidth 200-360, corner 0-30, gap 4-16, caseWidth 0-30 (a wooden case)
 
     A file with the same id as a built-in skin replaces it. If a file has a mistake, Style
     shows which file and what's wrong, and the others still load.

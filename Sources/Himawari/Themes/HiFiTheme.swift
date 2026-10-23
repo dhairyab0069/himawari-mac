@@ -7,6 +7,7 @@ import HimawariKit
 /// The record on the turntable is the music scene's (MusicScene).
 struct HiFiTheme: GearTheme {
     let skin: Skin
+    var meters: StyleOptions.Meters = .era
 
     func left(size: CGSize) -> PanelFace {
         let column = GearLayout.column(size, skin)
@@ -86,19 +87,22 @@ struct HiFiTheme: GearTheme {
             (.treble, CGRect(x: column.minX + colW * 0.45 - small / 2, y: y + (big - small) / 2, width: small, height: small)),
             (.volume, CGRect(x: column.minX + colW * 0.79 - big / 2, y: y, width: big, height: big))]
 
+        let block = meters == .era ? nil
+            : GearLayout.meters(meters, in: CGRect(x: m2.minX, y: m2.minY, width: colW, height: m1.maxY - m2.minY), skin)
         var face = PanelFace()
         let skin = skin
         face.draw = { size in
             Paint.faceplate(size, skin)
             Paint.header(header, brand: skin.brand, model: skin.rightModel, skin)
-            for (i, m) in [m1, m2].enumerated() { Paint.vuFace(m, channel: i == 0 ? "L" : "R", skin) }
+            if let block { block.draw() } else { for (i, m) in [m1, m2].enumerated() { Paint.vuFace(m, channel: i == 0 ? "L" : "R", skin) } }
             if switches.height >= 40 { Self.toggles(switches, skin) }
             for k in knobs { Paint.knob(k.rect, label: k.control.knobName ?? "", skin, pointer: false) }
         }
-        face.needles = [m1, m2]
+        face.needles = block?.needles ?? [m1, m2]
+        face.bars = block?.bars ?? []
         face.knobs = knobs
         face.controls = GearLayout.grabAreas(knobs, within: CGRect(origin: .zero, size: size))
-        face.fixtures = [m1, m2]
+        face.fixtures = block?.fixtures ?? [m1, m2]
         return face
     }
 
