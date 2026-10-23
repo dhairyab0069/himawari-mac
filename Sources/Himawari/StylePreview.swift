@@ -10,7 +10,8 @@ enum StylePreview {
         if let i = arguments.firstIndex(of: "--render-customise"), i + 1 < arguments.count {
             _ = NSApplication.shared
             Styles.shared.reload()
-            StyleCustomiser().snapshot(to: URL(fileURLWithPath: arguments[i + 1]))
+            let customiser = StyleCustomiser()
+            withExtendedLifetime(customiser) { customiser.snapshot(to: URL(fileURLWithPath: arguments[i + 1])) }
             return true
         }
         guard let i = arguments.firstIndex(of: "--render-styles") else { return false }
