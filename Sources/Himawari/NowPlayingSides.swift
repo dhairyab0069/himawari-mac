@@ -14,36 +14,43 @@ struct SongInfo: Equatable {
     var measuredAt: Double = CACurrentMediaTime()
 }
 
-/// The bars beside a square video, as two pieces of retro hi-fi gear in a rack:
-/// on the left a CD deck (display with the song, time and progress, disc tray,
-/// transport buttons, jog wheel), on the right a stereo analyzer (two analog VU
-/// meters, a spectrum display, knobs). The hardware is drawn once into an image;
-/// only the display, the needles, the meter and the jog wheel move, with Core
-/// Animation at a low frame rate, plus the time text when its seconds change.
+/// The bars beside a square video, as two pieces of hi-fi gear: on the left the player (a
+/// display with the song, time and progress, transport buttons, a wheel to turn), on the right
+/// the meters and knobs. What they look like is the style's (`GearTheme`: the era's layout in a
+/// skin's colours); this view builds them and keeps them moving. The hardware is drawn once into
+/// an image; only the display, the needles, the meters and the wheels move, with Core Animation
+/// at a low frame rate, plus the time text when its seconds change.
 @MainActor
 final class NowPlayingSides: NSView {
     /// Names this view's click catchers. Not ObjectIdentifier: a view rebuilt after a screen change
     /// can reuse a freed one's address, and its catchers would keep pointing at the old view.
     let catcherKey = UUID().uuidString
-    fileprivate static let vfd = NSColor(red: 0.45, green: 0.97, blue: 1, alpha: 1) // vacuum-fluorescent cyan
-    fileprivate static let amber = NSColor(red: 1, green: 0.72, blue: 0.3, alpha: 1)
+
+    /// The look: switching rebuilds the panels; the song, its position and play state stay.
+    var style: Skin = Styles.shared.current {
+        didSet {
+            guard style != oldValue else { return }
+            theme = Themes.make(style)
+            rebuild()
+        }
+    }
+    private var theme: GearTheme = Themes.make(Styles.shared.current)
 
     private let deck = CALayer(), analyzer = CALayer()           // the faceplates (drawn hardware)
-    // Deck display
-    private let indicators = ["PLAY", "PAUSE", "REPEAT", "SHUFFLE"].map { _ in NowPlayingSides.text(9, .bold, mono: true) }
-    private let time = NowPlayingSides.text(40, .light, mono: true)
-    private let total = NowPlayingSides.text(12, .medium, alpha: 0.6, mono: true)
-    private var ladder: [CALayer] = []
+    private var faces: (left: PanelFace, right: PanelFace)?
+    // The display
+    private var texts: [TextPart.Role: CATextLayer] = [:]
     private let titleClip = CALayer()
-    private let title = NowPlayingSides.text(16, .bold)
-    private let artist = NowPlayingSides.text(12, .semibold, alpha: 0.8)
-    private let album = NowPlayingSides.text(11, .regular, alpha: 0.5)
-    private let playLED = CALayer()
-    private let jog = CALayer()
-    /// How far a knob's click area reaches past the knob (easier to grab).
-    private static let knobGrabMargin: CGFloat = 10
+    private var ladder: [CALayer] = []
+    private var ladderGlow = true
+    private var dialPointer: (layer: CALayer, track: CGRect)?
+    private var tape: (left: CALayer, right: CALayer, part: TapePart)?
+    private var playLED: CALayer?
+    private var rotors: [(layer: CALayer, part: RotorPart)] = []
     /// The knobs' live pointers (VOLUME, BASS, TREBLE): they show, and set, Music's settings.
     private var pointers: [GearControl: CAShapeLayer] = [:]
+    /// Where each knob itself is (without its grab margin), in this view's coordinates.
+    private var knobRects: [GearControl: CGRect] = [:]
     /// Where each control is, in this view's coordinates (y up).
     private(set) var controlRects: [GearControl: CGRect] = [:]
     /// The controls the playing app supports: the ones the click catchers cover.
@@ -53,11 +60,11 @@ final class NowPlayingSides: NSView {
     private var dimmers: [CALayer] = []
     /// While the jog wheel is being turned: how far from now the song would land.
     private var previewOffset: Double?
-    /// What the time display and progress ladder last showed ("" = draw again).
+    /// What the time display and progress last showed ("" = draw again).
     private var shownTime = ""
     /// "DHH · 7 / 41": the playlist and the song's place in it, shown instead of the album.
     var playlistLabel: String? {
-        didSet { if playlistLabel != oldValue, let info { album.string = playlistLabel ?? info.album } }
+        didSet { if playlistLabel != oldValue, let info { texts[.album]?.string = playlistLabel ?? info.album } }
     }
     /// Music's volume, 0…1: where the VOLUME knob points.
     var volume: Double = 0.5 { didSet { pointKnobs() } }
@@ -67,15 +74,15 @@ final class NowPlayingSides: NSView {
     /// Music's REPEAT and SHUFFLE settings, lit on the display.
     var repeating = false { didSet { lightIndicators() } }
     var shuffling = false { didSet { lightIndicators() } }
-    // Analyzer
+    // The meters
     private var needles: [CALayer] = []
+    private var bars: [(mask: CALayer, part: BarPart)] = []
     /// Live levels of the song (the Core Audio tap); without them the gear animates by itself.
     var meterSource: AudioLevels? { didSet { if meterSource !== oldValue { restartMotion() } } }
     private var meterTimer: Timer?
     private var lastMeterState = ""
     private var needleLevel: [CGFloat] = [0, 0]
     private var bandLevel = [CGFloat](repeating: 0.07, count: AudioLevels.bandCount)
-    private var columns: [CALayer] = []
 
     private var info: SongInfo?
     private var anchor: (position: Double, at: CFTimeInterval) = (0, 0)
@@ -132,16 +139,9 @@ final class NowPlayingSides: NSView {
         if reanchor { anchor = (actual, now) }
         self.info = info
         if reanchor { scheduleTick() } // timed from the new state (e.g. just resumed)
-        if songChanged {
-            title.string = info.title.uppercased()
-            artist.string = info.artist.uppercased()
-            album.string = playlistLabel ?? info.album
-            layoutTitle()
-        }
+        if songChanged { showSongText() }
         lightIndicators()
-        playLED.backgroundColor = (info.playing ? NSColor(red: 0.3, green: 1, blue: 0.45, alpha: 1)
-                                                : NSColor(red: 0.12, green: 0.25, blue: 0.14, alpha: 1)).cgColor
-        playLED.shadowOpacity = info.playing ? 0.9 : 0
+        lightLamp()
         updateTime()
         if songChanged || info.playing != old?.playing {
             restartProgress()
@@ -151,20 +151,47 @@ final class NowPlayingSides: NSView {
         }
     }
 
+    private func showSongText() {
+        guard let info else { return }
+        texts[.title]?.string = info.title.uppercased()
+        texts[.artist]?.string = info.artist.uppercased()
+        texts[.album]?.string = playlistLabel ?? info.album
+        layoutTitle()
+    }
+
+    private func lightLamp() {
+        guard let playLED else { return }
+        let playing = info?.playing ?? false
+        playLED.backgroundColor = (playing ? Paint.green : NSColor(red: 0.12, green: 0.25, blue: 0.14, alpha: 1)).cgColor
+        playLED.shadowOpacity = playing ? 0.9 : 0
+    }
+
     /// Puts the gear in the bars beside `video` (this view's coordinates, y up).
     func place(around video: CGRect) {
         guard video != self.video else { return }
         self.video = video
+        rebuild()
+    }
+
+    private func rebuild() {
         build()
+        if info != nil {
+            showSongText()
+            lightIndicators()
+            lightLamp()
+        }
         restartProgress()
         restartMotion()
     }
 
-    private func currentPosition() -> Double {
+    /// Where the song is now, as the gear counts it (internal for the tests).
+    func currentPosition() -> Double {
         guard let info else { return 0 }
         let p = info.playing ? anchor.position + (CACurrentMediaTime() - anchor.at) : anchor.position
         return info.duration > 0 ? min(max(p, 0), info.duration) : max(p, 0)
     }
+    /// The song the gear is showing (for the tests).
+    var song: SongInfo? { info }
 
     private var leftGap: CGRect { CGRect(x: bounds.minX, y: bounds.minY, width: video.minX - bounds.minX, height: bounds.height) }
     private var rightGap: CGRect { CGRect(x: video.maxX, y: bounds.minY, width: bounds.maxX - video.maxX, height: bounds.height) }
@@ -177,124 +204,148 @@ final class NowPlayingSides: NSView {
         CATransaction.begin()
         CATransaction.setDisableActions(true)
         defer { CATransaction.commit() }
-        deck.sublayers?.forEach { $0.removeFromSuperlayer() }
-        analyzer.sublayers?.forEach { $0.removeFromSuperlayer() }
-        ladder = []; needles = []; columns = []
-        shownTime = "" // new ladder segments: draw the time and progress again
+        stopLiveMeters()
+        for panel in [deck, analyzer] { panel.sublayers?.forEach { $0.removeFromSuperlayer() } }
+        texts = [:]; ladder = []; needles = []; bars = []; rotors = []; pointers = [:]; knobRects = [:]
+        dialPointer = nil; tape = nil; playLED = nil; faces = nil
+        titleClip.sublayers?.forEach { $0.removeFromSuperlayer() }
+        shownTime = "" // new parts: draw the time and progress again
+        lastMeterState = ""
         controlRects = [:]
         deck.isHidden = !roomy
         analyzer.isHidden = !roomy
-        guard roomy else { return }
+        guard roomy else { dimUnsupported(); return }
         let scale = window?.backingScaleFactor ?? 2
         // The faceplates fill the bars, between the notch strip and the bottom, like rack units.
         deck.frame = CGRect(x: leftGap.minX + 8, y: video.minY + 8, width: leftGap.width - 16, height: video.height - 16)
         analyzer.frame = CGRect(x: rightGap.minX + 8, y: video.minY + 8, width: rightGap.width - 16, height: video.height - 16)
-        buildDeck(scale: scale)
-        buildAnalyzer(scale: scale)
+        let left = theme.left(size: deck.bounds.size), right = theme.right(size: analyzer.bounds.size)
+        faces = (left, right)
+        build(left, in: deck, scale: scale)
+        build(right, in: analyzer, scale: scale)
         dimUnsupported()
     }
 
-    private func buildDeck(scale: CGFloat) {
-        let size = deck.bounds.size
-        let l = DeckLayout(size: size)
-        deck.contents = Hardware.deck(size: size, layout: l, scale: scale)
-        deck.contentsScale = scale
+    private func build(_ face: PanelFace, in panel: CALayer, scale: CGFloat) {
+        let size = panel.bounds.size
+        panel.contents = Paint.image(size: size, scale: scale) { _ in face.draw(size) }
+        panel.contentsScale = scale
+        let origin = panel.frame.origin
+        let display = style.colors.display
 
-        // The display's contents, over the drawn glass.
-        let v = l.display
-        let inner = v.insetBy(dx: 14, dy: 12)
-        var x = inner.minX
-        for (i, name) in ["PLAY", "PAUSE", "REPEAT", "SHUFFLE"].enumerated() {
-            let t = indicators[i]
-            t.string = name
-            let w = Self.width(of: t) + 2
-            t.frame = CGRect(x: x, y: inner.maxY - 11, width: w, height: 11)
-            x += w + 10
-            deck.addSublayer(t)
+        // Text, over the drawn glass.
+        for part in face.texts {
+            let t = CATextLayer()
+            t.font = Paint.displayFont(style, part.size, part.weight, mono: part.mono)
+            t.fontSize = part.size
+            t.foregroundColor = display.alpha(Double(part.alpha)).cg
+            t.truncationMode = .end
+            t.alignmentMode = part.align
+            t.contentsScale = scale
+            t.shadowColor = display.cg // the glow of a lit display
+            t.shadowOpacity = face.glow.opacity
+            t.shadowRadius = face.glow.radius
+            t.shadowOffset = .zero
+            if let s = part.string { t.string = s }
+            if part.role == .title {
+                titleClip.frame = part.frame
+                titleClip.masksToBounds = true
+                titleClip.addSublayer(t)
+                panel.addSublayer(titleClip)
+            } else {
+                t.frame = part.frame
+                panel.addSublayer(t)
+            }
+            texts[part.role] = t
         }
-        // REPEAT and SHUFFLE are buttons too: click the word to switch it.
-        for (control, i) in [(GearControl.repeatMode, 2), (.shuffle, 3)] {
-            controlRects[control] = indicators[i].frame.insetBy(dx: -4, dy: -5)
-                .offsetBy(dx: deck.frame.origin.x, dy: deck.frame.origin.y)
-        }
-        lightIndicators()
-        time.frame = CGRect(x: inner.minX - 2, y: inner.maxY - 64, width: inner.width * 0.62, height: 48)
-        total.frame = CGRect(x: inner.minX + inner.width * 0.6, y: inner.maxY - 58, width: inner.width * 0.4, height: 15)
-        total.alignmentMode = .right
-        deck.addSublayer(time)
-        deck.addSublayer(total)
-        let segments = 32, gap: CGFloat = 2
-        let segW = (inner.width - CGFloat(segments - 1) * gap) / CGFloat(segments)
-        for s in 0..<segments {
+
+        // Progress.
+        ladderGlow = face.ladderGlow
+        for frame in face.ladder {
             let seg = CALayer()
-            seg.frame = CGRect(x: inner.minX + CGFloat(s) * (segW + gap), y: inner.maxY - 78, width: segW, height: 6)
-            seg.backgroundColor = Self.vfd.cgColor
-            seg.shadowColor = Self.vfd.cgColor
+            seg.frame = frame
+            seg.backgroundColor = display.cg
+            seg.shadowColor = display.cg
             seg.shadowRadius = 3
             seg.shadowOffset = .zero
-            deck.addSublayer(seg)
+            panel.addSublayer(seg)
             ladder.append(seg)
         }
-        titleClip.frame = CGRect(x: inner.minX, y: inner.maxY - 104, width: inner.width, height: 20)
-        titleClip.masksToBounds = true
-        titleClip.addSublayer(title)
-        deck.addSublayer(titleClip)
-        artist.frame = CGRect(x: inner.minX, y: inner.maxY - 122, width: inner.width, height: 16)
-        album.frame = CGRect(x: inner.minX, y: inner.maxY - 138, width: inner.width, height: 15)
-        deck.addSublayer(artist)
-        deck.addSublayer(album)
-        // The mesh of a real fluorescent display, over its text.
-        let mesh = CALayer()
-        mesh.frame = v.insetBy(dx: 4, dy: 4)
-        mesh.backgroundColor = Hardware.meshColor
-        mesh.cornerRadius = 6
-        deck.addSublayer(mesh)
-        layoutTitle()
-
-        playLED.frame = l.playLED
-        playLED.cornerRadius = l.playLED.width / 2
-        playLED.shadowColor = NSColor(red: 0.3, green: 1, blue: 0.45, alpha: 1).cgColor
-        playLED.shadowRadius = 4
-        playLED.shadowOffset = .zero
-        deck.addSublayer(playLED)
-
-        let origin = deck.frame.origin
-        for (control, rect) in zip([GearControl.previous, .playPause, .next, .stop, .eject], l.buttonRects) {
-            controlRects[control] = rect.offsetBy(dx: origin.x, dy: origin.y)
+        if let track = face.dialPointer {
+            let pointer = CALayer()
+            pointer.bounds = CGRect(x: 0, y: 0, width: 2.5, height: track.height)
+            pointer.backgroundColor = style.colors.peak.cg
+            pointer.shadowColor = style.colors.peak.cg
+            pointer.shadowOpacity = 0.8
+            pointer.shadowRadius = 3
+            pointer.shadowOffset = .zero
+            pointer.position = CGPoint(x: track.minX, y: track.midY)
+            panel.addSublayer(pointer)
+            dialPointer = (pointer, track)
         }
-        controlRects[.progress] = CGRect(x: inner.minX, y: inner.maxY - 88, width: inner.width, height: 26)
-            .offsetBy(dx: origin.x, dy: origin.y)
-        controlRects[.jog] = l.jog.offsetBy(dx: origin.x, dy: origin.y)
-        jog.frame = l.jog
-        jog.contents = Hardware.jogWheel(diameter: l.jog.width, scale: scale)
-        jog.contentsScale = scale
-        deck.addSublayer(jog)
-        for l in [indicators, [time, total, title, artist, album]].flatMap({ $0 }) { l.contentsScale = scale }
-    }
+        if let part = face.tape {
+            let packs = [part.left, part.right].map { center -> CALayer in
+                let pack = CALayer()
+                pack.position = center
+                pack.backgroundColor = part.color
+                pack.borderColor = NSColor(white: 0, alpha: 0.35).cgColor
+                pack.borderWidth = 0.5
+                panel.addSublayer(pack)
+                return pack
+            }
+            tape = (packs[0], packs[1], part)
+        }
 
-    private func buildAnalyzer(scale: CGFloat) {
-        let size = analyzer.bounds.size
-        let l = AnalyzerLayout(size: size)
-        analyzer.contents = Hardware.analyzer(size: size, layout: l, scale: scale)
-        analyzer.contentsScale = scale
-
-        for face in l.meters {
+        // Meters.
+        for part in face.bars {
+            let column = CALayer()
+            column.frame = part.frame
+            let n = CGFloat(part.segments)
+            for g in 0..<part.segments {
+                let seg = CALayer()
+                if part.vertical {
+                    let h = (part.frame.height - (n - 1) * part.gap) / n
+                    seg.frame = CGRect(x: 0, y: CGFloat(g) * (h + part.gap), width: part.frame.width, height: h)
+                } else {
+                    let w = (part.frame.width - (n - 1) * part.gap) / n
+                    seg.frame = CGRect(x: CGFloat(g) * (w + part.gap), y: 0, width: w, height: part.frame.height)
+                }
+                seg.backgroundColor = part.colors[min(g, part.colors.count - 1)]
+                column.addSublayer(seg)
+            }
+            if let glow = part.glow {
+                column.shadowColor = glow
+                column.shadowRadius = 3
+                column.shadowOpacity = 0.6
+                column.shadowOffset = .zero
+            }
+            // Each column's mask is what moves.
+            let mask = CALayer()
+            mask.backgroundColor = NSColor.white.cgColor
+            mask.anchorPoint = part.vertical ? CGPoint(x: 0.5, y: 0) : CGPoint(x: 0, y: 0.5)
+            mask.bounds = column.bounds
+            mask.position = part.vertical ? CGPoint(x: column.bounds.midX, y: 0) : CGPoint(x: 0, y: column.bounds.midY)
+            column.mask = mask
+            panel.addSublayer(column)
+            bars.append((mask, part))
+        }
+        for faceRect in face.needles {
             // The needle turns about a pivot just below the face; the face clips it.
             let clip = CALayer()
-            clip.frame = face
+            clip.frame = faceRect
             clip.masksToBounds = true
             clip.cornerRadius = 6
             let needle = CAShapeLayer()
-            let length = face.height * 1.12
+            let length = faceRect.height * 1.12
             needle.bounds = CGRect(x: 0, y: 0, width: 3, height: length)
             needle.anchorPoint = CGPoint(x: 0.5, y: 0)
-            needle.position = CGPoint(x: face.width / 2, y: -face.height * 0.28)
+            needle.position = CGPoint(x: faceRect.width / 2, y: -faceRect.height * 0.28)
             let path = CGMutablePath()
             path.move(to: CGPoint(x: 1.5, y: 0)); path.addLine(to: CGPoint(x: 1.5, y: length))
             needle.path = path
-            needle.strokeColor = NSColor(red: 0.12, green: 0.08, blue: 0.06, alpha: 0.9).cgColor
+            needle.strokeColor = style.colors.ink.mixed(SkinColor(0, 0, 0), 0.33).alpha(0.9).cg
             needle.lineWidth = 1.6
-            needle.transform = CATransform3DMakeRotation(Hardware.needleRest, 0, 0, 1)
+            needle.transform = CATransform3DMakeRotation(Paint.needleRest, 0, 0, 1)
             clip.addSublayer(needle)
             let glass = CAGradientLayer() // the reflection on the meter's glass, over the needle
             glass.frame = clip.bounds
@@ -302,48 +353,37 @@ final class NowPlayingSides: NSView {
             glass.startPoint = CGPoint(x: 0.5, y: 1)
             glass.endPoint = CGPoint(x: 0.5, y: 0.45)
             clip.addSublayer(glass)
-            analyzer.addSublayer(clip)
+            panel.addSublayer(clip)
             needles.append(needle)
         }
-
-        // Spectrum: VFD segment columns; each column's mask is what moves.
-        let s = l.spectrum
-        let count = 10, segments = 14
-        let colGap: CGFloat = 5, segGap: CGFloat = 2
-        let colW = (s.width - CGFloat(count - 1) * colGap) / CGFloat(count)
-        let segH = (s.height - CGFloat(segments - 1) * segGap) / CGFloat(segments)
-        for i in 0..<count {
-            let column = CALayer()
-            column.frame = CGRect(x: s.minX + CGFloat(i) * (colW + colGap), y: s.minY, width: colW, height: s.height)
-            for g in 0..<segments {
-                let seg = CALayer()
-                seg.frame = CGRect(x: 0, y: CGFloat(g) * (segH + segGap), width: colW, height: segH)
-                seg.backgroundColor = (g >= segments - 3 ? Self.amber : Self.vfd).cgColor
-                column.addSublayer(seg)
-            }
-            column.shadowColor = Self.vfd.cgColor
-            column.shadowRadius = 3
-            column.shadowOpacity = 0.6
-            column.shadowOffset = .zero
-            let mask = CALayer()
-            mask.backgroundColor = NSColor.white.cgColor
-            mask.anchorPoint = CGPoint(x: 0.5, y: 0)
-            mask.bounds = column.bounds
-            mask.position = CGPoint(x: column.bounds.midX, y: 0)
-            column.mask = mask
-            analyzer.addSublayer(column)
-            columns.append(mask)
+        for rect in face.meshes { // the mesh of a real fluorescent display, over its text
+            let mesh = CALayer()
+            mesh.frame = rect
+            mesh.backgroundColor = Paint.meshColor
+            mesh.cornerRadius = 6
+            panel.addSublayer(mesh)
         }
-        let mesh = CALayer()
-        mesh.frame = l.spectrumGlass.insetBy(dx: 4, dy: 4)
-        mesh.backgroundColor = Hardware.meshColor
-        mesh.cornerRadius = 6
-        analyzer.addSublayer(mesh)
+        if let rect = face.lamp {
+            let led = CALayer()
+            led.frame = rect
+            led.cornerRadius = rect.width / 2
+            led.shadowColor = Paint.green.cgColor
+            led.shadowRadius = 4
+            led.shadowOffset = .zero
+            panel.addSublayer(led)
+            playLED = led
+        }
+        for part in face.rotors {
+            let rotor = CALayer()
+            rotor.frame = part.frame
+            rotor.contents = Paint.image(size: part.frame.size, scale: scale) { _ in part.draw(part.frame.width) }
+            rotor.contentsScale = scale
+            panel.addSublayer(rotor)
+            rotors.append((rotor, part))
+        }
 
         // The knobs' pointers are live: they show (and set) Music's volume, bass and treble.
-        pointers = [:]
-        for (rect, name) in l.knobs {
-            guard let control = GearControl(knob: name) else { continue }
+        for (control, rect) in face.knobs {
             let w = rect.width
             let pointer = CAShapeLayer()
             pointer.bounds = CGRect(x: 0, y: 0, width: w, height: w)
@@ -352,14 +392,14 @@ final class NowPlayingSides: NSView {
             line.move(to: CGPoint(x: w / 2, y: w / 2 + w * 0.12))
             line.addLine(to: CGPoint(x: w / 2, y: w / 2 + w * 0.36))
             pointer.path = line
-            pointer.strokeColor = NSColor(white: 0.95, alpha: 0.9).cgColor
+            pointer.strokeColor = Paint.pointerColor(style)
             pointer.lineWidth = 2
             pointer.lineCap = .round
-            analyzer.addSublayer(pointer)
+            panel.addSublayer(pointer)
             pointers[control] = pointer
-            controlRects[control] = rect.insetBy(dx: -Self.knobGrabMargin, dy: -Self.knobGrabMargin)
-                .offsetBy(dx: analyzer.frame.origin.x, dy: analyzer.frame.origin.y)
+            knobRects[control] = rect.offsetBy(dx: origin.x, dy: origin.y)
         }
+        for (control, rect) in face.controls { controlRects[control] = rect.offsetBy(dx: origin.x, dy: origin.y) }
         pointKnobs()
     }
 
@@ -374,12 +414,11 @@ final class NowPlayingSides: NSView {
         CATransaction.setDisableActions(true)
         for (control, rect) in controlRects where !capabilities.contains(control.needs) {
             let shade = CALayer()
-            // Knobs' click areas reach 10 pt past the knob (easier to grab): shade only the knob
+            // Knobs' click areas reach past the knob (easier to grab): shade only the knob
             // itself, so its label underneath stays readable.
-            let isKnob = control.knobName != nil
-            let visible = isKnob ? rect.insetBy(dx: Self.knobGrabMargin, dy: Self.knobGrabMargin) : rect
-            shade.frame = visible.insetBy(dx: -2, dy: -2)
-            shade.cornerRadius = isKnob ? shade.frame.width / 2 : 5
+            let knob = knobRects[control]
+            shade.frame = (knob ?? rect).insetBy(dx: -2, dy: -2)
+            shade.cornerRadius = knob != nil || control == .jog ? shade.frame.width / 2 : 5 // knobs and wheels are round
             shade.backgroundColor = NSColor(white: 0.04, alpha: 0.62).cgColor
             root.addSublayer(shade)
             dimmers.append(shade)
@@ -409,8 +448,10 @@ final class NowPlayingSides: NSView {
     func scrub(by seconds: Double, angle: CGFloat) {
         CATransaction.begin()
         CATransaction.setDisableActions(true)
-        jog.removeAnimation(forKey: "spin")
-        jog.transform = CATransform3DMakeRotation(angle, 0, 0, 1)
+        for (rotor, part) in rotors {
+            rotor.removeAnimation(forKey: "spin")
+            rotor.transform = CATransform3DMakeRotation(angle * part.scrubRatio, 0, 0, 1)
+        }
         CATransaction.commit()
         previewOffset = seconds
         updateTime()
@@ -418,7 +459,7 @@ final class NowPlayingSides: NSView {
 
     func endScrub() {
         previewOffset = nil
-        jog.transform = CATransform3DIdentity
+        for (rotor, _) in rotors { rotor.transform = CATransform3DIdentity }
         restartMotion()
         updateTime()
     }
@@ -448,29 +489,31 @@ final class NowPlayingSides: NSView {
     private func lightIndicators() {
         let playing = info?.playing ?? false
         for (i, lit) in [playing, !playing, repeating, shuffling].enumerated() {
-            indicators[i].opacity = lit ? 1 : 0.16
+            texts[.indicator(i)]?.opacity = lit ? 1 : 0.16
         }
     }
 
     private func layoutTitle() {
+        guard let title = texts[.title] else { return }
         CATransaction.begin()
         CATransaction.setDisableActions(true)
+        let h = titleClip.bounds.height
         let w = max(titleClip.bounds.width, Self.width(of: title))
-        title.bounds = CGRect(x: 0, y: 0, width: w, height: 20)
-        title.position = CGPoint(x: w / 2, y: 10)
+        title.bounds = CGRect(x: 0, y: 0, width: w, height: h)
+        title.position = CGPoint(x: w / 2, y: h / 2)
         CATransaction.commit()
     }
 
     // MARK: Motion
 
-    /// The progress ladder follows the clock (see `updateTime`).
+    /// The progress follows the clock (see `updateTime`).
     private func restartProgress() { updateTime() }
 
     /// The live levels started or stopped.
     func levelsChanged() { restartMotion() }
 
     private func restartMotion() {
-        guard let info, roomy, !needles.isEmpty else { return }
+        guard let info, roomy, faces != nil else { return }
         CATransaction.begin()
         CATransaction.setDisableActions(true)
         defer { CATransaction.commit() }
@@ -487,41 +530,42 @@ final class NowPlayingSides: NSView {
 
         // A title too long for the display scrolls, pausing at each end.
         layoutTitle()
-        title.removeAllAnimations()
-        let overflow = title.bounds.width - titleClip.bounds.width
-        if overflow > 0, lively, animating {
-            let scroll = CAKeyframeAnimation(keyPath: "position.x")
-            let x0 = title.bounds.width / 2
-            scroll.values = [x0, x0, x0 - overflow, x0 - overflow, x0]
-            let travel = Double(overflow) / 24
-            let totalTime = 3 + travel + 2 + travel * 0.4
-            scroll.keyTimes = [0, 3 / totalTime, (3 + travel) / totalTime, (5 + travel) / totalTime, 1].map { NSNumber(value: $0) }
-            scroll.duration = totalTime
-            scroll.repeatCount = .infinity
-            scroll.preferredFrameRateRange = CAFrameRateRange(minimum: 15, maximum: 30, preferred: 30)
-            title.add(scroll, forKey: "marquee")
+        if let title = texts[.title] {
+            title.removeAllAnimations()
+            let overflow = title.bounds.width - titleClip.bounds.width
+            if overflow > 0, lively, animating {
+                let scroll = CAKeyframeAnimation(keyPath: "position.x")
+                let x0 = title.bounds.width / 2
+                scroll.values = [x0, x0, x0 - overflow, x0 - overflow, x0]
+                let travel = Double(overflow) / 24
+                let totalTime = 3 + travel + 2 + travel * 0.4
+                scroll.keyTimes = [0, 3 / totalTime, (3 + travel) / totalTime, (5 + travel) / totalTime, 1].map { NSNumber(value: $0) }
+                scroll.duration = totalTime
+                scroll.repeatCount = .infinity
+                scroll.preferredFrameRateRange = CAFrameRateRange(minimum: 15, maximum: 30, preferred: 30)
+                title.add(scroll, forKey: "marquee")
+            }
         }
 
-        jog.removeAllAnimations()
-        if moving {
+        for (rotor, part) in rotors {
+            rotor.removeAllAnimations()
+            guard moving, let period = part.spin else { continue }
             let spin = CABasicAnimation(keyPath: "transform.rotation.z")
             spin.byValue = -2 * Double.pi
-            spin.duration = 9
+            spin.duration = period
             spin.repeatCount = .infinity
-            spin.preferredFrameRateRange = CAFrameRateRange(minimum: 10, maximum: 20, preferred: 15)
-            jog.add(spin, forKey: "spin")
+            spin.preferredFrameRateRange = period < 4 ? CAFrameRateRange(minimum: 15, maximum: 30, preferred: 24)
+                                                      : CAFrameRateRange(minimum: 10, maximum: 20, preferred: 15)
+            rotor.add(spin, forKey: "spin")
         }
 
         for (i, needle) in needles.enumerated() {
             needle.removeAllAnimations()
-            if !live { needle.transform = CATransform3DMakeRotation(Hardware.needleRest, 0, 0, 1) }
+            if !live { needle.transform = CATransform3DMakeRotation(Paint.needleRest, 0, 0, 1) }
             guard moving, !live else { continue }
             // Swings like a VU meter on music: mostly -7…0 dB, the odd peak into the red.
             let swing = CAKeyframeAnimation(keyPath: "transform.rotation.z")
-            let values = (0..<24).map { _ -> CGFloat in
-                let level = Double.random(in: 0...1) < 0.12 ? Double.random(in: 0.82...0.97) : Double.random(in: 0.38...0.8)
-                return Hardware.needleAngle(level)
-            }
+            let values = Self.vuWander().map(Paint.needleAngle)
             swing.values = values + [values[0]]
             swing.duration = 6.5 + Double(i) * 0.7
             swing.calculationMode = .cubic
@@ -530,20 +574,38 @@ final class NowPlayingSides: NSView {
             needle.add(swing, forKey: "swing")
         }
 
-        for (i, mask) in columns.enumerated() {
+        for (mask, part) in bars {
             mask.removeAllAnimations()
-            if !live { mask.transform = CATransform3DMakeScale(1, 0.07, 1) }
+            if !live { mask.transform = Self.barScale(0.07, part) }
             guard moving, !live else { continue }
-            // Low bands move big and slow, high bands small and quick.
-            let top = 1 - Double(i) * 0.045
-            let levels = (0..<8).map { _ in Double.random(in: 0.12...top) }
-            let bounce = CAKeyframeAnimation(keyPath: "transform.scale.y")
-            bounce.values = levels + [levels[0]]
-            bounce.duration = 2.4 - Double(i) * 0.1 + Double.random(in: 0...0.4)
+            let bounce = CAKeyframeAnimation(keyPath: part.vertical ? "transform.scale.y" : "transform.scale.x")
+            switch part.source {
+            case .band(let i):
+                // Low bands move big and slow, high bands small and quick.
+                let top = 1 - Double(i) * 0.045
+                let levels = (0..<8).map { _ in Double.random(in: 0.12...top) }
+                bounce.values = levels + [levels[0]]
+                bounce.duration = 2.4 - Double(i) * 0.1 + Double.random(in: 0...0.4)
+                bounce.preferredFrameRateRange = CAFrameRateRange(minimum: 12, maximum: 20, preferred: 15)
+            case .channel(let i):
+                let levels = Self.vuWander()
+                bounce.values = levels + [levels[0]]
+                bounce.duration = 6.5 + Double(i) * 0.7
+                bounce.calculationMode = .cubic
+                bounce.preferredFrameRateRange = CAFrameRateRange(minimum: 15, maximum: 30, preferred: 24)
+            }
             bounce.repeatCount = .infinity
-            bounce.preferredFrameRateRange = CAFrameRateRange(minimum: 12, maximum: 20, preferred: 15)
             mask.add(bounce, forKey: "level")
         }
+    }
+
+    /// Made-up VU levels for a meter with nothing to listen to: mostly −7…0 dB, the odd peak.
+    private static func vuWander() -> [Double] {
+        (0..<24).map { _ in Double.random(in: 0...1) < 0.12 ? Double.random(in: 0.82...0.97) : Double.random(in: 0.38...0.8) }
+    }
+
+    private static func barScale(_ level: CGFloat, _ part: BarPart) -> CATransform3D {
+        part.vertical ? CATransform3DMakeScale(1, level, 1) : CATransform3DMakeScale(level, 1, 1)
     }
 
     // MARK: Live meters
@@ -577,26 +639,30 @@ final class NowPlayingSides: NSView {
         let s = source.read()
         CATransaction.begin()
         CATransaction.setDisableActions(true)
-        for (i, rms) in [s.left, s.right].enumerated() where i < needles.count {
+        for (i, rms) in [s.left, s.right].enumerated() {
             let target = CGFloat(Self.vuFraction(rms))
             needleLevel[i] += (target - needleLevel[i]) * perFrame(target > needleLevel[i] ? 0.4 : 0.16)
-            needles[i].transform = CATransform3DMakeRotation(Hardware.needleAngle(Double(needleLevel[i])), 0, 0, 1)
+            if i < needles.count {
+                needles[i].transform = CATransform3DMakeRotation(Paint.needleAngle(Double(needleLevel[i])), 0, 0, 1)
+            }
         }
-        for (i, mask) in columns.enumerated() where i < s.bands.count {
-            let target = max(CGFloat(s.bands[i]), 0.07)
-            bandLevel[i] = target > bandLevel[i] ? target : max(target, bandLevel[i] - 0.04 * CGFloat(30 / meterRate))
-            mask.transform = CATransform3DMakeScale(1, bandLevel[i], 1)
+        for (mask, part) in bars {
+            switch part.source {
+            case .band(let i) where i < s.bands.count:
+                let target = max(CGFloat(s.bands[i]), 0.07)
+                bandLevel[i] = target > bandLevel[i] ? target : max(target, bandLevel[i] - 0.04 * CGFloat(30 / meterRate))
+                mask.transform = Self.barScale(bandLevel[i], part)
+            case .channel(let i) where i < 2:
+                mask.transform = Self.barScale(min(max(needleLevel[i], 0.02), 1), part)
+            default:
+                break
+            }
         }
         CATransaction.commit()
     }
 
-    /// The VU scale: each printed mark (dB) and where it sits across the meter (0…1). The needle
-    /// maths and the printed face both read this, so they can't drift apart.
-    nonisolated static let vuMarks: [(dB: Double, fraction: Double)] = [
-        (-20, 0), (-10, 0.28), (-7, 0.42), (-5, 0.53), (-3, 0.64), (-2, 0.7),
-        (-1, 0.76), (0, 0.82), (1, 0.88), (2, 0.94), (3, 1)]
-    /// Where 0 VU sits; above it is the red zone.
-    nonisolated static let zeroVU = 0.82
+    nonisolated static var vuMarks: [(dB: Double, fraction: Double)] { Paint.vuMarks }
+    nonisolated static var zeroVU: Double { Paint.zeroVU }
 
     /// RMS (0…1) → place on the VU scale (0 = −20, 0.82 = 0 VU, 1 = +3). 0 VU is set at
     /// −14 dBFS, where modern masters sit, so the needles live around the 0 mark.
@@ -615,358 +681,47 @@ final class NowPlayingSides: NSView {
         guard let info else { return }
         func mmss(_ t: Double) -> String { String(format: "%02d:%02d", Int(t) / 60, Int(t) % 60) }
         let p = min(max(currentPosition() + (previewOffset ?? 0), 0), max(info.duration, 0))
+        let fraction = info.duration > 0 ? p / info.duration : 0
         let remaining = info.duration > 0 ? "-" + mmss(info.duration - p) : ""
-        let lit = info.duration > 0 ? Int((p / info.duration * Double(ladder.count)).rounded(.up)) : 0
-        // Redraw only when something visible changes (the ladder is rebuilt with the gear: see buildDeck).
-        let key = "\(mmss(p))|\(remaining)|\(lit)"
+        let lit = Int((fraction * Double(ladder.count)).rounded(.up))
+        let fine = Int(fraction * 400) // the dial pointer and the tape move in small steps
+        // Redraw only when something visible changes (the parts are rebuilt with the gear: see build).
+        let key = "\(mmss(p))|\(remaining)|\(lit)|\(fine)"
         guard key != shownTime else { return }
         shownTime = key
         CATransaction.begin()
         CATransaction.setDisableActions(true)
-        time.string = mmss(p)
-        total.string = remaining
+        texts[.time]?.string = mmss(p)
+        texts[.total]?.string = remaining
         for (i, seg) in ladder.enumerated() {
             seg.opacity = i < lit ? 1 : 0.13
-            seg.shadowOpacity = i < lit ? 0.8 : 0
+            seg.shadowOpacity = i < lit && ladderGlow ? 0.8 : 0
+        }
+        if let (pointer, track) = dialPointer {
+            pointer.position = CGPoint(x: track.minX + track.width * fraction, y: track.midY)
+        }
+        if let (left, right, part) = tape {
+            for (pack, amount) in [(left, 1 - fraction), (right, fraction)] {
+                let r = Self.tapeRadius(amount, hub: part.hub, full: part.full)
+                pack.bounds = CGRect(x: 0, y: 0, width: 2 * r, height: 2 * r)
+                pack.cornerRadius = r
+            }
         }
         CATransaction.commit()
     }
 
-    // MARK: Helpers
-
-    fileprivate static func text(_ size: CGFloat, _ weight: NSFont.Weight, alpha: CGFloat = 1, mono: Bool = false) -> CATextLayer {
-        let l = CATextLayer()
-        l.font = mono ? NSFont.monospacedSystemFont(ofSize: size, weight: weight) : NSFont.systemFont(ofSize: size, weight: weight)
-        l.fontSize = size
-        l.foregroundColor = vfd.withAlphaComponent(alpha).cgColor
-        l.truncationMode = .end
-        l.contentsScale = 2
-        l.shadowColor = vfd.cgColor // the glow of a fluorescent display
-        l.shadowOpacity = 0.7
-        l.shadowRadius = 3.5
-        l.shadowOffset = .zero
-        return l
+    /// How big a reel's pack of tape is when it holds `amount` (0…1) of the tape: the tape's
+    /// area, not its radius, grows in step with it.
+    nonisolated static func tapeRadius(_ amount: Double, hub: CGFloat, full: CGFloat) -> CGFloat {
+        let a = CGFloat(min(max(amount, 0), 1))
+        return (hub * hub + (full * full - hub * hub) * a).squareRoot()
     }
+
+    // MARK: Helpers
 
     private static func width(of layer: CATextLayer) -> CGFloat {
         guard let string = layer.string as? String, let font = layer.font as? NSFont else { return 0 }
         return ceil(NSAttributedString(string: string, attributes: [.font: font]).size().width) + 2
-    }
-}
-
-// MARK: - Layouts (faceplate coordinates, y up)
-
-private struct DeckLayout {
-    let header, display, tray, buttons, jog, playLED: CGRect
-    let buttonRects: [CGRect]
-    let column: CGRect
-
-    init(size: CGSize) {
-        let colW = min(size.width - 32, 300)
-        column = CGRect(x: (size.width - colW) / 2, y: 18, width: colW, height: size.height - 36)
-        header = CGRect(x: column.minX, y: column.maxY - 40, width: colW, height: 40)
-        display = CGRect(x: column.minX, y: header.minY - 14 - 164, width: colW, height: 164)
-        tray = CGRect(x: column.minX, y: display.minY - 26 - 16, width: colW, height: 16)
-        let row = CGRect(x: column.minX, y: tray.minY - 24 - 34, width: colW, height: 34)
-        buttons = row
-        let n = 5, gap: CGFloat = 8, left = column.minX
-        let bw = (colW - CGFloat(n - 1) * gap) / CGFloat(n)
-        let rects = (0..<n).map { CGRect(x: left + CGFloat($0) * (bw + gap), y: row.minY, width: bw, height: 34) }
-        buttonRects = rects
-        playLED = CGRect(x: rects[1].midX - 3, y: rects[1].maxY + 5, width: 6, height: 6)
-        let space = row.minY - 70 - column.minY // leave room for the power row
-        let d = max(min(colW - 40, space - 30, 190), 60)
-        jog = CGRect(x: column.midX - d / 2, y: column.minY + 60 + (space - d) / 2, width: d, height: d)
-    }
-}
-
-private struct AnalyzerLayout {
-    let header: CGRect
-    let meters: [CGRect]
-    let spectrum, spectrumGlass, labels: CGRect
-    let knobs: [(CGRect, String)]
-    let column: CGRect
-
-    init(size: CGSize) {
-        let colW = min(size.width - 32, 300)
-        column = CGRect(x: (size.width - colW) / 2, y: 18, width: colW, height: size.height - 36)
-        header = CGRect(x: column.minX, y: column.maxY - 40, width: colW, height: 40)
-        let meterH = min(colW * 0.52, 150)
-        let m1 = CGRect(x: column.minX, y: header.minY - 14 - meterH, width: colW, height: meterH)
-        let m2 = CGRect(x: column.minX, y: m1.minY - 12 - meterH, width: colW, height: meterH)
-        meters = [m1, m2]
-        let knobRow: CGFloat = 78
-        let available = m2.minY - 24 - (column.minY + knobRow + 20)
-        let glassH = max(min(available, 200), 90)
-        spectrumGlass = CGRect(x: column.minX, y: m2.minY - 24 - glassH, width: colW, height: glassH)
-        labels = CGRect(x: spectrumGlass.minX + 12, y: spectrumGlass.minY + 8, width: colW - 24, height: 10)
-        spectrum = CGRect(x: spectrumGlass.minX + 12, y: labels.maxY + 6, width: colW - 24, height: glassH - 34)
-        let small: CGFloat = 40, big: CGFloat = 56
-        let y = column.minY + 22
-        knobs = [(CGRect(x: column.minX + colW * 0.18 - small / 2, y: y + (big - small) / 2, width: small, height: small), "BASS"),
-                 (CGRect(x: column.minX + colW * 0.45 - small / 2, y: y + (big - small) / 2, width: small, height: small), "TREBLE"),
-                 (CGRect(x: column.minX + colW * 0.78 - big / 2, y: y, width: big, height: big), "VOLUME")]
-    }
-}
-
-// MARK: - The drawn hardware
-
-@MainActor
-private enum Hardware {
-    static let needleRest: CGFloat = 0.82              // radians, far left (at rest)
-    static func needleAngle(_ level: Double) -> CGFloat { CGFloat(0.72 - level * 1.44) } // 0 = −20 dB … 1 = +3 dB
-
-    /// The fine dot mesh in front of a fluorescent display.
-    static let meshColor: CGColor = {
-        let tile = NSImage(size: NSSize(width: 3, height: 3), flipped: false) { _ in
-            NSColor(white: 0, alpha: 0.35).setFill()
-            NSRect(x: 0, y: 0, width: 3, height: 1).fill()
-            NSRect(x: 0, y: 0, width: 1, height: 3).fill()
-            return true
-        }
-        return NSColor(patternImage: tile).cgColor
-    }()
-
-    static func image(size: CGSize, scale: CGFloat, draw: @escaping (CGContext) -> Void) -> CGImage? {
-        let w = Int(size.width * scale), h = Int(size.height * scale)
-        guard w > 0, h > 0, let ctx = CGContext(data: nil, width: w, height: h, bitsPerComponent: 8, bytesPerRow: 0,
-                                                space: CGColorSpace(name: CGColorSpace.sRGB)!,
-                                                bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue) else { return nil }
-        ctx.scaleBy(x: scale, y: scale)
-        NSGraphicsContext.saveGraphicsState()
-        NSGraphicsContext.current = NSGraphicsContext(cgContext: ctx, flipped: false)
-        draw(ctx)
-        NSGraphicsContext.restoreGraphicsState()
-        return ctx.makeImage()
-    }
-
-    // Faceplate: dark brushed aluminum, bevelled edges, screws in the corners.
-    static func faceplate(_ size: CGSize) {
-        let r = NSRect(origin: .zero, size: size)
-        let plate = NSBezierPath(roundedRect: r.insetBy(dx: 0.5, dy: 0.5), xRadius: 8, yRadius: 8)
-        NSGradient(colors: [NSColor(white: 0.23, alpha: 0.97), NSColor(white: 0.14, alpha: 0.97), NSColor(white: 0.18, alpha: 0.97)],
-                   atLocations: [0, 0.5, 1], colorSpace: .sRGB)?.draw(in: plate, angle: -90)
-        NSGraphicsContext.saveGraphicsState()
-        plate.addClip()
-        var rng = SystemRandomNumberGenerator()
-        for y in stride(from: 0.0, to: size.height, by: 1) { // brushing
-            NSColor(white: Bool.random(using: &rng) ? 1 : 0, alpha: Double.random(in: 0.01...0.045, using: &rng)).setFill()
-            NSRect(x: 0, y: y, width: size.width, height: 1).fill()
-        }
-        NSGraphicsContext.restoreGraphicsState()
-        NSColor(white: 1, alpha: 0.18).setStroke()
-        plate.lineWidth = 1
-        plate.stroke()
-        for p in [CGPoint(x: 12, y: 12), CGPoint(x: size.width - 12, y: 12),
-                  CGPoint(x: 12, y: size.height - 12), CGPoint(x: size.width - 12, y: size.height - 12)] {
-            let screw = NSRect(x: p.x - 4.5, y: p.y - 4.5, width: 9, height: 9)
-            NSGradient(starting: NSColor(white: 0.7, alpha: 1), ending: NSColor(white: 0.3, alpha: 1))?
-                .draw(in: NSBezierPath(ovalIn: screw), angle: -60)
-            NSColor(white: 0.12, alpha: 0.9).setStroke()
-            let slot = NSBezierPath()
-            slot.move(to: NSPoint(x: p.x - 3, y: p.y + 1.5)); slot.line(to: NSPoint(x: p.x + 3, y: p.y - 1.5))
-            slot.lineWidth = 1.2
-            slot.stroke()
-        }
-    }
-
-    static func header(_ r: CGRect, brand: String, model: String) {
-        let brandText = NSAttributedString(string: brand, attributes: [
-            .font: NSFont.systemFont(ofSize: 15, weight: .heavy), .kern: 4, .foregroundColor: NSColor(white: 0.86, alpha: 1)])
-        brandText.draw(at: NSPoint(x: r.minX, y: r.maxY - 18))
-        NSAttributedString(string: model, attributes: [
-            .font: NSFont.systemFont(ofSize: 8.5, weight: .semibold), .kern: 1.6, .foregroundColor: NSColor(white: 0.62, alpha: 1)])
-            .draw(at: NSPoint(x: r.minX, y: r.maxY - 32))
-        NSColor(white: 1, alpha: 0.12).setFill()
-        NSRect(x: r.minX, y: r.minY + 2, width: r.width, height: 1).fill()
-        NSColor(white: 0, alpha: 0.4).setFill()
-        NSRect(x: r.minX, y: r.minY + 1, width: r.width, height: 1).fill()
-    }
-
-    static func glass(_ r: CGRect) {
-        let path = NSBezierPath(roundedRect: r, xRadius: 8, yRadius: 8)
-        NSColor(white: 0, alpha: 0.6).setFill()
-        NSBezierPath(roundedRect: r.insetBy(dx: -2, dy: -2), xRadius: 10, yRadius: 10).fill() // bezel
-        NSGradient(colors: [NSColor(red: 0.02, green: 0.07, blue: 0.08, alpha: 1), NSColor(red: 0.01, green: 0.03, blue: 0.04, alpha: 1)])?
-            .draw(in: path, angle: -90)
-        NSColor(white: 1, alpha: 0.08).setStroke()
-        path.stroke()
-    }
-
-    static func label(_ text: String, centeredAt p: CGPoint, size: CGFloat = 7.5, alpha: CGFloat = 0.62) {
-        let s = NSAttributedString(string: text, attributes: [
-            .font: NSFont.systemFont(ofSize: size, weight: .bold), .kern: 1.2, .foregroundColor: NSColor(white: 0.85, alpha: alpha)])
-        let w = s.size()
-        s.draw(at: NSPoint(x: p.x - w.width / 2, y: p.y - w.height / 2))
-    }
-
-    static func deck(size: CGSize, layout l: DeckLayout, scale: CGFloat) -> CGImage? {
-        image(size: size, scale: scale) { _ in
-            faceplate(size)
-            header(l.header, brand: "HIMAWARI", model: "COMPACT DISC PLAYER   HD-2160")
-            glass(l.display)
-            // Disc tray: a slot with a bevel, an eject label and a lit "DISC" lamp.
-            let tray = NSBezierPath(roundedRect: l.tray, xRadius: 3, yRadius: 3)
-            NSColor(white: 0.03, alpha: 1).setFill(); tray.fill()
-            NSColor(white: 1, alpha: 0.14).setStroke(); tray.stroke()
-            label("DISC", centeredAt: CGPoint(x: l.tray.maxX - 22, y: l.tray.minY - 9))
-            amberLamp(CGPoint(x: l.tray.maxX - 42, y: l.tray.minY - 9))
-            label("OPEN / CLOSE", centeredAt: CGPoint(x: l.tray.minX + 34, y: l.tray.minY - 9))
-            // Transport buttons.
-            let symbols = ["backward.end.fill", "playpause.fill", "forward.end.fill", "stop.fill", "eject.fill"]
-            for (rect, name) in zip(l.buttonRects, symbols) {
-                let b = NSBezierPath(roundedRect: rect, xRadius: 5, yRadius: 5)
-                NSGradient(colors: [NSColor(white: 0.42, alpha: 1), NSColor(white: 0.2, alpha: 1)])?.draw(in: b, angle: -90)
-                NSColor(white: 0, alpha: 0.7).setStroke(); b.stroke()
-                NSColor(white: 1, alpha: 0.18).setFill()
-                NSRect(x: rect.minX + 3, y: rect.maxY - 2, width: rect.width - 6, height: 1).fill()
-                symbol(name, in: rect)
-            }
-            // Power switch and headphone jack.
-            let powerY = l.column.minY + 22
-            let power = NSRect(x: l.column.minX, y: powerY - 10, width: 44, height: 20)
-            NSGradient(colors: [NSColor(white: 0.4, alpha: 1), NSColor(white: 0.18, alpha: 1)])?
-                .draw(in: NSBezierPath(roundedRect: power, xRadius: 4, yRadius: 4), angle: -90)
-            label("POWER", centeredAt: CGPoint(x: power.midX, y: power.maxY + 9))
-            greenLamp(CGPoint(x: power.maxX + 12, y: power.midY))
-            let jack = CGPoint(x: l.column.maxX - 14, y: powerY)
-            NSColor(white: 0.55, alpha: 1).setFill()
-            NSBezierPath(ovalIn: NSRect(x: jack.x - 9, y: jack.y - 9, width: 18, height: 18)).fill()
-            NSColor(white: 0.02, alpha: 1).setFill()
-            NSBezierPath(ovalIn: NSRect(x: jack.x - 4.5, y: jack.y - 4.5, width: 9, height: 9)).fill()
-            label("PHONES", centeredAt: CGPoint(x: jack.x, y: jack.y + 17))
-            // Jog wheel well.
-            NSColor(white: 0, alpha: 0.5).setFill()
-            NSBezierPath(ovalIn: l.jog.insetBy(dx: -5, dy: -5)).fill()
-            label("JOG", centeredAt: CGPoint(x: l.jog.midX, y: l.jog.minY - 14))
-        }
-    }
-
-    static func analyzer(size: CGSize, layout l: AnalyzerLayout, scale: CGFloat) -> CGImage? {
-        image(size: size, scale: scale) { _ in
-            faceplate(size)
-            header(l.header, brand: "HIMAWARI", model: "STEREO LEVEL ANALYZER   SA-10")
-            for (i, face) in l.meters.enumerated() { vuFace(face, channel: i == 0 ? "L" : "R") }
-            glass(l.spectrumGlass)
-            let bands = ["31", "63", "125", "250", "500", "1k", "2k", "4k", "8k", "16k"]
-            let step = l.labels.width / CGFloat(bands.count)
-            for (i, b) in bands.enumerated() {
-                let s = NSAttributedString(string: b, attributes: [.font: NSFont.monospacedSystemFont(ofSize: 7, weight: .medium),
-                                                                  .foregroundColor: NowPlayingSides.vfd.withAlphaComponent(0.45)])
-                let w = s.size().width
-                s.draw(at: NSPoint(x: l.labels.minX + step * (CGFloat(i) + 0.5) - w / 2, y: l.labels.minY))
-            }
-            for (rect, name) in l.knobs { knob(rect, label: name, pointer: GearControl(knob: name) == nil) }
-        }
-    }
-
-    /// An amber-backlit analog VU meter face (the needle is a separate layer).
-    static func vuFace(_ r: CGRect, channel: String) {
-        NSColor(white: 0, alpha: 0.65).setFill()
-        NSBezierPath(roundedRect: r.insetBy(dx: -3, dy: -3), xRadius: 8, yRadius: 8).fill()
-        let face = NSBezierPath(roundedRect: r, xRadius: 6, yRadius: 6)
-        NSGradient(colors: [NSColor(red: 1, green: 0.9, blue: 0.66, alpha: 1), NSColor(red: 0.93, green: 0.72, blue: 0.4, alpha: 1)])?
-            .draw(in: face, relativeCenterPosition: NSPoint(x: 0, y: -0.2))
-        NSGraphicsContext.saveGraphicsState()
-        face.addClip()
-        let pivot = CGPoint(x: r.midX, y: r.minY - r.height * 0.28)
-        let radius = r.height * 0.98
-        let ink = NSColor(red: 0.18, green: 0.12, blue: 0.08, alpha: 0.9)
-        // Scale arc, the red zone above 0 dB, tick marks and numbers.
-        func point(_ angle: CGFloat, _ rad: CGFloat) -> CGPoint {
-            CGPoint(x: pivot.x - sin(angle) * rad, y: pivot.y + cos(angle) * rad)
-        }
-        let marks = NowPlayingSides.vuMarks.map { ($0.fraction, String(Int(abs($0.dB)))) } // printed without signs
-        let zero = NowPlayingSides.zeroVU
-        let arc = NSBezierPath()
-        arc.appendArc(withCenter: pivot, radius: radius, startAngle: 90 + 0.72 * 180 / .pi, endAngle: 90 - 0.72 * 180 / .pi, clockwise: true)
-        ink.setStroke(); arc.lineWidth = 1.2; arc.stroke()
-        let red = NSBezierPath()
-        red.appendArc(withCenter: pivot, radius: radius + 2.5, startAngle: 90 + needleAngle(zero) * 180 / .pi,
-                      endAngle: 90 + needleAngle(1) * 180 / .pi, clockwise: true)
-        NSColor(red: 0.82, green: 0.12, blue: 0.1, alpha: 0.9).setStroke(); red.lineWidth = 4.5; red.stroke()
-        for (level, text) in marks {
-            let a = needleAngle(level)
-            let t = NSBezierPath()
-            t.move(to: point(a, radius)); t.line(to: point(a, radius + 7))
-            (level > zero ? NSColor(red: 0.75, green: 0.1, blue: 0.08, alpha: 1) : ink).setStroke()
-            t.lineWidth = 1.2; t.stroke()
-            let s = NSAttributedString(string: text, attributes: [.font: NSFont.systemFont(ofSize: 8, weight: .semibold),
-                                                                  .foregroundColor: level > zero ? NSColor(red: 0.75, green: 0.1, blue: 0.08, alpha: 1) : ink])
-            let p = point(a, radius + 14), w = s.size()
-            s.draw(at: NSPoint(x: p.x - w.width / 2, y: p.y - w.height / 2))
-        }
-        let vu = NSAttributedString(string: "VU", attributes: [.font: NSFont.systemFont(ofSize: 15, weight: .bold), .foregroundColor: ink])
-        vu.draw(at: NSPoint(x: r.midX - vu.size().width / 2, y: r.minY + r.height * 0.2))
-        let ch = NSAttributedString(string: channel, attributes: [.font: NSFont.systemFont(ofSize: 10, weight: .bold), .foregroundColor: ink])
-        ch.draw(at: NSPoint(x: r.minX + 10, y: r.minY + 8))
-        NSGraphicsContext.restoreGraphicsState()
-    }
-
-    static func knob(_ r: CGRect, label name: String, pointer drawPointer: Bool = true) {
-        NSColor(white: 0, alpha: 0.55).setFill()
-        NSBezierPath(ovalIn: r.insetBy(dx: -3, dy: -4).offsetBy(dx: 0, dy: -1)).fill() // shadow
-        NSGradient(colors: [NSColor(white: 0.62, alpha: 1), NSColor(white: 0.25, alpha: 1)])?
-            .draw(in: NSBezierPath(ovalIn: r), angle: -70)
-        NSGradient(colors: [NSColor(white: 0.36, alpha: 1), NSColor(white: 0.5, alpha: 1)])?
-            .draw(in: NSBezierPath(ovalIn: r.insetBy(dx: r.width * 0.14, dy: r.width * 0.14)), angle: -70)
-        let c = CGPoint(x: r.midX, y: r.midY), a = CGFloat.pi * 0.25
-        if drawPointer { // knobs that set something (VOLUME, BASS, TREBLE) get a live pointer layer instead
-            let pointer = NSBezierPath()
-            pointer.move(to: CGPoint(x: c.x - sin(a) * r.width * 0.12, y: c.y + cos(a) * r.width * 0.12))
-            pointer.line(to: CGPoint(x: c.x - sin(a) * r.width * 0.36, y: c.y + cos(a) * r.width * 0.36))
-            NSColor(white: 0.95, alpha: 0.9).setStroke(); pointer.lineWidth = 2; pointer.stroke()
-        }
-        for i in 0...10 { // scale dots
-            let t = -0.75 * CGFloat.pi + CGFloat(i) * 0.15 * CGFloat.pi
-            let p = CGPoint(x: c.x - sin(t) * (r.width / 2 + 6), y: c.y + cos(t) * (r.width / 2 + 6))
-            NSColor(white: 0.8, alpha: 0.5).setFill()
-            NSBezierPath(ovalIn: NSRect(x: p.x - 1, y: p.y - 1, width: 2, height: 2)).fill()
-        }
-        label(name, centeredAt: CGPoint(x: r.midX, y: r.minY - 12))
-    }
-
-    static func symbol(_ name: String, in rect: CGRect) {
-        let config = NSImage.SymbolConfiguration(pointSize: 11, weight: .bold)
-            .applying(NSImage.SymbolConfiguration(paletteColors: [NSColor(white: 0.9, alpha: 0.85)]))
-        guard let image = NSImage(systemSymbolName: name, accessibilityDescription: nil)?.withSymbolConfiguration(config) else { return }
-        let s = image.size
-        image.draw(in: NSRect(x: rect.midX - s.width / 2, y: rect.midY - s.height / 2, width: s.width, height: s.height))
-    }
-
-    static func amberLamp(_ p: CGPoint) { lamp(p, NowPlayingSides.amber) }
-    static func greenLamp(_ p: CGPoint) { lamp(p, NSColor(red: 0.3, green: 1, blue: 0.45, alpha: 1)) }
-    private static func lamp(_ p: CGPoint, _ color: NSColor) {
-        color.withAlphaComponent(0.3).setFill()
-        NSBezierPath(ovalIn: NSRect(x: p.x - 6, y: p.y - 6, width: 12, height: 12)).fill()
-        color.setFill()
-        NSBezierPath(ovalIn: NSRect(x: p.x - 3, y: p.y - 3, width: 6, height: 6)).fill()
-    }
-
-    /// The jog wheel: knurled rim, brushed face, a finger dimple (so you can see it turn).
-    static func jogWheel(diameter d: CGFloat, scale: CGFloat) -> CGImage? {
-        image(size: CGSize(width: d, height: d), scale: scale) { _ in
-            let r = NSRect(x: 0, y: 0, width: d, height: d)
-            NSGradient(colors: [NSColor(white: 0.5, alpha: 1), NSColor(white: 0.16, alpha: 1)])?.draw(in: NSBezierPath(ovalIn: r), angle: -60)
-            let c = CGPoint(x: d / 2, y: d / 2)
-            for i in 0..<90 { // knurling
-                let a = CGFloat(i) / 90 * 2 * .pi
-                let k = NSBezierPath()
-                k.move(to: CGPoint(x: c.x + cos(a) * d * 0.44, y: c.y + sin(a) * d * 0.44))
-                k.line(to: CGPoint(x: c.x + cos(a) * d * 0.5, y: c.y + sin(a) * d * 0.5))
-                NSColor(white: i % 2 == 0 ? 0.08 : 0.6, alpha: 0.5).setStroke()
-                k.lineWidth = 1; k.stroke()
-            }
-            let face = r.insetBy(dx: d * 0.08, dy: d * 0.08)
-            NSGradient(colors: [NSColor(white: 0.28, alpha: 1), NSColor(white: 0.44, alpha: 1), NSColor(white: 0.26, alpha: 1)],
-                       atLocations: [0, 0.5, 1], colorSpace: .sRGB)?.draw(in: NSBezierPath(ovalIn: face), angle: -45)
-            for ring in stride(from: d * 0.08, to: d * 0.42, by: 2.5) { // concentric brushing
-                NSColor(white: 1, alpha: 0.035).setStroke()
-                NSBezierPath(ovalIn: NSRect(x: c.x - ring, y: c.y - ring, width: ring * 2, height: ring * 2)).stroke()
-            }
-            let dimple = NSRect(x: c.x + d * 0.2 - d * 0.07, y: c.y + d * 0.12 - d * 0.07, width: d * 0.14, height: d * 0.14)
-            NSGradient(colors: [NSColor(white: 0.12, alpha: 1), NSColor(white: 0.4, alpha: 1)])?.draw(in: NSBezierPath(ovalIn: dimple), angle: -60)
-        }
     }
 }
 

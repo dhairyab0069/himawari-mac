@@ -17,13 +17,18 @@
 
 | Suite | Covers |
 |---|---|
-| `HimawariKitTests` | album matching for animated covers, name normalising, HLS stream choice, EQ tone bands, wallpaper brightness readings |
-| `HimawariTests` | jog-wheel / CD turn maths, scrub clamping, the VU scale, where a cover goes on the CD |
+| `HimawariKitTests` | album matching for animated covers, name normalising, HLS stream choice, EQ tone bands, wallpaper brightness readings, playlists, skin files (loading, defaults from a base, rejecting bad values, the skins folder) |
+| `HimawariTests` | jog-wheel / CD turn maths, scrub clamping, the VU scale, where a cover goes on the CD, each era's layout (controls on the panel and apart at every size), switching styles keeps the song, the tonearm and tape maths |
 | `HimawariClockTests` | 12/24-hour, Swatch .beats, decimal time, time in words, tick intervals |
 
 When you fix a bug in logic, first write a test that fails, then make it pass. Code that talks to
 macOS (windows, AVFoundation, Core Audio, AppleScript) is checked by hand with the steps in the
 pull request template; pull its decisions out into pure functions where you can, so they can be tested.
+
+## Checking a style by eye
+
+`.build/debug/Himawari --render-styles <folder> [skin id]` draws the music scene once per skin
+(or just the one) as PNGs, without touching the desktop. `docs/styles.png` is made from these.
 
 ## Releases
 

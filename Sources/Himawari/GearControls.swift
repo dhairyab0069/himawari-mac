@@ -43,9 +43,10 @@ final class GearControls {
                     }))
                 }
             }
-            for scene in scenes where scene.window != nil && scene.discRect.width > 0 {
-                guard let screen = Self.screenRect(scene.discRect, in: scene) else { continue }
-                wanted.append(("\(scene.catcherKey).disc", screen, { [unowned self] in self.discCatcher(scene) }))
+            for scene in scenes where scene.window != nil && scene.mediaRect.width > 0 {
+                guard let screen = Self.screenRect(scene.mediaRect, in: scene) else { continue }
+                // (round or not: a new catcher when the style swaps a disc for a cassette)
+                wanted.append(("\(scene.catcherKey).disc.\(scene.mediaIsRound)", screen, { [unowned self] in self.discCatcher(scene) }))
             }
         }
         // Keep the ones still needed (just moved), close the others, add the new ones.
@@ -157,10 +158,11 @@ final class GearControls {
         return c
     }
 
-    /// The CD: grab it and turn it like a record to scrub (a full turn is 8 seconds), with sound.
+    /// The CD (or the record, or the cassette): grab it and turn it like a record to scrub (a
+    /// full turn is 8 seconds), with sound.
     private func discCatcher(_ scene: MusicScene) -> Catcher {
         let c = Catcher()
-        c.round = true
+        c.round = scene.mediaIsRound
         var turn = Turn()
         c.onDown = { [weak self, weak scene, unowned c] point in
             turn.begin(at: point, in: c.contentView?.bounds ?? .zero)

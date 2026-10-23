@@ -32,6 +32,7 @@
 - [Using Himawari](#using-himawari)
   - [Your wallpaper](#your-wallpaper)
   - [The music wallpaper](#the-music-wallpaper)
+  - [Styles and skins](#styles-and-skins)
   - [Hide the desktop's files](#hide-the-desktops-files)
   - [The desktop clock](#the-desktop-clock)
 - [Permissions](#permissions)
@@ -55,6 +56,7 @@
 | **Apple Music artwork** | While a song plays, the album's animated cover becomes the wallpaper, shown whole, never cropped. |
 | **Retro hi-fi side gear** | Beside the artwork: a CD deck (fluorescent display, time, progress, transport, jog wheel) and a stereo analyzer whose VU needles and spectrum follow the actual music. |
 | **Spinning CD** | Songs without an animation get their cover wrapped onto a spinning CD, with a disc-changer transition between songs and little characters running along the bottom. |
+| **Styles** | Pick the gear's era: a 1970s receiver with a record on a turntable, a 1980s tape deck with a cassette, or the 2000s CD rack, each in two skins. Make your own skins as small JSON files. |
 | **Click to hide files** | Click an empty spot on the desktop to see just the wallpaper; click again to bring the files back. |
 | **Desktop clock** | A big see-through clock that ticks with the system clock and adapts to what's behind it. Click it to change how it tells the time. |
 
@@ -158,6 +160,41 @@ changer: your playlists as discs to flip through and play.
   changer. Their names and covers come from Spotify's public page (no sign-in).
 - **Other players:** the changer can open the player.
 
+### Styles and skins
+
+<p align="center"><img src="docs/styles.png" width="720" alt="The three eras: a walnut receiver and amplifier with a record and tonearm; a black tape deck and graphic equalizer with a cassette; the black CD deck and stereo analyzer with a picture CD"></p>
+
+**Himawari menu ▸ Style** picks what the side gear and the middle of the music scene look like:
+
+| Era | The player | In the middle | Skins |
+|---|---|---|---|
+| **1970s Hi-Fi** | A receiver with a backlit tuning dial (its red pointer travels through the song), piano keys and a big tuning knob; an amplifier with VU meters | A record on a turntable; the tonearm moves in as the song plays | Walnut, Brushed Silver |
+| **1980s Cassette Deck** | A tape deck whose cassette winds from one reel to the other, piano keys and a search dial; a graphic equalizer with LED meters | A cassette with the cover on its label; its reels turn | Black Plastic, Chrome Metal |
+| **2000s Rack** | The CD deck and stereo analyzer (the original look, and still the default) | A picture CD | Black, Champagne Gold |
+
+The controls work the same in every era: the buttons, the progress (the ladder, or the tuning dial),
+turning the wheel or the media to scrub, and the VOLUME, BASS and TREBLE knobs. Switching keeps the
+song where it is.
+
+**Skins are files.** Each one sets colours, materials, lettering and a few layout numbers, so a new
+skin needs no code. Put `.json` files in `~/Library/Application Support/Himawari/Skins/` (**Style ▸
+Open Skins Folder**), then **Style ▸ Reload Skins**. The built-in skins are written to `Skins/Examples/`
+as a starting point, with a read-me. A skin only needs what it changes; the rest comes from a built-in
+skin of the same era:
+
+```json
+{
+  "format": 1,
+  "id": "red-rack",
+  "name": "Red Display",
+  "era": "rack",
+  "base": "rack-black",
+  "colors": { "display": "#FF4A3D" }
+}
+```
+
+A file with a mistake is skipped, and the Style menu says which file and what's wrong.
+
 ### Hide the desktop's files
 
 With **Click Desktop to Hide Files** on (the default), click an empty spot on the desktop: the files
@@ -246,8 +283,8 @@ Logs: `~/Library/Logs/Himawari.log`.
 
 | Path | Contents |
 |---|---|
-| `Sources/Himawari/` | The wallpaper app. `ClockHelper` (runs the desktop clock), `GearControls` (the playable gear and CD), `LockScreen` + `MovingLockScreen`, `WallpaperManager` (what's on the wallpaper, and when), `VideoCanvas` (one screen's video and its bars), `MusicScene` + `DiscPrint` (the CD), `NowPlayingSides` (the side gear), `AudioLevels` (the audio tap), `ToneReporter` (clock contrast), `DesktopPeek` (click to hide files), `PlaybackMonitor` (pause rules), `AppDelegate` (menus), `Settings`, `Log`. |
-| `Sources/HimawariKit/` | Shared code: `Settings` (one preferences domain plus a change broadcast), `NowPlaying` + `SystemNowPlaying` (Apple Music), `WallpaperTone` (brightness readings), `DesktopLayout` (the tiling map), `DesktopWindow` (desktop-level windows), `PowerState`, `AeroStyle`. |
+| `Sources/Himawari/` | The wallpaper app. `ClockHelper` (runs the desktop clock), `GearControls` (the playable gear and CD), `LockScreen` + `MovingLockScreen`, `WallpaperManager` (what's on the wallpaper, and when), `VideoCanvas` (one screen's video and its bars), `MusicScene` + `DiscPrint` (the CD, the record, the cassette), `NowPlayingSides` (the side gear), `GearTheme` + `Themes/` (each era's layout and drawing) + `Styles` (the skins in use), `AudioLevels` (the audio tap), `ToneReporter` (clock contrast), `DesktopPeek` (click to hide files), `PlaybackMonitor` (pause rules), `AppDelegate` (menus), `Settings`, `Log`. |
+| `Sources/HimawariKit/` | Shared code: `Settings` (one preferences domain plus a change broadcast), `NowPlaying` + `SystemNowPlaying` (Apple Music), `WallpaperTone` (brightness readings), `DesktopLayout` (the tiling map), `DesktopWindow` (desktop-level windows), `Skin` (skin files and the built-in skins), `PowerState`, `AeroStyle`. |
 | `Sources/HimawariClock/` | The desktop clock (a helper app inside Himawari.app). |
 | `helpers/NowPlayingHelper.m` | The system Now Playing stream. |
 | `scripts/` | `make_dmg.sh`. |

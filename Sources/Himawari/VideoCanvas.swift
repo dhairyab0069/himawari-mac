@@ -25,6 +25,8 @@ final class VideoCanvas: NSView {
     override func mouseDown(with event: NSEvent) { onClick?() }
     var sidesLively = true { didSet { sides?.lively = sidesLively } }
     var meterSource: AudioLevels? { didSet { sides?.meterSource = meterSource } }
+    /// The side gear's look.
+    var style = Styles.shared.current { didSet { sides?.style = style } }
     /// The side gear, when it's showing (for the click catchers).
     var gear: NowPlayingSides? { sides }
 
@@ -37,6 +39,7 @@ final class VideoCanvas: NSView {
         if sides == nil {
             let view = NowPlayingSides(frame: bounds)
             view.autoresizingMask = [.width, .height]
+            view.style = style
             view.lively = sidesLively
             view.meterSource = meterSource
             addSubview(view)
