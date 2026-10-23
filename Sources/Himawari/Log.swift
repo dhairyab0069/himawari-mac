@@ -5,8 +5,10 @@ import Foundation
 @MainActor
 enum Log {
     private static var lastLine = ""
+    /// Off while previews are drawn (their make-believe gear would fill the log, and mislead).
+    static var muted = false
     static func write(_ line: String) {
-        guard line != lastLine else { return }
+        guard !muted, line != lastLine else { return }
         lastLine = line
         let url = FileManager.default.homeDirectoryForCurrentUser.appending(path: "Library/Logs/Himawari.log")
         // Keep it small: past 1 MB, the older half goes.

@@ -31,6 +31,11 @@ final class MusicScene: NSView {
     private var changes = 0
     private var queued: DiscDirection?    // …and another song came meanwhile
     private(set) var palette: AmbientPalette
+    /// The picture the media shows now (for the tests): the label's, or the disc's.
+    var shownCover: Any? { label?.contents ?? spinners.first?.contents }
+    /// The cover the scene has (for the tests).
+    var currentCover: CGImage? { cover }
+
     /// The square the media sits in, between the side panels (this view's coordinates, y up).
     private(set) var discRect = CGRect.zero
     /// The media itself: the disc's square, or the cassette inside it.

@@ -70,7 +70,8 @@ enum StylePreview {
                       cover: NSImage? = nil, scale: CGFloat) -> CGImage? {
         let frame = NSRect(x: 0, y: 0, width: 1470, height: 956)
         MusicScene.printsInline = true
-        defer { MusicScene.printsInline = false }
+        Log.muted = true
+        defer { MusicScene.printsInline = false; Log.muted = false }
         let scene = MusicScene(frame: frame, artwork: cover ?? artwork, topInset: 33, bottomInset: 70)
         scene.lively = false
         scene.animation = animation
