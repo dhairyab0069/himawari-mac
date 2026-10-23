@@ -189,7 +189,7 @@ up), so the desktop matches the music:
 
 ### Milestones
 
-- **Beta 1.4: eras and skins**
+- **Beta 1.4: eras and skins** (built)
   - A `GearTheme` protocol: a layout (where each control sits, reported as `controlRects` so
     `GearControls` keeps working), the drawn hardware, and the media in the middle. Today's 2000s
     rack and picture CD become the first theme, with no visible change.

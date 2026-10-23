@@ -326,6 +326,15 @@ final class WallpaperManager {
         return override == nil || current != chosen
     }
 
+    /// The Style changed (or its skin file was edited): redraw the gear and the media in it. The
+    /// song, its position and whether it's playing carry on.
+    func applyStyle() {
+        let skin = Styles.shared.current
+        canvases.forEach { $0.style = skin }
+        scenes.forEach { $0.style = skin }
+        refreshControls()
+    }
+
     /// Puts the click catchers over whatever gear and disc are on screen now.
     func refreshControls() {
         for g in gear { g.capabilities = playerCapabilities }

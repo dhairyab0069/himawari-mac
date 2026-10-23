@@ -41,6 +41,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     }
 
     func applicationDidFinishLaunching(_ notification: Notification) {
+        Styles.shared.reload() // the skins folder, before the first gear is drawn
         clock.start()
         statusItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.squareLength)
         let menu = NSMenu()
@@ -465,6 +466,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         let sizingItem = NSMenuItem(title: "Music Video Sizing", action: nil, keyEquivalent: "")
         sizingItem.submenu = sizingMenu
         menu.addItem(sizingItem)
+        menu.addItem(styleItem())
         menu.addItem(item("Music Wallpaper While Playing", #selector(toggleMusicWallpaper), checked: settings.musicWallpaper))
         menu.addItem(playersItem())
         let changerItem = item("Disc Changer (Playlists)…", #selector(toggleChanger), key: "p")
@@ -499,6 +501,55 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
             quit.target = NSApp
             menu.addItem(quit)
         }
+    }
+
+    // MARK: - Style: the side gear's era and skin
+
+    private func styleItem() -> NSMenuItem {
+        let entry = NSMenuItem(title: "Style", action: nil, keyEquivalent: "")
+        let sub = NSMenu()
+        let styles = Styles.shared
+        let current = styles.current.id
+        for era in GearEra.allCases {
+            let skins = styles.library.skins(of: era)
+            guard !skins.isEmpty else { continue }
+            if sub.numberOfItems > 0 { sub.addItem(.separator()) }
+            let heading = NSMenuItem(title: era.title, action: nil, keyEquivalent: "")
+            heading.isEnabled = false
+            sub.addItem(heading)
+            for skin in skins {
+                let choice = item(skin.name, #selector(chooseSkin(_:)), checked: skin.id == current)
+                choice.representedObject = skin.id
+                choice.indentationLevel = 1
+                sub.addItem(choice)
+            }
+        }
+        sub.addItem(.separator())
+        sub.addItem(item("Open Skins Folder", #selector(openSkinsFolder)))
+        sub.addItem(item("Reload Skins", #selector(reloadSkins)))
+        for problem in styles.library.problems { // a skin file with a mistake: say which, and what
+            let note = NSMenuItem(title: "⚠︎ " + problem, action: nil, keyEquivalent: "")
+            note.isEnabled = false
+            sub.addItem(note)
+        }
+        entry.submenu = sub
+        return entry
+    }
+
+    @objc private func chooseSkin(_ sender: NSMenuItem) {
+        guard let id = sender.representedObject as? String else { return }
+        Styles.shared.select(id)
+        wallpaper.applyStyle()
+    }
+
+    @objc private func openSkinsFolder() {
+        Styles.shared.reload() // also makes the folder and its examples, the first time
+        NSWorkspace.shared.open(SkinLibrary.folder)
+    }
+
+    @objc private func reloadSkins() {
+        Styles.shared.reload()
+        wallpaper.applyStyle()
     }
 
     // MARK: - Players: which apps the music wallpaper follows
