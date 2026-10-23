@@ -297,14 +297,52 @@ struct CassetteTheme: GearTheme {
         let rim = NSBezierPath(cgPath: g.openings)
         rim.transform(using: AffineTransform(translationByX: 0, byY: -1))
         rim.lineWidth = 0.8; rim.stroke()
-        // Tape-length marks above and below the window.
-        NSColor(white: 1, alpha: 0.85).setFill()
+        // Tape-length marks above and below the window, printed on the label.
+        NSColor(white: 0.2, alpha: 0.55).setFill()
         for i in 0...8 {
             let x = w.minX + w.width * (0.1 + 0.8 * CGFloat(i) / 8)
             let long = i % 4 == 0
             NSRect(x: x - 0.6, y: w.maxY + 2, width: 1.2, height: long ? w.height * 0.12 : w.height * 0.07).fill()
             NSRect(x: x - 0.6, y: w.minY - 2 - (long ? w.height * 0.12 : w.height * 0.07), width: 1.2, height: long ? w.height * 0.12 : w.height * 0.07).fill()
         }
+    }
+
+    /// Ruled lines across the label, for writing on (the cassette in the music scene).
+    static func ruledLabel(_ r: CGRect) {
+        let area = labelArea(r)
+        NSColor(white: 0.94, alpha: 1).setFill()
+        NSRect(x: area.minX, y: area.minY, width: area.width, height: area.height).fill()
+        NSColor(red: 0.45, green: 0.6, blue: 0.85, alpha: 0.35).setFill()
+        for y in stride(from: area.minY + area.height * 0.08, to: area.maxY - 2, by: area.height * 0.13) {
+            NSRect(x: area.minX + area.width * 0.03, y: y, width: area.width * 0.94, height: 0.8).fill()
+        }
+    }
+
+    /// The case behind the card: smoked clear plastic with its hinge along the top.
+    static func caseBack(_ r: CGRect, card: CGFloat) {
+        let shell = NSBezierPath(roundedRect: r, xRadius: card * 0.8, yRadius: card * 0.8)
+        NSColor(white: 0.08, alpha: 0.75).setFill(); shell.fill()
+        NSColor(white: 1, alpha: 0.25).setStroke(); shell.lineWidth = 1; shell.stroke()
+    }
+
+    /// Over the card: the case's lid, catching the light, its hinge, and the card's fold (the spine).
+    static func caseFront(_ r: CGRect, card: CGFloat) {
+        let inner = r.insetBy(dx: card, dy: card)
+        NSColor(white: 0, alpha: 0.12).setFill() // the J-card's fold near its left edge
+        NSRect(x: inner.minX + inner.width * 0.075, y: inner.minY, width: 1.2, height: inner.height).fill()
+        NSColor(white: 1, alpha: 0.1).setFill()
+        NSRect(x: inner.minX + inner.width * 0.075 + 1.2, y: inner.minY, width: 0.8, height: inner.height).fill()
+        let gloss = NSBezierPath()
+        gloss.move(to: CGPoint(x: r.minX, y: r.maxY)); gloss.line(to: CGPoint(x: r.minX + r.width * 0.55, y: r.maxY))
+        gloss.line(to: CGPoint(x: r.minX, y: r.maxY - r.height * 0.6)); gloss.close()
+        NSGradient(colors: [NSColor(white: 1, alpha: 0.16), NSColor(white: 1, alpha: 0.02)])?.draw(in: gloss, angle: -45)
+        for x in [r.minX + r.width * 0.12, r.maxX - r.width * 0.12] { // the hinge's pins along the top
+            NSColor(white: 1, alpha: 0.3).setFill()
+            NSRect(x: x - r.width * 0.05, y: r.maxY - card * 0.55, width: r.width * 0.1, height: card * 0.3).fill()
+        }
+        NSColor(white: 1, alpha: 0.35).setStroke()
+        let rim = NSBezierPath(roundedRect: r.insetBy(dx: 1, dy: 1), xRadius: card * 0.7, yRadius: card * 0.7)
+        rim.lineWidth = 1; rim.stroke()
     }
 
     /// A pack of tape seen edge-on through the window: brown, with the faint rings of its turns.

@@ -103,6 +103,7 @@ final class MusicScene: NSView {
         sides.isHidden = info == nil
         sides.animating = animating
         if let info { sides.show(info) }
+        if info?.title != song?.title || info?.artist != song?.artist { song = info; writeTapeLabel() }
         song = info
         followSong(force: false)
     }
@@ -402,6 +403,7 @@ final class MusicScene: NSView {
     private func makeMedia() -> CALayer {
         packs = []
         label = nil
+        tapeText = nil
         switch media {
         case .cd:
             let (holder, disc) = makeDisc(side: discRect.width)
@@ -502,40 +504,81 @@ final class MusicScene: NSView {
         return holder
     }
 
-    /// A cassette, as big as fits the square: the shell, the cover on its label, and the tape
-    /// on its two reels, whose hubs turn.
+    /// Where the cassette and its case sit in the square (fractions of its side): the case, with
+    /// the whole cover on its card, stands behind; the tape lies in front, over the case's foot.
+    enum Tape {
+        static let caseRect = CGRect(x: 0.18, y: 0.445, width: 0.535, height: 0.535)
+        static let tapeRect = CGRect(x: 0.13, y: 0, width: 0.8, height: 0.8 * 63.8 / 100)
+    }
+
+    /// A cassette in front of its open case: the whole cover on the case's card, and the tape
+    /// with the song written on its label, its tape on two reels whose hubs turn.
     private func makeCassette() -> CALayer {
-        let size = CassetteTheme.cassetteRect(in: CGRect(origin: .zero, size: discRect.size)).size
-        let bounds = CGRect(origin: .zero, size: size)
+        let side = discRect.width
+        let bounds = CGRect(x: 0, y: 0, width: side, height: side)
         let scale = window?.backingScaleFactor ?? 2
-        let holder = makeHolder(bounds, shadow: CGPath(roundedRect: bounds, cornerWidth: size.height * 0.06,
-                                                      cornerHeight: size.height * 0.06, transform: nil))
+        func scaled(_ r: CGRect) -> CGRect { CGRect(x: r.minX * side, y: r.minY * side, width: r.width * side, height: r.height * side) }
+        let caseRect = scaled(Tape.caseRect), tapeRect = scaled(Tape.tapeRect)
+        let shadow = CGMutablePath()
+        shadow.addRoundedRect(in: caseRect.insetBy(dx: -side * 0.02, dy: -side * 0.02), cornerWidth: side * 0.015, cornerHeight: side * 0.015)
+        shadow.addRoundedRect(in: tapeRect, cornerWidth: tapeRect.height * 0.06, cornerHeight: tapeRect.height * 0.06)
+        let holder = makeHolder(bounds, shadow: shadow)
+        func picture(_ frame: CGRect, in parent: CALayer, _ draw: @escaping () -> Void) {
+            let l = CALayer()
+            l.frame = frame
+            l.contents = Paint.image(size: frame.size, scale: scale) { _ in draw() }
+            l.contentsScale = scale
+            parent.addSublayer(l)
+        }
+
+        // The case: smoked plastic round the card, the cover whole on the card, and a gloss.
+        let caseFrame = caseRect.insetBy(dx: -side * 0.02, dy: -side * 0.02)
+        picture(caseFrame, in: holder) { CassetteTheme.caseBack(CGRect(origin: .zero, size: caseFrame.size), card: side * 0.02) }
+        let card = CALayer()
+        card.frame = caseRect
+        card.contents = cover
+        card.contentsGravity = .resizeAspectFill
+        card.masksToBounds = true
+        card.cornerRadius = side * 0.004
+        holder.addSublayer(card)
+        label = card
+        picture(caseFrame, in: holder) { CassetteTheme.caseFront(CGRect(origin: .zero, size: caseFrame.size), card: side * 0.02) }
+
+        // The tape.
+        let tape = CALayer()
+        tape.frame = tapeRect
+        holder.addSublayer(tape)
+        let size = tapeRect.size, local = CGRect(origin: .zero, size: size)
         let g = CassetteTheme.Big(size: size)
         let skin = style
-        func layer(_ draw: @escaping () -> Void) -> CALayer {
-            let l = CALayer()
-            l.frame = bounds
-            l.contents = Paint.image(size: size, scale: scale) { _ in draw() }
-            l.contentsScale = scale
-            holder.addSublayer(l)
-            return l
+        picture(local, in: tape) {
+            CassetteTheme.cassette(local, reels: g.reels, full: g.full, skin, small: false)
+            CassetteTheme.ruledLabel(local)
         }
-        _ = layer { CassetteTheme.cassette(bounds, reels: g.reels, full: g.full, skin, small: false) }
-        // The cover fills the label, below its printed top band…
-        let paper = CALayer()
-        paper.frame = CassetteTheme.labelArea(bounds)
-        paper.contents = cover
-        paper.contentsGravity = .resizeAspectFill
-        paper.masksToBounds = true
-        paper.cornerRadius = size.height * 0.015
-        holder.addSublayer(paper)
-        label = paper
-        // …cut away for the window and the hub holes, where the tape and hubs show.
-        _ = layer { CassetteTheme.inside(g) }
+        // The song, written on the label above the window, the artist below it.
+        let ink = NSColor(red: 0.12, green: 0.16, blue: 0.42, alpha: 0.92).cgColor // ballpoint blue
+        let area = CassetteTheme.labelArea(local)
+        let title = CATextLayer(), artist = CATextLayer()
+        for (text, y0, y1, fontSize) in [(title, g.window.maxY + size.height * 0.035, area.maxY, size.height * 0.075),
+                                         (artist, area.minY, g.window.minY - size.height * 0.035, size.height * 0.055)] {
+            text.frame = CGRect(x: area.minX + size.width * 0.05, y: y0, width: area.width - size.width * 0.1, height: y1 - y0)
+            text.font = NSFont(name: "MarkerFelt-Wide", size: fontSize) ?? NSFont.systemFont(ofSize: fontSize, weight: .semibold)
+            text.fontSize = fontSize
+            text.foregroundColor = ink
+            text.alignmentMode = .center
+            text.truncationMode = .end
+            text.contentsScale = scale
+            tape.addSublayer(text)
+        }
+        tapeText = (title, artist)
+        writeTapeLabel()
+
+        // Cut away for the window and the hub holes: the tape and hubs show through.
+        picture(local, in: tape) { CassetteTheme.inside(g) }
         let inside = CALayer()
-        inside.frame = bounds
-        inside.mask = Self.shape(g.openings, in: bounds)
-        holder.addSublayer(inside)
+        inside.frame = local
+        inside.mask = Self.shape(g.openings, in: local)
+        tape.addSublayer(inside)
         let packImage = Paint.image(size: CGSize(width: g.full * 2, height: g.full * 2), scale: scale) { _ in CassetteTheme.pack(radius: g.full) }
         packs = g.reels.map { c in
             let pack = CALayer()
@@ -556,9 +599,22 @@ final class MusicScene: NSView {
             inside.addSublayer(h)
             return h
         }
-        _ = layer { CassetteTheme.glass(g) }
+        picture(local, in: tape) { CassetteTheme.glass(g) }
         return holder
     }
+
+    /// The song and artist written on the cassette's label.
+    private var tapeText: (title: CATextLayer, artist: CATextLayer)?
+
+    private func writeTapeLabel() {
+        guard let (title, artist) = tapeText else { return }
+        CATransaction.begin()
+        CATransaction.setDisableActions(true)
+        title.string = song?.title ?? ""
+        artist.string = song?.artist ?? ""
+        CATransaction.commit()
+    }
+
     /// An empty reel's size as a fraction of a full one's.
     private var packHub: CGFloat = 0.4
 
@@ -804,7 +860,10 @@ final class MusicScene: NSView {
         let area = CGRect(x: 0, y: bottomInset, width: bounds.width, height: bounds.height - topInset - bottomInset)
         let side = min(area.height * 0.66, area.width * 0.46)
         discRect = CGRect(x: area.midX - side / 2, y: area.midY - side / 2 + area.height * 0.03, width: side, height: side).integral
-        mediaRect = media == .cassette ? CassetteTheme.cassetteRect(in: discRect) : discRect
+        mediaRect = media == .cassette
+            ? CGRect(x: discRect.minX + Tape.tapeRect.minX * side, y: discRect.minY + Tape.tapeRect.minY * side,
+                     width: Tape.tapeRect.width * side, height: Tape.tapeRect.height * side)
+            : discRect
         ambient.arrange(in: bounds, around: discRect)
         ambient.animated = lively
         sides.lively = lively

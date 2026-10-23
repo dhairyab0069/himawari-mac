@@ -309,7 +309,7 @@ extension Skin {
              colors: .init(plate: [c("#ECEEF0"), c("#A3A8AD"), c("#D3D7DB")], glass: [c("#140C06"), c("#070402")],
                            display: c("#FF9A3C"), accent: c("#FFD23D"), peak: c("#FF3B30"), label: c("#1D2023"),
                            ink: c("#2E1F14"), meter: [c("#FFE6A8"), c("#EDB866")], button: [c("#F2F4F6"), c("#90959A")],
-                           knob: [c("#F4F6F8"), c("#7E8389")], cabinet: c("#A3A8AD"), media: c("#9AA1A8C8")),
+                           knob: [c("#F4F6F8"), c("#7E8389")], cabinet: c("#A3A8AD"), media: c("#9AA1A8")),
              brandFont: "AvenirNext-HeavyItalic", displayFont: nil,
              layout: .init(columnWidth: 300, corner: 4, gap: 6, caseWidth: 0)),
         // Today's look, exactly as before skins: the numbers are the old hard-coded ones.

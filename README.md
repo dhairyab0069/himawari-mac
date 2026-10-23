@@ -169,7 +169,7 @@ changer: your playlists as discs to flip through and play.
 | Era | The player | In the middle | Skins |
 |---|---|---|---|
 | **1970s Hi-Fi** | A receiver with a backlit tuning dial (its red pointer travels through the song), piano keys and a big tuning knob; an amplifier with VU meters | A record on a turntable; the tonearm moves in as the song plays | Walnut, Brushed Silver |
-| **1980s Cassette Deck** | A tape deck whose cassette winds from one reel to the other, piano keys and a search dial; a graphic equalizer with LED meters | A cassette with the cover on its label; its reels turn | Black Plastic, Chrome Metal |
+| **1980s Cassette Deck** | A tape deck whose cassette winds from one reel to the other, piano keys and a search dial; a graphic equalizer with LED meters | A cassette in front of its case: the whole cover on the case, the song written on the tape's label; its reels turn | Black Plastic, Chrome Metal |
 | **2000s Rack** | The CD deck and stereo analyzer (the original look, and still the default) | A picture CD | Black, Champagne Gold |
 
 The controls work the same in every era: the buttons, the progress (the ladder, or the tuning dial),
