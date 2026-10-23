@@ -17,7 +17,7 @@
 
 | Suite | Covers |
 |---|---|
-| `HimawariKitTests` | album matching for animated covers, name normalising, HLS stream choice, EQ tone bands, wallpaper brightness readings, playlists, skin files (loading, defaults from a base, rejecting bad values, the skins folder) |
+| `HimawariKitTests` | album matching for animated covers, name normalising, HLS stream choice, EQ tone bands, wallpaper brightness readings, playlists, skin files (loading, defaults from a base, rejecting bad values, the skins folder), genre → style rules, the Customise choices round-tripping through settings, cover tints |
 | `HimawariTests` | jog-wheel / CD turn maths, scrub clamping, the VU scale, where a cover goes on the CD, each era's layout (controls on the panel and apart at every size), switching styles keeps the song, the tonearm and tape maths |
 | `HimawariClockTests` | 12/24-hour, Swatch .beats, decimal time, time in words, tick intervals |
 
@@ -27,8 +27,10 @@ pull request template; pull its decisions out into pure functions where you can,
 
 ## Checking a style by eye
 
-`.build/debug/Himawari --render-styles <folder> [skin id]` draws the music scene once per skin
-(or just the one) as PNGs, without touching the desktop. `docs/styles.png` is made from these.
+`.build/debug/Himawari --render-styles <folder> [skin id | all] [era | needles | leds | spectrum]`
+draws the music scene once per skin (or just the one, with those meters) as PNGs, without touching
+the desktop. `docs/styles.png` is made from these. `--render-customise <file.png>` draws the
+Customise window (its native controls come out blank, but the layout and previews show).
 
 ## Releases
 

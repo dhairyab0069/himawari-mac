@@ -27,6 +27,8 @@ final class VideoCanvas: NSView {
     var meterSource: AudioLevels? { didSet { sides?.meterSource = meterSource } }
     /// The side gear's look.
     var style = Styles.shared.current { didSet { sides?.style = style } }
+    var meters = Styles.shared.options.meters { didSet { sides?.meters = meters } }
+    var animation = Styles.shared.options.animation { didSet { sides?.animation = animation } }
     /// The side gear, when it's showing (for the click catchers).
     var gear: NowPlayingSides? { sides }
 
@@ -40,6 +42,8 @@ final class VideoCanvas: NSView {
             let view = NowPlayingSides(frame: bounds)
             view.autoresizingMask = [.width, .height]
             view.style = style
+            view.meters = meters
+            view.animation = animation
             view.lively = sidesLively
             view.meterSource = meterSource
             addSubview(view)

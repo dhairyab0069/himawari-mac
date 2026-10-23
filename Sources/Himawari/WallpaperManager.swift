@@ -329,9 +329,17 @@ final class WallpaperManager {
     /// The Style changed (or its skin file was edited): redraw the gear and the media in it. The
     /// song, its position and whether it's playing carry on.
     func applyStyle() {
-        let skin = Styles.shared.current
-        canvases.forEach { $0.style = skin }
-        scenes.forEach { $0.style = skin }
+        let skin = Styles.shared.current, options = Styles.shared.options
+        for canvas in canvases {
+            canvas.meters = options.meters
+            canvas.animation = options.animation
+            canvas.style = skin
+        }
+        for scene in scenes {
+            scene.meters = options.meters
+            scene.animation = options.animation
+            scene.style = skin
+        }
         refreshControls()
     }
 

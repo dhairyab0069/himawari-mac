@@ -30,11 +30,21 @@ final class NowPlayingSides: NSView {
     var style: Skin = Styles.shared.current {
         didSet {
             guard style != oldValue else { return }
-            theme = Themes.make(style)
+            theme = Themes.make(style, meters: meters)
             rebuild()
         }
     }
-    private var theme: GearTheme = Themes.make(Styles.shared.current)
+    /// The level meters (Customise): the era's own, or needles, LEDs or a spectrum everywhere.
+    var meters: StyleOptions.Meters = Styles.shared.options.meters {
+        didSet {
+            guard meters != oldValue else { return }
+            theme = Themes.make(style, meters: meters)
+            rebuild()
+        }
+    }
+    /// How much the gear moves by itself (Customise): idle wheels only at full; nothing made-up when still.
+    var animation: StyleOptions.Animation = Styles.shared.options.animation { didSet { if animation != oldValue { restartMotion() } } }
+    private lazy var theme: GearTheme = Themes.make(style, meters: meters)
 
     private let deck = CALayer(), analyzer = CALayer()           // the faceplates (drawn hardware)
     private var faces: (left: PanelFace, right: PanelFace)?
@@ -153,8 +163,9 @@ final class NowPlayingSides: NSView {
 
     private func showSongText() {
         guard let info else { return }
-        texts[.title]?.string = info.title.uppercased()
-        texts[.artist]?.string = info.artist.uppercased()
+        let caps = faces?.left.uppercaseSong ?? true
+        texts[.title]?.string = caps ? info.title.uppercased() : info.title
+        texts[.artist]?.string = caps ? info.artist.uppercased() : info.artist
         texts[.album]?.string = playlistLabel ?? info.album
         layoutTitle()
     }
@@ -273,12 +284,23 @@ final class NowPlayingSides: NSView {
         }
         if let track = face.dialPointer {
             let pointer = CALayer()
-            pointer.bounds = CGRect(x: 0, y: 0, width: 2.5, height: track.height)
-            pointer.backgroundColor = style.colors.peak.cg
-            pointer.shadowColor = style.colors.peak.cg
-            pointer.shadowOpacity = 0.8
-            pointer.shadowRadius = 3
-            pointer.shadowOffset = .zero
+            if face.dialDot { // a dot riding a thin line
+                let d = min(track.height, 10)
+                pointer.bounds = CGRect(x: 0, y: 0, width: d, height: d)
+                pointer.cornerRadius = d / 2
+                pointer.backgroundColor = display.cg
+                pointer.shadowColor = NSColor.black.cgColor
+                pointer.shadowOpacity = 0.3
+                pointer.shadowRadius = 2
+                pointer.shadowOffset = CGSize(width: 0, height: -1)
+            } else { // the red needle across a tuning dial
+                pointer.bounds = CGRect(x: 0, y: 0, width: 2.5, height: track.height)
+                pointer.backgroundColor = style.colors.peak.cg
+                pointer.shadowColor = style.colors.peak.cg
+                pointer.shadowOpacity = 0.8
+                pointer.shadowRadius = 3
+                pointer.shadowOffset = .zero
+            }
             pointer.position = CGPoint(x: track.minX, y: track.midY)
             panel.addSublayer(pointer)
             dialPointer = (pointer, track)
@@ -322,9 +344,11 @@ final class NowPlayingSides: NSView {
             // Each column's mask is what moves.
             let mask = CALayer()
             mask.backgroundColor = NSColor.white.cgColor
-            mask.anchorPoint = part.vertical ? CGPoint(x: 0.5, y: 0) : CGPoint(x: 0, y: 0.5)
+            mask.anchorPoint = part.centred ? CGPoint(x: 0.5, y: 0.5) : part.vertical ? CGPoint(x: 0.5, y: 0) : CGPoint(x: 0, y: 0.5)
             mask.bounds = column.bounds
-            mask.position = part.vertical ? CGPoint(x: column.bounds.midX, y: 0) : CGPoint(x: 0, y: column.bounds.midY)
+            mask.position = part.centred ? CGPoint(x: column.bounds.midX, y: column.bounds.midY)
+                : part.vertical ? CGPoint(x: column.bounds.midX, y: 0) : CGPoint(x: 0, y: column.bounds.midY)
+            if part.centred, part.segments == 1 { column.sublayers?.first?.cornerRadius = part.frame.width / 2 }
             column.mask = mask
             panel.addSublayer(column)
             bars.append((mask, part))
@@ -517,7 +541,8 @@ final class NowPlayingSides: NSView {
         CATransaction.begin()
         CATransaction.setDisableActions(true)
         defer { CATransaction.commit() }
-        let moving = info.playing && lively && animating
+        // The gear's own made-up motion (live levels aren't made up: they show even when still).
+        let moving = info.playing && lively && animating && animation != .still
         // Live levels keep going in Battery Saver too (at half the frame rate): resting needles
         // while the song plays looked broken. Only the gear's own made-up animation rests.
         let live = info.playing && animating && (meterSource?.hearing ?? false)
@@ -533,7 +558,7 @@ final class NowPlayingSides: NSView {
         if let title = texts[.title] {
             title.removeAllAnimations()
             let overflow = title.bounds.width - titleClip.bounds.width
-            if overflow > 0, lively, animating {
+            if overflow > 0, lively, animating, animation != .still {
                 let scroll = CAKeyframeAnimation(keyPath: "position.x")
                 let x0 = title.bounds.width / 2
                 scroll.values = [x0, x0, x0 - overflow, x0 - overflow, x0]
@@ -549,7 +574,7 @@ final class NowPlayingSides: NSView {
 
         for (rotor, part) in rotors {
             rotor.removeAllAnimations()
-            guard moving, let period = part.spin else { continue }
+            guard moving, animation == .full, let period = part.spin else { continue }
             let spin = CABasicAnimation(keyPath: "transform.rotation.z")
             spin.byValue = -2 * Double.pi
             spin.duration = period
@@ -656,6 +681,22 @@ final class NowPlayingSides: NSView {
                 mask.transform = Self.barScale(min(max(needleLevel[i], 0.02), 1), part)
             default:
                 break
+            }
+        }
+        CATransaction.commit()
+    }
+
+    /// Holds the meters at a typical level, for still pictures of the gear (previews, the docs).
+    func showSampleLevels() {
+        CATransaction.begin()
+        CATransaction.setDisableActions(true)
+        let levels: [CGFloat] = [0.74, 0.66]
+        for (i, needle) in needles.enumerated() { needle.transform = CATransform3DMakeRotation(Paint.needleAngle(Double(levels[i % 2])), 0, 0, 1) }
+        let bands: [CGFloat] = [0.55, 0.72, 0.8, 0.66, 0.6, 0.7, 0.52, 0.45, 0.38, 0.3]
+        for (mask, part) in bars {
+            switch part.source {
+            case .band(let i): mask.transform = Self.barScale(bands[i % bands.count], part)
+            case .channel(let i): mask.transform = Self.barScale(levels[i % 2], part)
             }
         }
         CATransaction.commit()

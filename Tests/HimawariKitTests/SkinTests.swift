@@ -53,7 +53,7 @@ final class SkinFileTests: XCTestCase {
         XCTAssertRejects(##"{"format": 1, "id": "Big Name", "name": "A", "era": "rack"}"##,
                          .badValue("id", "use lowercase letters, digits and dashes"))
         XCTAssertRejects(##"{"format": 1, "id": "a", "name": "  ", "era": "rack"}"##, .badValue("name", "is empty"))
-        XCTAssertRejects(##"{"format": 1, "id": "a", "name": "A", "era": "1990s"}"##, .badValue("era", "one of hifi, cassette, rack"))
+        XCTAssertRejects(##"{"format": 1, "id": "a", "name": "A", "era": "1990s"}"##, .badValue("era", "one of hifi, cassette, portable, rack, pocket, minimal"))
         XCTAssertRejects(##"{"format": 1, "id": "a", "name": "A", "era": "rack", "colour": {}}"##, .unknownKey("colour"))
         XCTAssertRejects(##"{"format": 1, "id": "a", "name": "A", "era": "rack", "colors": {"dispaly": "#FFFFFF"}}"##, .unknownKey("colors.dispaly"))
         XCTAssertRejects(##"{"format": 1, "id": "a", "name": "A", "era": "rack", "colors": {"display": "cyan"}}"##,
