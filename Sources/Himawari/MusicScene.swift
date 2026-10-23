@@ -83,6 +83,7 @@ final class MusicScene: NSView {
     }
     private(set) var media: MediaKind = Themes.media(Styles.shared.current)
     private var restyleAfterChange = false
+    private var repaintAfterChange = false
 
     /// The skin and design files were read again: the gear is remade, and the media too if the
     /// design now plays something else.
@@ -245,6 +246,15 @@ final class MusicScene: NSView {
     /// A change of discs just finished: if more songs went by meanwhile, show the latest.
     private func changeFinished() {
         changing = false
+        if repaintAfterChange, printed, discRect.width > 0 { // a sharper cover came during the change
+            repaintAfterChange = false
+            renderPrint(side: printSide) { [weak self] image in
+                guard let self, self.printed, let disc = self.spinners.first else { return }
+                self.print = image
+                self.showPrint(on: disc)
+            }
+        }
+        repaintAfterChange = false
         if restyleAfterChange {
             restyleAfterChange = false
             queued = nil // the new media shows the newest cover anyway
@@ -322,6 +332,8 @@ final class MusicScene: NSView {
         ambient.show(palette)
         guard discRect.width > 0 else { return }
         guard printed else { print = nil; label?.contents = cover; return }
+        // Mid-change, a new print would cancel the change's (and the slide); print once it's done.
+        guard !changing else { repaintAfterChange = true; return }
         renderPrint(side: printSide) { [weak self] image in
             guard let self, self.printed, let disc = self.spinners.first else { return }
             self.print = image

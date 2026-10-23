@@ -267,6 +267,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         // music (the last animation or the CD) rather than dropping back to your own wallpaper.
         if on, music.searching, wallpaper.showingMusic {
             updateSong()
+            // The new song's cover is already here (the animated one is still being looked for): put
+            // it on the media now, rather than show the last song's cover under the new title.
+            if wallpaper.showingScene, let art = music.artwork { wallpaper.setScene(art) }
             return
         }
         wallpaper.setOverride(on ? music.motionVideo : nil)
@@ -282,7 +285,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         if wantsScene, !music.searching, let art = music.displayArtwork { scene = art }
         else if wantsScene, wallpaper.showingScene { scene = music.displayArtwork }
         else { scene = nil }
-        if !(scene == nil && wantsScene && wallpaper.showingScene) { wallpaper.setScene(scene) }
+        if !(scene == nil && wantsScene && wallpaper.showingScene) { wallpaper.setScene(scene, placeholder: music.artwork == nil) }
         updateSong()
         // Only track the song's position while a YouTube video needs to follow it.
         // (the side-bar player's time and progress, too).
