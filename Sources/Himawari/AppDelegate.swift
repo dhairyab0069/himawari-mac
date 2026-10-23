@@ -21,6 +21,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     private var lyricsWatch: AnyCancellable?
     private let lyricsStore = LyricsStore()
     private let customiser = StyleCustomiser()
+    private let updater = Updater()
     private var pausedSince: Date? // when Music last stopped reporting "playing"
     private var clockHotKey: HotKey? // ⌃⌥⌘C: show / hide the desktop clock
     private var repairTimer: Timer?
@@ -47,6 +48,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     func applicationDidFinishLaunching(_ notification: Notification) {
         Styles.shared.reload() // the skins folder, before the first gear is drawn
         customiser.onChange = { [weak self] reloaded in self?.wallpaper.applyStyle(reloaded: reloaded) }
+        updater.start()
         Styles.shared.watch { [weak self] in
             self?.wallpaper.applyStyle(reloaded: true)
             self?.customiser.skinsChanged()
@@ -267,6 +269,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         // music (the last animation or the CD) rather than dropping back to your own wallpaper.
         if on, music.searching, wallpaper.showingMusic {
             updateSong()
+            // The new song's cover is already here (the animated one is still being looked for): put
+            // it on the media now, rather than show the last song's cover under the new title.
+            if wallpaper.showingScene, let art = music.artwork { wallpaper.setScene(art) }
             return
         }
         wallpaper.setOverride(on ? music.motionVideo : nil)
@@ -282,7 +287,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         if wantsScene, !music.searching, let art = music.displayArtwork { scene = art }
         else if wantsScene, wallpaper.showingScene { scene = music.displayArtwork }
         else { scene = nil }
-        if !(scene == nil && wantsScene && wallpaper.showingScene) { wallpaper.setScene(scene) }
+        if !(scene == nil && wantsScene && wallpaper.showingScene) { wallpaper.setScene(scene, placeholder: music.artwork == nil) }
         updateSong()
         // Only track the song's position while a YouTube video needs to follow it.
         // (the side-bar player's time and progress, too).
@@ -456,6 +461,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
                                 action: nil, keyEquivalent: "")
         status.isEnabled = false
         menu.addItem(status)
+        if let release = updater.available { // a new version: say so at the top
+            let update = item(updater.installing ? "Updating to \(release.name)…" : "⬆︎ Update to \(release.name)…", #selector(installUpdate))
+            update.isEnabled = !updater.installing
+            menu.addItem(update)
+        }
         menu.addItem(.separator())
 
         menu.addItem(item("Choose Video…", #selector(chooseVideo), key: forDock ? "" : "o"))
@@ -514,6 +524,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         menu.addItem(item("Pause When Desktop Is Covered", #selector(toggleCovered), checked: settings.pauseWhenCovered))
         menu.addItem(item("Pause on Battery", #selector(toggleBattery), checked: settings.pauseOnBattery))
         menu.addItem(item("Show in Dock", #selector(toggleDock), checked: settings.showInDock))
+        menu.addItem(item("Check for Updates…", #selector(checkForUpdates)))
+        menu.addItem(item("Check for Updates Automatically", #selector(toggleAutoUpdates), checked: updater.automatic))
         menu.addItem(item("Launch at Login", #selector(toggleLaunchAtLogin),
                           checked: SMAppService.mainApp.status == .enabled))
         let note = NSMenuItem(title: "Clock options: right-click the clock", action: nil, keyEquivalent: "")
@@ -613,6 +625,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     }
 
     @objc private func showCustomiser() { customiser.show() }
+
+    @objc private func checkForUpdates() { updater.check(interactive: true) }
+    @objc private func toggleAutoUpdates() { updater.automatic.toggle() }
+    @objc private func installUpdate() {
+        guard let release = updater.available else { return }
+        updater.offer(release)
+    }
 
     @objc private func openSkinsFolder() {
         Styles.shared.prepareFolders() // the folder and its examples, the first time (the watcher reads changes)

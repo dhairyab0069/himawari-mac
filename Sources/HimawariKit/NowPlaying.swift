@@ -134,6 +134,16 @@ public final class MusicNowPlaying: ObservableObject {
     /// The exact cover Music is showing, from the system's Now Playing: better than asking Music
     /// (streamed songs have no artwork over AppleScript) or guessing via the iTunes Search API.
     /// For streamed songs it's also on Apple's image server, where a sharper copy can be had.
+    /// The last cover the system sent, and for which artwork and album.
+    private var lastSystemCover: (id: String?, album: String, data: Data)?
+
+    /// A message without a cover can reuse the last one when it names the same artwork for the
+    /// same album (the same artwork for another album is the last song's, right after a skip).
+    nonisolated static func reusesSystemCover(id: String?, album: String, last: (id: String?, album: String)) -> Bool {
+        guard let id, !id.isEmpty else { return false }
+        return id == last.id && album == last.album
+    }
+
     private func useSystemArtwork(_ data: Data, id: String?) {
         guard let image = NSImage(data: data) else { return }
         artwork = image
@@ -206,7 +216,13 @@ public final class MusicNowPlaying: ObservableObject {
         let stale = s.artworkID != nil && s.artworkID == shownArtwork?.id && album != shownArtwork?.album
         if let data = s.artwork, !stale {
             shownArtwork = (s.artworkID, album)
+            lastSystemCover = (s.artworkID, album, data)
             useSystemArtwork(data, id: s.artworkID)
+        } else if systemArtworkGeneration != generation, let last = lastSystemCover,
+                  Self.reusesSystemCover(id: s.artworkID, album: album, last: (last.id, last.album)) {
+            // The system sends a cover once per artwork: the next song on the same album (or the
+            // same song after a blip) gets none. It's the cover we already have.
+            useSystemArtwork(last.data, id: last.id)
         }
         let age = max(0, Date().timeIntervalSince1970 - s.timestamp) // how old the reading is
         // Some web players never report a position (Firefox on many sites says 0 every time):
@@ -493,6 +509,10 @@ public final class MusicNowPlaying: ObservableObject {
         isPlaying = playing
         if playing { lastPlayingAt = CACurrentMediaTime() }
         guard new != track else { return }
+        // Music can read "stopped" for a moment (a skip, a slow answer): the same song back within
+        // a few seconds is the same song, and keeps the cover it had.
+        let back = new != nil && new == gone?.track && CACurrentMediaTime() - (gone?.at ?? 0) < 5 ? gone?.artwork : nil
+        if new == nil, let track { gone = (track, artwork, CACurrentMediaTime()) }
         track = new
         position = 0
         measuredPosition = 0
@@ -503,14 +523,21 @@ public final class MusicNowPlaying: ObservableObject {
         reportsPosition = false
         searching = new != nil
         artwork = nil // never show the last song's cover for this one
-        guard let new else { artwork = nil; motionVideo = nil; genre = nil; return }
+        // (The genre stands until the next song's lookup says otherwise: clearing it on a blip
+        // flipped a look that follows the genre to the default and back.)
+        guard let new else { artwork = nil; motionVideo = nil; return }
+        if let back { artwork = back; systemArtworkGeneration = generation }
         loadArtwork(for: new, generation: generation)
     }
+
+    /// The song that just stopped, its cover, and when (see `set(track:)`).
+    private var gone: (track: Track, artwork: NSImage?, at: CFTimeInterval)?
 
     private func loadArtwork(for track: Track, generation: Int) {
         // 1) The cover Music has (works for your own imported songs too). Other players' covers
         // come from the system stream (useSystemArtwork) or the catalog search below.
-        let path = artworkFile.path
+        // One file per song: two scripts in flight (quick skips) mustn't hand each other's cover over.
+        let path = artworkFile.path + "-\(generation)"
         if onAppleMusic { Self.osascript("""
         tell application id "\(Self.music)" to set d to raw data of artwork 1 of current track
         set f to open for access (POSIX file "\(path)") with write permission
@@ -522,6 +549,7 @@ public final class MusicNowPlaying: ObservableObject {
             guard let self, self.generation == generation, ok == "ok",
                   self.systemArtworkGeneration != generation else { return } // the system's cover is exact
             self.artwork = NSImage(contentsOfFile: path)
+            try? FileManager.default.removeItem(atPath: path)
         } }
         // 2) Apple Music's motion artwork (and a cover, if Music didn't have one).
         // No album name: key by the song too, or every album-less song by this artist would share one answer.

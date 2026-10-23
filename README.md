@@ -73,6 +73,10 @@
 
 Himawari lives in the menu bar (the sunflower icon). To uninstall, quit Himawari and move it to the Trash.
 
+**Updating:** from Beta 1.5.1, Himawari looks for a new version at launch and once a day, and the menu's
+top item becomes **⬆︎ Update to Beta …** when there is one: one click downloads it, swaps it in and
+reopens. **Check for Updates…** looks right away. (From an older beta, download the DMG once more.)
+
 Downloads are also on the [project page](https://dhairyab0069.github.io/himawari-io/).
 
 ## Using Himawari
@@ -392,6 +396,7 @@ Himawari has no accounts, analytics or telemetry, and uploads nothing about you.
 | `*.mzstatic.com` (Apple's image and video servers) | A song starts | The cover in full resolution; the animated cover itself |
 | `youtube.com`, `i.ytimg.com` | Only with **…or a YouTube Loop of the Song** on | Finding and playing the music video, in YouTube's embedded player |
 | `lrclib.net` | Only with **Lyrics** on, when a song starts | Its lyrics: only the title, artist, album and length are sent |
+| `api.github.com`, `github.com` | At launch and once a day (unless **Check for Updates Automatically** is off), and when you update | Whether there's a newer Himawari, and downloading it |
 
 With **Show Wallpaper on Lock Screen** on, Himawari changes your macOS wallpaper picture (to a frame of your video, kept in `~/Library/Application Support/Himawari`) and remembers the one you had.
 

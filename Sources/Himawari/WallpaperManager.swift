@@ -25,6 +25,9 @@ final class WallpaperManager {
     private var sceneArt: NSImage?                     // the CD scene, for songs with nothing to loop
     private var scenes: [MusicScene] = []
     private var sceneSong: String? // the song whose cover is on the CD
+    private var sceneArtIsPlaceholder = false // …and whether it's only the plain title label
+    /// What makes two readings the same song (as the player's Track does: the album too).
+    private static func songKey(_ s: SongInfo) -> String { "\(s.title)|\(s.artist)|\(s.album)" }
     /// Which way the next change of discs goes (Previous brings the last disc back from the left).
     var discDirection: DiscDirection = .forward
     private var song: SongInfo?
@@ -274,20 +277,25 @@ final class WallpaperManager {
     // MARK: - The CD scene
 
     /// Show the spinning-CD scene for this cover (nil = back to the video).
-    func setScene(_ art: NSImage?) {
+    /// `placeholder`: the art is the plain title label for a song with no cover yet.
+    func setScene(_ art: NSImage?, placeholder: Bool = false) {
         guard art !== sceneArt else { return }
         if let art, sceneArt != nil, !scenes.isEmpty {
             // Already showing the CD. The same song's cover again (a sharper copy): repaint the
             // disc in place. A new song's: change discs.
-            let sameSong = song.map { "\($0.title)|\($0.artist)" } == sceneSong
+            let sameSong = song.map(Self.songKey) == sceneSong
+            // The plain label never replaces a real cover the same song already shows.
+            if sameSong, placeholder, !sceneArtIsPlaceholder { return }
+            sceneArtIsPlaceholder = placeholder
             sceneArt = art
             scenes.forEach { sameSong ? $0.repaint(with: art) : $0.setArtwork(art, direction: discDirection) }
-            sceneSong = song.map { "\($0.title)|\($0.artist)" }
+            sceneSong = song.map(Self.songKey)
             sceneTone()
             return
         }
-        sceneSong = song.map { "\($0.title)|\($0.artist)" }
+        sceneSong = song.map(Self.songKey)
         sceneArt = art
+        sceneArtIsPlaceholder = placeholder
         // The CD slides off before the scene goes (see MusicScene.leave); a new scene, if any,
         // is added on top meanwhile.
         let leaving = scenes
