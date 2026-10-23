@@ -228,6 +228,101 @@ struct CassetteTheme: GearTheme {
         CGRect(x: reels[0].x - full * 1.05, y: reels[0].y - full * tall, width: reels[1].x - reels[0].x + full * 2.1, height: full * tall * 2)
     }
 
+    /// The big cassette in the music scene, laid out like the real thing (100 × 63.8 mm, hubs
+    /// 42.4 mm apart): the cover fills the label, and the tape shows through a window between the
+    /// hubs and through the round holes around them.
+    @MainActor
+    struct Big {
+        let bounds: CGRect
+        let reels: [CGPoint]
+        let spool: CGFloat    // an empty reel's radius
+        let full: CGFloat     // a full reel's radius
+        let hole: CGFloat     // the round openings around the hubs
+        let hubD: CGFloat     // the hubs' diameter
+        let window: CGRect    // the clear window between them
+
+        init(size: CGSize) {
+            bounds = CGRect(origin: .zero, size: size)
+            let (w, h) = (size.width, size.height)
+            let y = labelArea(bounds).midY
+            reels = [CGPoint(x: w * (0.5 - 0.212), y: y), CGPoint(x: w * (0.5 + 0.212), y: y)]
+            spool = w * 0.075
+            full = w * 0.17
+            hole = h * 0.12
+            hubD = h * 0.17
+            let gap = h * 0.035
+            window = CGRect(x: reels[0].x + hole + gap, y: y - h * 0.1, width: reels[1].x - reels[0].x - 2 * (hole + gap), height: h * 0.2)
+        }
+
+        /// Where the label is cut away: the window and the two hub holes.
+        var openings: CGPath {
+            let p = CGMutablePath()
+            p.addRoundedRect(in: window, cornerWidth: window.height * 0.18, cornerHeight: window.height * 0.18)
+            for c in reels { p.addEllipse(in: CGRect(x: c.x - hole, y: c.y - hole, width: hole * 2, height: hole * 2)) }
+            return p
+        }
+    }
+
+    /// Behind the openings: the dark inside of the shell (the tape and hubs go over it).
+    static func inside(_ g: Big) {
+        let path = NSBezierPath(cgPath: g.openings)
+        NSColor(white: 0.05, alpha: 1).setFill(); path.fill()
+        NSGraphicsContext.saveGraphicsState()
+        path.addClip()
+        NSGradient(colors: [NSColor(white: 0.14, alpha: 1), NSColor(white: 0.03, alpha: 1)])?.draw(in: g.window.insetBy(dx: -g.hole * 3, dy: -g.hole), angle: -90)
+        NSGraphicsContext.restoreGraphicsState()
+    }
+
+    /// Over the openings: their edges, the window's clear plastic catching the light, and the
+    /// tape-length marks printed beside the window.
+    static func glass(_ g: Big) {
+        let path = NSBezierPath(cgPath: g.openings)
+        NSGraphicsContext.saveGraphicsState()
+        path.addClip()
+        // A soft shade just inside every edge: the label's thickness.
+        for (width, alpha) in [(8.0, 0.18), (4.0, 0.25)] {
+            let edge = NSBezierPath(cgPath: g.openings)
+            edge.lineWidth = width
+            NSColor(white: 0, alpha: alpha).setStroke(); edge.stroke()
+        }
+        // The window's plastic: a diagonal sheen.
+        let sheen = NSBezierPath()
+        let w = g.window
+        sheen.move(to: CGPoint(x: w.minX + w.width * 0.15, y: w.maxY)); sheen.line(to: CGPoint(x: w.minX + w.width * 0.42, y: w.maxY))
+        sheen.line(to: CGPoint(x: w.minX + w.width * 0.27, y: w.minY)); sheen.line(to: CGPoint(x: w.minX, y: w.minY)); sheen.close()
+        NSColor(white: 1, alpha: 0.07).setFill(); sheen.fill()
+        NSGraphicsContext.restoreGraphicsState()
+        NSColor(white: 0, alpha: 0.6).setStroke(); path.lineWidth = 1.5; path.stroke()
+        NSColor(white: 1, alpha: 0.18).setStroke()
+        let rim = NSBezierPath(cgPath: g.openings)
+        rim.transform(using: AffineTransform(translationByX: 0, byY: -1))
+        rim.lineWidth = 0.8; rim.stroke()
+        // Tape-length marks above and below the window.
+        NSColor(white: 1, alpha: 0.85).setFill()
+        for i in 0...8 {
+            let x = w.minX + w.width * (0.1 + 0.8 * CGFloat(i) / 8)
+            let long = i % 4 == 0
+            NSRect(x: x - 0.6, y: w.maxY + 2, width: 1.2, height: long ? w.height * 0.12 : w.height * 0.07).fill()
+            NSRect(x: x - 0.6, y: w.minY - 2 - (long ? w.height * 0.12 : w.height * 0.07), width: 1.2, height: long ? w.height * 0.12 : w.height * 0.07).fill()
+        }
+    }
+
+    /// A pack of tape seen edge-on through the window: brown, with the faint rings of its turns.
+    static func pack(radius r: CGFloat) {
+        let c = CGPoint(x: r, y: r)
+        NSGradient(colors: [NSColor(red: 0.36, green: 0.21, blue: 0.12, alpha: 1), NSColor(red: 0.24, green: 0.13, blue: 0.07, alpha: 1)])?
+            .draw(in: NSBezierPath(ovalIn: NSRect(x: 0, y: 0, width: 2 * r, height: 2 * r)), relativeCenterPosition: NSPoint(x: -0.3, y: 0.3))
+        var rng = SeededRandom(seed: 90)
+        for rad in stride(from: r * 0.3, to: r, by: 1.6) {
+            NSColor(white: Bool.random(using: &rng) ? 1 : 0, alpha: .random(in: 0.02...0.07, using: &rng)).setStroke()
+            let ring = NSBezierPath(ovalIn: NSRect(x: c.x - rad, y: c.y - rad, width: rad * 2, height: rad * 2))
+            ring.lineWidth = 0.8
+            ring.stroke()
+        }
+        NSColor(white: 1, alpha: 0.12).setStroke()
+        NSBezierPath(ovalIn: NSRect(x: 0.5, y: 0.5, width: 2 * r - 1, height: 2 * r - 1)).stroke()
+    }
+
     /// A reel's hub: a white ring with six teeth (so you can see it turn).
     static func hub(diameter d: CGFloat) {
         let c = CGPoint(x: d / 2, y: d / 2)

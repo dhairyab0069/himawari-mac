@@ -62,7 +62,8 @@ struct HiFiTheme: GearTheme {
         face.rotors = [RotorPart(frame: knob, draw: { Paint.wheel(diameter: $0, skin) }, spin: nil, isJog: true)]
         face.controls = toggles
         for (control, rect) in zip([GearControl.previous, .playPause, .next, .stop, .eject], keys) { face.controls[control] = rect }
-        face.controls[.progress] = scale.insetBy(dx: 0, dy: -2)
+        // Along the pointer's track, so a click lands where the pointer would be.
+        face.controls[.progress] = CGRect(x: track.minX, y: scale.minY - 2, width: track.width, height: scale.height + 4)
         face.controls[.jog] = knob
         return face
     }

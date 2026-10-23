@@ -51,6 +51,21 @@ final class ThemeLayoutTests: XCTestCase {
         }
     }
 
+    func testClickingTheProgressLandsWhereItsPointerWouldBe() {
+        // GearControls seeks to x / width across the click area: it must span what moves.
+        for skin in Skin.builtIn {
+            let face = Themes.make(skin).left(size: sizes[2])
+            let click = face.controls[.progress]!
+            if let track = face.dialPointer {
+                XCTAssertEqual(click.minX, track.minX, accuracy: 0.01, skin.id)
+                XCTAssertEqual(click.width, track.width, accuracy: 0.01, skin.id)
+            } else {
+                XCTAssertEqual(click.minX, face.ladder.first!.minX, accuracy: 0.01, skin.id)
+                XCTAssertEqual(click.maxX, face.ladder.last!.maxX, accuracy: 0.01, skin.id)
+            }
+        }
+    }
+
     func testKnobGrabAreasShrinkRatherThanOverlap() {
         let knobs: [(control: GearControl, rect: CGRect)] = [(.bass, CGRect(x: 0, y: 0, width: 40, height: 40)),
                                                               (.treble, CGRect(x: 52, y: 0, width: 40, height: 40))]

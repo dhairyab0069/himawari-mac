@@ -260,7 +260,7 @@ final class NowPlayingSides: NSView {
         }
 
         // Progress.
-        ladderGlow = face.ladderGlow
+        if !face.ladder.isEmpty { ladderGlow = face.ladderGlow }
         for frame in face.ladder {
             let seg = CALayer()
             seg.frame = frame

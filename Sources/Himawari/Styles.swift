@@ -9,7 +9,10 @@ final class Styles {
     private let defaults = UserDefaults.standard
 
     /// The look the side gear and the music scene use (Himawari menu ▸ Style).
-    var current: Skin { library.skin(id: defaults.string(forKey: "gearSkin")) ?? .standard }
+    /// (A skin file with a built-in's id replaces it here too, chosen or not.)
+    var current: Skin {
+        library.skin(id: defaults.string(forKey: "gearSkin") ?? Skin.standard.id) ?? library.skin(id: Skin.standard.id) ?? .standard
+    }
 
     func select(_ id: String) {
         guard library.skin(id: id) != nil else { return }
